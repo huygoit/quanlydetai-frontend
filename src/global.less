@@ -1,0 +1,121 @@
+/**
+ * Global Styles
+ * Theo specs/layout-branding.md
+ */
+
+/* ========== BRANDING HEADER ========== */
+
+.khcn-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px;
+}
+
+.khcn-menu-header-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.khcn-logo img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.khcn-title-wrap {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.khcn-title-main {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.khcn-title-sub {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ========== HEADER RIGHT ========== */
+
+.khcn-header-right {
+  display: flex;
+  align-items: center;
+  padding-right: 24px;
+}
+
+.khcn-header-icon {
+  font-size: 18px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.65);
+  transition: color 0.3s;
+  
+  &:hover {
+    color: #1890ff;
+  }
+}
+
+.khcn-user-trigger {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+}
+
+.khcn-user-name-header {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.85);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.khcn-user-dropdown-info {
+  padding: 4px 0;
+}
+
+.khcn-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.khcn-user-role {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-top: 2px;
+}
+
+/* ========== SUBMENU ICONS ========== */
+
+// Custom submenu item với icon
+.khcn-submenu-item {
+  display: flex !important;
+  align-items: center;
+  
+  .anticon {
+    margin-right: 8px;
+    font-size: 14px;
+    min-width: 14px;
+  }
+}
+
+// Fix menu item text overflow
+.ant-pro-base-menu .ant-menu-title-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

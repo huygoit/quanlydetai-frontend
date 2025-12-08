@@ -1,0 +1,489 @@
+/**
+ * HomeForCNDT Styles
+ * Theo specs/home-enterprise.md
+ */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ============ HEADER CARD ============ */
+.headerCard {
+  background: linear-gradient(135deg, #1890ff 0%, #722ed1 100%);
+  border-radius: 12px !important;
+  overflow: hidden;
+
+  :global {
+    .ant-pro-card-body {
+      padding: 28px 32px;
+    }
+  }
+}
+
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.avatar {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.headerText {
+  flex: 1;
+}
+
+.greeting {
+  color: #fff !important;
+  font-size: 24px !important;
+  margin: 0 0 8px 0 !important;
+  font-weight: 600 !important;
+}
+
+.roleLabel {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 14px;
+}
+
+.roleTag {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+
+/* ============ KPI CARDS - Spec 2.1 ============ */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media screen and (max-width: 1200px) {
+  .kpiRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media screen and (max-width: 576px) {
+  .kpiRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpiCard {
+  border-radius: 12px !important; // Spec: borderRadius 12
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  &:hover {
+    transform: scale(1.02); // Spec: hover scale 1.02
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  :global {
+    .ant-pro-card-body {
+      padding: 20px; // Spec: padding 20
+    }
+  }
+}
+
+.kpiContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.kpiIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px; // Spec: Icon 32-40px (có thể tăng lên)
+  flex-shrink: 0;
+  transition: transform 0.3s;
+
+  .kpiCard:hover & {
+    transform: scale(1.1);
+  }
+}
+
+.kpiInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.kpiTitle {
+  display: block;
+  font-size: 13px;
+  color: #8c8c8c;
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.kpiValue {
+  font-size: 36px; // Spec: Value 38px (gần đúng)
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.kpiUnit {
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.kpiTrend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.trendUp {
+  color: #52c41a !important;
+}
+
+.trendDown {
+  color: #ff4d4f !important;
+}
+
+.trendText {
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+/* ============ LIST CARDS ============ */
+.listCard {
+  border-radius: 12px !important;
+  height: 100%;
+  min-height: 400px;
+
+  :global {
+    .ant-pro-card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .ant-pro-card-header-title {
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .ant-pro-card-body {
+      padding: 0;
+    }
+  }
+}
+
+/* ============ TASK LIST - Spec 2.3 ============ */
+.taskList {
+  max-height: 340px;
+  overflow-y: auto;
+
+  :global {
+    .ant-list-item {
+      padding: 14px 20px;
+      border-bottom: 1px solid #f5f5f5;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background-color: #fafafa; // Spec: Hover highlight
+      }
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+}
+
+.taskItem {
+  // Quá hạn → background đỏ nhạt
+  &.taskOverdue {
+    background-color: #fff2f0 !important;
+
+    &:hover {
+      background-color: #ffebe8 !important;
+    }
+  }
+
+  // Hôm nay → background vàng nhạt
+  &.taskToday {
+    background-color: #fffbe6 !important;
+
+    &:hover {
+      background-color: #fff7cc !important;
+    }
+  }
+}
+
+.taskIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: transform 0.2s;
+
+  .taskItem:hover & {
+    transform: scale(1.1);
+  }
+}
+
+.taskTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.taskName {
+  max-width: 200px;
+  font-weight: 500;
+}
+
+.priorityTag {
+  font-size: 10px !important;
+  padding: 0 6px !important;
+  line-height: 18px !important;
+}
+
+.taskMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.taskDesc {
+  font-size: 12px;
+}
+
+.taskDeadline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ============ NOTIFICATION LIST - Spec 2.4 ============ */
+.notificationList {
+  max-height: 340px;
+  overflow-y: auto;
+
+  :global {
+    .ant-list-item {
+      padding: 14px 20px;
+      border-bottom: 1px solid #f5f5f5;
+      transition: all 0.2s ease;
+
+      &:hover {
+        background-color: #fafafa;
+      }
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+}
+
+.notificationItem {
+  // Spec: Unread → background #f6ffed
+  &.unread {
+    background-color: #f6ffed !important;
+
+    &:hover {
+      background-color: #e8f7e0 !important;
+    }
+  }
+}
+
+.notiTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.urgentIcon {
+  color: #ff4d4f;
+  font-size: 14px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.notiMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.notiContent {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin: 0 !important;
+}
+
+.notiTime {
+  font-size: 11px;
+}
+
+/* ============ TABS CARD - Spec 2.5 ============ */
+.tabsCard {
+  border-radius: 12px !important;
+
+  :global {
+    .ant-pro-card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .ant-pro-card-header-title {
+      font-weight: 600;
+    }
+
+    .ant-pro-card-body {
+      padding: 0 20px 20px;
+    }
+
+    .ant-tabs-nav {
+      margin-bottom: 16px;
+    }
+
+    .ant-tabs-tab {
+      padding: 12px 0;
+      font-size: 14px;
+
+      &:hover {
+        color: #1890ff;
+      }
+    }
+
+    .ant-pro-table {
+      .ant-table {
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .ant-table-thead > tr > th {
+        background: #fafafa;
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      .ant-table-tbody > tr {
+        transition: background-color 0.2s;
+
+        &:hover > td {
+          background: #f5f5f5;
+        }
+      }
+    }
+
+    .ant-pagination {
+      margin-top: 16px;
+    }
+  }
+}
+
+/* ============ SCROLLBAR ============ */
+.taskList::-webkit-scrollbar,
+.notificationList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.taskList::-webkit-scrollbar-track,
+.notificationList::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 3px;
+}
+
+.taskList::-webkit-scrollbar-thumb,
+.notificationList::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 3px;
+
+  &:hover {
+    background: #bfbfbf;
+  }
+}
+
+/* ============ RESPONSIVE ============ */
+@media screen and (max-width: 768px) {
+  .headerContent {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .greeting {
+    font-size: 20px !important;
+  }
+
+  .kpiContent {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .kpiValue {
+    font-size: 28px;
+  }
+
+  .taskName {
+    max-width: 150px;
+  }
+}
+
+/* ============ ANIMATIONS ============ */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.headerCard {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.listCard {
+  animation: fadeInUp 0.5s ease-out 0.3s both;
+}
+
+.tabsCard {
+  animation: fadeInUp 0.5s ease-out 0.4s both;
+}
+
+
