@@ -34,13 +34,36 @@ export default defineConfig({
       access: 'canViewHome',
     },
 
-    // Hồ sơ khoa học
+    // Hồ sơ khoa học - NCV thấy "Hồ sơ của tôi", PHONG_KH/ADMIN thấy "Danh sách hồ sơ"
     {
       path: '/profile',
       name: 'Hồ sơ khoa học',
       icon: 'IdcardOutlined',
-      component: '@/pages/profile',
       access: 'canViewProfile',
+      routes: [
+        {
+          path: '/profile/me',
+          name: 'Hồ sơ của tôi',
+          icon: 'UserOutlined',
+          component: '@/pages/profile/me',
+          access: 'canViewProfileSelf',
+        },
+        {
+          path: '/profile/list',
+          name: 'Danh sách hồ sơ',
+          icon: 'TeamOutlined',
+          component: '@/pages/profile/list',
+          access: 'canViewProfileAll',
+        },
+      ],
+    },
+    // Chi tiết hồ sơ (hidden route)
+    {
+      path: '/profile/:id',
+      name: 'Chi tiết hồ sơ',
+      component: '@/pages/profile/detail',
+      access: 'canViewProfileAll',
+      hideInMenu: true,
     },
 
     // Ngân hàng ý tưởng

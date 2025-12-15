@@ -4,11 +4,12 @@
  */
 import { history, Link } from '@umijs/max';
 import type { RunTimeLayoutConfig } from '@umijs/max';
-import { Avatar, Badge, ConfigProvider, Dropdown, Space } from 'antd';
+import { Avatar, ConfigProvider, Dropdown, Space } from 'antd';
 import viVN from 'antd/locale/vi_VN';
-import { BellOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import * as allIcons from '@ant-design/icons';
 import type { UserRole } from '@/services/mock/homeMockService';
+import NotificationBell from '@/components/NotificationBell';
 import './global.less';
 
 // Custom Vietnamese locale với pagination text tùy chỉnh
@@ -187,10 +188,8 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
       
       return (
         <Space size={16} className="khcn-header-right">
-          {/* Chuông thông báo */}
-          <Badge count={3} size="small">
-            <BellOutlined className="khcn-header-icon" />
-          </Badge>
+          {/* Chuông thông báo với dropdown */}
+          <NotificationBell userId={currentUser.role} />
           
           {/* User dropdown */}
           <Dropdown

@@ -1,0 +1,601 @@
+/**
+ * Profile Me Page - VIP PRO Styles
+ * 2-column layout with sticky summary
+ */
+
+@primary-color: #1890ff;
+@success-color: #52c41a;
+@warning-color: #faad14;
+@error-color: #ff4d4f;
+@border-radius: 12px;
+@box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+@box-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+.profile-me-page {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ed 100%);
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+
+/* Loading state */
+.profile-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+/* Header card */
+.profile-header-card {
+  border-radius: @border-radius;
+  box-shadow: @box-shadow;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: none;
+
+  .ant-card-body {
+    padding: 24px 32px;
+  }
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.profile-avatar {
+  flex-shrink: 0;
+  border: 3px solid #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.profile-header-info {
+  flex: 1;
+}
+
+.profile-name {
+  margin-bottom: 4px !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.verified-badge {
+  color: @success-color;
+  font-size: 20px;
+}
+
+.profile-badges {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .ant-tag {
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 12px;
+  }
+}
+
+/* Alert */
+.profile-alert {
+  margin-bottom: 24px;
+  border-radius: @border-radius;
+  border: none;
+  box-shadow: @box-shadow;
+}
+
+/* Content row */
+.profile-content {
+  margin-top: 0;
+}
+
+/* Tabs card */
+.profile-tabs-card {
+  border-radius: @border-radius;
+  box-shadow: @box-shadow;
+  background: #fff;
+  border: none;
+  overflow: hidden;
+
+  .ant-card-body {
+    padding: 0;
+  }
+
+  .ant-tabs {
+    .ant-tabs-nav {
+      padding: 0 24px;
+      margin-bottom: 0;
+      background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
+      border-bottom: 1px solid #f0f0f0;
+
+      &::before {
+        display: none;
+      }
+    }
+
+    .ant-tabs-tab {
+      padding: 16px 8px;
+      margin-right: 24px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+
+      &:hover {
+        color: @primary-color;
+      }
+
+      .anticon {
+        margin-right: 8px;
+      }
+    }
+
+    .ant-tabs-tab-active {
+      font-weight: 600;
+    }
+
+    .ant-tabs-content-holder {
+      padding: 24px;
+    }
+  }
+}
+
+.tab-badge {
+  margin-left: 8px;
+  font-size: 11px;
+  padding: 0 6px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 9px;
+}
+
+/* Form sections */
+.form-section {
+  margin-bottom: 24px;
+
+  h5 {
+    color: #1a1a2e;
+    font-weight: 600;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #f0f0f0;
+  }
+}
+
+.form-actions {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Sections */
+.section-header {
+  margin-bottom: 16px;
+
+  h5 {
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .anticon {
+      color: @primary-color;
+    }
+  }
+}
+
+/* Suggestions */
+.suggestions-section {
+  background: linear-gradient(135deg, #fff7e6 0%, #fffbe6 100%);
+  padding: 20px;
+  border-radius: @border-radius;
+  margin-bottom: 24px;
+  border: 1px solid #ffd591;
+}
+
+/* Publications tab - Enhanced VIP PRO */
+.publications-tab {
+  .publications-filters {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #fafbfc;
+    border-radius: 8px;
+
+    .filter-stats {
+      font-size: 13px;
+    }
+  }
+
+  .publications-main-section {
+    margin-top: 16px;
+  }
+
+  .publications-table {
+    .ant-pro-list {
+      .ant-pro-list-row {
+        padding: 16px;
+        margin-bottom: 12px;
+        background: #fff;
+        border: 1px solid #f0f0f0;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+
+        &:hover {
+          border-color: @primary-color;
+          box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+        }
+      }
+
+      .ant-pro-list-row-title {
+        font-weight: 600;
+        color: #1a1a2e;
+        font-size: 14px;
+      }
+
+      .ant-pro-list-row-description {
+        color: #666;
+        margin-top: 6px;
+      }
+
+      .ant-pro-list-row-subTitle {
+        margin-top: 8px;
+      }
+    }
+  }
+
+  .pub-title-link {
+    color: #1a1a2e;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      color: @primary-color;
+    }
+  }
+}
+
+/* Suggestions section */
+.suggestions-section {
+  background: linear-gradient(135deg, #fff7e6 0%, #fffbe6 100%);
+  padding: 20px;
+  border-radius: @border-radius;
+  margin-bottom: 24px;
+  border: 1px solid #ffd591;
+
+  .section-header {
+    margin-bottom: 16px;
+
+    h5 {
+      margin-bottom: 4px;
+      color: #d48806;
+
+      .anticon {
+        margin-right: 8px;
+      }
+    }
+  }
+
+  .suggestions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .suggestion-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #ffe7ba;
+    transition: all 0.2s ease;
+
+    &:hover {
+      border-color: #ffc53d;
+      box-shadow: 0 2px 8px rgba(250, 173, 20, 0.15);
+    }
+
+    .suggestion-content {
+      flex: 1;
+      min-width: 0;
+
+      .suggestion-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: #1a1a2e;
+        margin-bottom: 8px;
+        line-height: 1.4;
+      }
+
+      .suggestion-meta {
+        margin-bottom: 4px;
+      }
+
+      .suggestion-authors {
+        font-size: 12px;
+      }
+    }
+
+    .suggestion-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+  }
+}
+
+/* Publication detail modal */
+.publication-detail {
+  .detail-tags {
+    margin-bottom: 16px;
+  }
+
+  .detail-info {
+    .ant-col {
+      margin-bottom: 8px;
+    }
+  }
+}
+
+/* Projects & attachments tabs */
+.projects-tab,
+.attachments-tab {
+  .ant-pro-list {
+    .ant-pro-list-row-content {
+      padding: 16px 0;
+      border-bottom: 1px solid #f5f5f5;
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    .ant-pro-list-row-title {
+      font-weight: 500;
+      color: #1a1a2e;
+    }
+
+    .ant-pro-list-row-description {
+      color: #666;
+      margin-top: 4px;
+    }
+  }
+}
+
+/* Export tab */
+.export-tab {
+  .export-intro {
+    margin-bottom: 32px;
+
+    h5 {
+      margin-bottom: 8px;
+    }
+  }
+
+  .export-options {
+    background: #fafbfc;
+    padding: 24px;
+    border-radius: @border-radius;
+  }
+
+  .option-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .export-btn {
+    margin-top: 24px;
+    height: 48px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+}
+
+/* Summary sticky column */
+.profile-summary-sticky {
+  position: sticky;
+  top: 80px;
+}
+
+.summary-card {
+  border-radius: @border-radius;
+  box-shadow: @box-shadow;
+  margin-bottom: 16px;
+  border: none;
+  transition: box-shadow 0.3s ease;
+
+  &:hover {
+    box-shadow: @box-shadow-hover;
+  }
+
+  .ant-card-body {
+    padding: 20px;
+  }
+
+  h5 {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
+
+/* Progress card */
+.progress-card {
+  background: linear-gradient(135deg, #e6f7ff 0%, #f0f5ff 100%);
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+
+    h5 {
+      margin-bottom: 0;
+    }
+  }
+
+  .checklist {
+    .checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      color: #666;
+      font-size: 13px;
+
+      &.done {
+        color: @success-color;
+      }
+
+      .icon {
+        font-size: 14px;
+
+        &.done {
+          color: @success-color;
+        }
+
+        &.pending {
+          color: @warning-color;
+        }
+      }
+    }
+  }
+}
+
+/* Status card */
+.status-card {
+  .status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+
+    h5 {
+      margin-bottom: 0;
+    }
+  }
+
+  .status-tag {
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 6px;
+  }
+
+  .verify-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+
+    .anticon {
+      margin-right: 6px;
+    }
+  }
+}
+
+/* Actions card */
+.actions-card {
+  .ant-btn {
+    border-radius: 8px;
+    height: 40px;
+
+    &.ant-btn-primary {
+      background: linear-gradient(135deg, @primary-color 0%, #40a9ff 100%);
+      border: none;
+
+      &:hover {
+        background: linear-gradient(135deg, #40a9ff 0%, @primary-color 100%);
+      }
+    }
+  }
+
+  .ant-divider {
+    font-size: 12px;
+    color: #999;
+  }
+}
+
+/* Last updated */
+.last-updated {
+  text-align: center;
+  padding: 12px;
+  font-size: 12px;
+}
+
+/* Editable table */
+.ant-pro-table {
+  .ant-table {
+    border-radius: @border-radius;
+    overflow: hidden;
+  }
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .profile-summary-sticky {
+    position: static;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .profile-badges {
+    justify-content: center;
+  }
+
+  .summary-card {
+    .ant-card-body {
+      padding: 16px;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-header-card {
+    .ant-card-body {
+      padding: 16px;
+    }
+  }
+
+  .profile-tabs-card {
+    .ant-tabs-nav {
+      padding: 0 12px;
+    }
+
+    .ant-tabs-tab {
+      padding: 12px 4px;
+      margin-right: 12px;
+      font-size: 13px;
+
+      .anticon {
+        margin-right: 4px;
+      }
+    }
+
+    .ant-tabs-content-holder {
+      padding: 16px;
+    }
+  }
+}
+

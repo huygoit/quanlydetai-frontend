@@ -48,8 +48,13 @@ export default function access(initialState?: InitialState) {
     // 1. Trang chủ - Ai cũng xem được
     canViewHome: true,
 
-    // 2. Hồ sơ khoa học
-    canViewProfile: isResearcher || isTruongDonVi || isPhongKH || isLanhDao || isAdmin,
+    // 2. Hồ sơ khoa học - theo specs/scientific-profile.md
+    canViewProfile: isResearcher || isTruongDonVi || isPhongKH || isHoiDong || isLanhDao || isAdmin,
+    canViewProfileSelf: isResearcher || isTruongDonVi || isPhongKH || isLanhDao || isAdmin,
+    canEditProfileSelf: isResearcher || isTruongDonVi || isPhongKH || isLanhDao || isAdmin,
+    canViewProfileAll: isPhongKH || isHoiDong || isLanhDao || isAdmin,
+    canVerifyProfile: isPhongKH || isAdmin,
+    canExportProfile: isResearcher || isPhongKH || isLanhDao || isAdmin,
 
     // 3. Ngân hàng ý tưởng - theo specs/ideas-v3-final.md & ideas-council-weighted.md
     canViewIdeaBank: isResearcher || isPhongKH || isLanhDao || isHoiDong || isAdmin,
