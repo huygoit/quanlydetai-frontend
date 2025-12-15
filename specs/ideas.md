@@ -37,7 +37,7 @@ interface Idea {
   title: string;
   summary: string;
   field: string;
-  level: string;
+  level: string[];
   createdAt: string;
   updatedAt: string;
   ownerId: string;

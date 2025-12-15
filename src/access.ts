@@ -51,9 +51,13 @@ export default function access(initialState?: InitialState) {
     // 2. Hồ sơ khoa học
     canViewProfile: isResearcher || isTruongDonVi || isPhongKH || isLanhDao || isAdmin,
 
-    // 3. Ngân hàng ý tưởng
+    // 3. Ngân hàng ý tưởng - theo specs/ideas-v3-final.md & ideas-council-weighted.md
     canViewIdeaBank: isResearcher || isPhongKH || isLanhDao || isHoiDong || isAdmin,
-    canManageIdeaBank: isPhongKH || isLanhDao || isAdmin, // Sơ loại & đặt hàng
+    canManageIdeaBank: isPhongKH || isHoiDong || isLanhDao || isAdmin, // Menu: Sơ loại & đặt hàng
+    canReviewIdea: isPhongKH || isAdmin, // Phòng KH: sơ loại (SUBMITTED → REVIEWING → APPROVED_INTERNAL)
+    canScoreIdea: isHoiDong || isAdmin, // Hội đồng KH&ĐT: chấm điểm ý tưởng (specs/ideas-council-weighted.md)
+    canProposeOrder: isHoiDong || isAdmin, // Hội đồng KH&ĐT: đề xuất đặt hàng (APPROVED_INTERNAL → PROPOSED_FOR_ORDER)
+    canApproveOrder: isLanhDao || isAdmin, // Lãnh đạo: phê duyệt đặt hàng (PROPOSED_FOR_ORDER → APPROVED_FOR_ORDER)
 
     // 4. Đề tài nghiên cứu
     canViewProjectRegister: isResearcher || isTruongDonVi || isPhongKH || isAdmin, // Đăng ký đề xuất GĐ1

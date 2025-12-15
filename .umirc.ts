@@ -71,6 +71,13 @@ export default defineConfig({
           component: '@/pages/ideas/review',
           access: 'canManageIdeaBank',
         },
+        {
+          path: '/ideas/council',
+          name: 'Hội đồng chấm điểm',
+          icon: 'TrophyOutlined',
+          component: '@/pages/ideas/council',
+          access: 'canScoreIdea',
+        },
       ],
     },
 
