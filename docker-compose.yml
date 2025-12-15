@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ant-pro-web
+    container_name: khoa-hoc-cong-nghe-web
     ports:
-      - "8080:80"
+      - "80:80"
     restart: unless-stopped
