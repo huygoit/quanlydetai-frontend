@@ -42,6 +42,7 @@ import {
   PhoneOutlined,
   HomeOutlined,
   TrophyOutlined,
+  CalculatorOutlined,
 } from '@ant-design/icons';
 import { PageContainer, ProList } from '@ant-design/pro-components';
 import {
@@ -52,22 +53,25 @@ import {
   PROFILE_STATUS_MAP,
   PUBLICATION_TYPE_MAP,
   PUBLICATION_RANK_MAP,
-  PUBLICATION_STATUS_MAP,
-  AUTHOR_ROLE_MAP,
-} from '@/services/profile';
-import type {
-  ScientificProfile,
-  ProfileVerifyLog,
-  PublicationItem,
-  LinkedProject,
-  ProfileLanguage,
-  PublicationType,
-  PublicationRank,
-} from '@/services/profile';
-import {
-  notifyProfileVerified,
-  notifyNeedMoreInfo,
-} from '@/services/notification';
+  type ScientificProfile,
+  type ProfileVerifyLog,
+  type PublicationItem,
+  type LinkedProject,
+  type ProfileLanguage,
+  type PublicationType,
+  type PublicationRank,
+} from '@/services/api/profile';
+
+const PUBLICATION_STATUS_MAP: Record<string, { text: string; color: string }> = {
+  PUBLISHED: { text: 'Đã xuất bản', color: 'success' },
+  ACCEPTED: { text: 'Đã chấp nhận', color: 'processing' },
+  UNDER_REVIEW: { text: 'Đang review', color: 'warning' },
+};
+const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
+  CHU_TRI: { text: 'Tác giả chính', color: 'gold' },
+  DONG_TAC_GIA: { text: 'Đồng tác giả', color: 'blue' },
+};
+import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import './index.less';
 
 const { Title, Text, Paragraph } = Typography;
@@ -87,7 +91,20 @@ const ProfileDetailPage: React.FC = () => {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyForm] = Form.useForm();
 
+  // Preview converted hours
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewPubId, setPreviewPubId] = useState<number | null>(null);
+  const [previewPubTitle, setPreviewPubTitle] = useState<string>('');
+
   const canVerify = currentUser?.role === 'PHONG_KH' || currentUser?.role === 'ADMIN';
+  const canViewHoursConversion = currentUser?.role === 'PHONG_KH' || currentUser?.role === 'ADMIN';
+
+  // Handle preview hours
+  const handlePreviewHours = (pub: PublicationItem) => {
+    setPreviewPubId(pub.id);
+    setPreviewPubTitle(pub.title);
+    setPreviewModalVisible(true);
+  };
 
   // Load data
   const loadData = useCallback(async () => {
@@ -96,14 +113,16 @@ const ProfileDetailPage: React.FC = () => {
     setLoading(true);
     try {
       const [profileResult, logsResult] = await Promise.all([
-        getProfileById(id),
-        getVerifyLogs(id),
+        getProfileById(Number(id)),
+        getVerifyLogs(Number(id)),
       ]);
 
-      if (profileResult.data) {
+      if (profileResult.success && profileResult.data) {
         setProfile(profileResult.data);
       }
-      setVerifyLogs(logsResult.data);
+      if (logsResult.success) {
+        setVerifyLogs(logsResult.data);
+      }
     } catch (error) {
       message.error('Không thể tải hồ sơ');
     } finally {
@@ -129,32 +148,18 @@ const ProfileDetailPage: React.FC = () => {
     setVerifyLoading(true);
 
     try {
-      const actorRole = currentUser.role === 'ADMIN' ? 'ADMIN' : 'PHONG_KH';
-
       if (verifyAction === 'verify') {
-        const result = await verifyProfile(
-          profile.id,
-          values.note,
-          actorRole as 'PHONG_KH' | 'ADMIN',
-          currentUser.name
-        );
+        const result = await verifyProfile(profile.id, values.note || '');
 
         if (result.success) {
-          await notifyProfileVerified(profile.userId, profile.fullName);
           message.success('Đã xác thực hồ sơ');
           setVerifyDrawerVisible(false);
           loadData();
         }
       } else {
-        const result = await requestMoreInfo(
-          profile.id,
-          values.note,
-          actorRole as 'PHONG_KH' | 'ADMIN',
-          currentUser.name
-        );
+        const result = await requestMoreInfo(profile.id, values.note || '');
 
         if (result.success) {
-          await notifyNeedMoreInfo(profile.userId, values.note);
           message.success('Đã gửi yêu cầu bổ sung');
           setVerifyDrawerVisible(false);
           loadData();
@@ -527,6 +532,17 @@ const ProfileDetailPage: React.FC = () => {
                                       Link
                                     </a>
                                   ),
+                                  canViewHoursConversion && (
+                                    <Button
+                                      key="preview"
+                                      type="link"
+                                      size="small"
+                                      icon={<CalculatorOutlined />}
+                                      onClick={() => handlePreviewHours(record)}
+                                    >
+                                      Xem thử quy đổi giờ
+                                    </Button>
+                                  ),
                                 ].filter(Boolean),
                             },
                           }}
@@ -799,6 +815,14 @@ const ProfileDetailPage: React.FC = () => {
           )}
         </div>
       </Drawer>
+
+      {/* Converted Hours Preview Modal */}
+      <ConvertedHoursPreviewModal
+        open={previewModalVisible}
+        publicationId={previewPubId}
+        publicationTitle={previewPubTitle}
+        onClose={() => setPreviewModalVisible(false)}
+      />
     </PageContainer>
   );
 };

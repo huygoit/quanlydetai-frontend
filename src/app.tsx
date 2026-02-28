@@ -4,12 +4,14 @@
  */
 import { history, Link } from '@umijs/max';
 import type { RunTimeLayoutConfig } from '@umijs/max';
-import { Avatar, ConfigProvider, Dropdown, Space } from 'antd';
+import { Avatar, ConfigProvider, Dropdown, Space, message } from 'antd';
 import viVN from 'antd/locale/vi_VN';
 import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import * as allIcons from '@ant-design/icons';
 import type { UserRole } from '@/services/mock/homeMockService';
 import NotificationBell from '@/components/NotificationBell';
+import { getCurrentUser, logout as apiLogout } from '@/services/api/auth';
+import { getToken, removeToken } from '@/services/request';
 import './global.less';
 
 // Custom Vietnamese locale với pagination text tùy chỉnh
@@ -80,40 +82,89 @@ export interface InitialState {
   loading?: boolean;
 }
 
-// Key lưu trong localStorage
-const STORAGE_KEY = 'khcn-current-user';
+// Key lưu trong localStorage (để lưu cache user info)
+const USER_STORAGE_KEY = 'khcn-current-user';
 
 // Hàm logout
-const handleLogout = () => {
-  localStorage.removeItem(STORAGE_KEY);
-  history.push('/login');
+const handleLogout = async () => {
+  try {
+    await apiLogout();
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    removeToken();
+    localStorage.removeItem(USER_STORAGE_KEY);
+    history.push('/login');
+  }
 };
 
 /**
  * getInitialState - Load user info khi app khởi động
- * Đọc từ localStorage nếu có (Ghi nhớ tôi)
+ * Kiểm tra token và fetch user từ API
  */
 export async function getInitialState(): Promise<InitialState> {
-  // Đọc user từ localStorage (nếu có)
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
+  const { pathname } = history.location;
+  const token = getToken();
+
+  // Nếu không có token và không phải trang login -> redirect
+  if (!token) {
+    if (pathname !== '/login') {
+      history.push('/login');
+    }
+    return { currentUser: undefined };
+  }
+
+  // Có token, fetch user info từ API
+  try {
+    const response = await getCurrentUser();
+    if (response.success && response.data) {
+      const userData = response.data;
+      const currentUser: CurrentUser = {
+        name: userData.fullName,
+        email: userData.email,
+        role: userData.role,
+        roleLabel: getRoleLabel(userData.role),
+      };
+      // Cache user info
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(currentUser));
+      return { currentUser };
+    }
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    // Token không hợp lệ, xóa và redirect
+    removeToken();
+    localStorage.removeItem(USER_STORAGE_KEY);
+  }
+
+  // Fallback: thử đọc từ cache (offline mode)
+  const cached = localStorage.getItem(USER_STORAGE_KEY);
+  if (cached) {
     try {
-      const user = JSON.parse(stored) as CurrentUser;
+      const user = JSON.parse(cached) as CurrentUser;
       return { currentUser: user };
     } catch (e) {
-      console.error('Error parsing stored user:', e);
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(USER_STORAGE_KEY);
     }
   }
 
-  // Nếu không có user và không phải trang login -> redirect
-  const { pathname } = history.location;
   if (pathname !== '/login') {
-    // Chưa đăng nhập, redirect về login
     history.push('/login');
   }
-
   return { currentUser: undefined };
+}
+
+// Helper để lấy label cho role
+function getRoleLabel(role: UserRole): string {
+  const roleLabels: Record<UserRole, string> = {
+    NCV: 'Nghiên cứu viên',
+    CNDT: 'Chủ nhiệm đề tài',
+    TRUONG_DON_VI: 'Trưởng đơn vị',
+    PHONG_KH: 'Phòng KH',
+    HOI_DONG: 'Thành viên hội đồng',
+    LANH_DAO: 'Lãnh đạo',
+    ADMIN: 'Quản trị viên',
+  };
+  return roleLabels[role] || role;
 }
 
 /**

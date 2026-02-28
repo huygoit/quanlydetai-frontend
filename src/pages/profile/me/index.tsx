@@ -24,7 +24,11 @@ import {
   Empty,
   Modal,
   Select,
-  Radio,
+  Drawer,
+  Form,
+  Input,
+  InputNumber,
+  Popconfirm,
 } from 'antd';
 import {
   UserOutlined,
@@ -33,7 +37,6 @@ import {
   SyncOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
-  DownloadOutlined,
   BookOutlined,
   ProjectOutlined,
   FileTextOutlined,
@@ -42,6 +45,12 @@ import {
   SafetyCertificateOutlined,
   CloudSyncOutlined,
   ClockCircleOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  CalculatorOutlined,
+  ImportOutlined,
+  FilePdfOutlined,
 } from '@ant-design/icons';
 import {
   PageContainer,
@@ -55,57 +64,78 @@ import {
 } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import {
-  queryMyProfile,
+  getMyProfile,
   createMyProfile,
   updateMyProfile,
-  submitProfileUpdate,
-  getSuggestions,
-  syncFromGoogleScholar,
-  syncFromSCV,
+  submitProfile,
+  getMySuggestions,
+  syncGoogleScholar,
+  syncSCV,
   confirmSuggestion,
   ignoreSuggestion,
-  exportCV,
-  calculateCompleteness,
+  exportMyCvPdf,
   PROFILE_STATUS_MAP,
   DEGREE_OPTIONS,
   ACADEMIC_TITLE_OPTIONS,
   RESEARCH_AREAS,
   FACULTIES,
   LANGUAGES,
-  LANGUAGE_LEVELS,
   PUBLICATION_TYPE_MAP,
   PUBLICATION_RANK_MAP,
-  PUBLICATION_STATUS_MAP,
-  AUTHOR_ROLE_MAP,
-  QUARTILE_OPTIONS,
-} from '@/services/profile';
-import type {
-  ScientificProfile,
-  ProfileLanguage,
-  PublicationItem,
-  LinkedProject,
-  PublicationSuggestion,
-  ProfileAttachment,
-  CVTemplate,
-  ExportFormat,
-  PublicationType,
-  PublicationRank,
-} from '@/services/profile';
+  type ScientificProfile,
+  type ProfileLanguage,
+  type PublicationItem,
+  type LinkedProject,
+  type PublicationSuggestion,
+  type ProfileAttachment,
+  type PublicationType,
+  type PublicationRank,
+} from '@/services/api/profile';
+import { downloadBlob, downloadFromUrl } from '@/utils/download';
 import {
-  notifyProfileSubmitted,
-  notifyPublicationSync,
-} from '@/services/notification';
+  listMyPublications,
+  createMyPublication,
+  updateMyPublication,
+  deleteMyPublication,
+  getMyPublicationAuthors,
+  saveMyPublicationAuthors,
+  RANK_OPTIONS,
+  QUARTILE_OPTIONS,
+  DOMESTIC_RULE_TYPE_OPTIONS,
+  generateAcademicYears,
+  type Publication,
+  type PublicationAuthor,
+  type PublicationRank as PubRank,
+  type Quartile,
+  type DomesticRuleType,
+} from '@/services/api/profilePublications';
+import AuthorsEditor from '@/components/AuthorsEditor';
+import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
+import ProfileCompletionBar, { type ChecklistItem } from '@/components/ProfileCompletionBar';
+import SemanticScholarImportModal from '@/components/SemanticScholarImportModal';
+
+const LANGUAGE_LEVELS = ['Cơ bản', 'Trung cấp', 'Cao cấp', 'Thành thạo', 'Bản ngữ'];
+const PUBLICATION_STATUS_MAP: Record<string, { text: string; color: string }> = {
+  PUBLISHED: { text: 'Đã xuất bản', color: 'success' },
+  ACCEPTED: { text: 'Đã chấp nhận', color: 'processing' },
+  UNDER_REVIEW: { text: 'Đang review', color: 'warning' },
+};
+const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
+  CHU_TRI: { text: 'Tác giả chính', color: 'gold' },
+  DONG_TAC_GIA: { text: 'Đồng tác giả', color: 'blue' },
+};
 import './index.less';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 // ========== PUBLICATIONS TAB COMPONENT ==========
 
 interface PublicationsTabProps {
   publications: PublicationItem[];
   suggestions: PublicationSuggestion[];
-  onConfirmSuggestion: (id: string) => void;
-  onIgnoreSuggestion: (id: string) => void;
+  onConfirmSuggestion: (id: number) => void;
+  onIgnoreSuggestion: (id: number) => void;
+  onReloadPublications: () => void;
 }
 
 const PublicationsTab: React.FC<PublicationsTabProps> = ({
@@ -113,12 +143,30 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   suggestions,
   onConfirmSuggestion,
   onIgnoreSuggestion,
+  onReloadPublications,
 }) => {
+  const [form] = Form.useForm();
   const [filterYear, setFilterYear] = useState<number | undefined>();
   const [filterType, setFilterType] = useState<PublicationType | undefined>();
   const [filterRank, setFilterRank] = useState<PublicationRank | undefined>();
   const [selectedPub, setSelectedPub] = useState<PublicationItem | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  
+  // New states for CRUD
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [editingPub, setEditingPub] = useState<Publication | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [authors, setAuthors] = useState<PublicationAuthor[]>([]);
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewPubId, setPreviewPubId] = useState<number | null>(null);
+  const [previewPubTitle, setPreviewPubTitle] = useState<string>('');
+  const [semanticScholarModalVisible, setSemanticScholarModalVisible] = useState(false);
+
+  // Watch rank field for conditional rendering
+  const watchRank = Form.useWatch('rank', form);
+
+  // Academic years options
+  const academicYearOptions = generateAcademicYears(10).map((y) => ({ label: y, value: y }));
 
   // Filter publications
   const filteredPublications = publications.filter((pub) => {
@@ -137,118 +185,101 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
     setDetailModalVisible(true);
   };
 
-  // Publication table columns
-  const publicationColumns: ProColumns<PublicationItem>[] = [
-    {
-      title: 'Tên bài báo',
-      dataIndex: 'title',
-      width: 280,
-      ellipsis: true,
-      render: (_, record) => (
-        <a onClick={() => handleViewDetail(record)} className="pub-title-link">
-          {record.title}
-        </a>
-      ),
-    },
-    {
-      title: 'Loại',
-      dataIndex: 'publicationType',
-      width: 120,
-      render: (type) => {
-        const config = PUBLICATION_TYPE_MAP[type as PublicationType];
-        return config ? <Tag color={config.color}>{config.text}</Tag> : '-';
-      },
-    },
-    {
-      title: 'Tạp chí / Hội thảo',
-      dataIndex: 'journalOrConference',
-      width: 180,
-      ellipsis: true,
-    },
-    {
-      title: 'Năm',
-      dataIndex: 'year',
-      width: 70,
-      align: 'center',
-    },
-    {
-      title: 'Phân hạng',
-      dataIndex: 'rank',
-      width: 90,
-      align: 'center',
-      render: (rank) => {
-        if (!rank) return '-';
-        const config = PUBLICATION_RANK_MAP[rank as PublicationRank];
-        return config ? <Tag color={config.color}>{config.text}</Tag> : rank;
-      },
-    },
-    {
-      title: 'Q',
-      dataIndex: 'quartile',
-      width: 60,
-      align: 'center',
-      render: (q) => {
-        if (!q) return '-';
-        const colorMap: Record<string, string> = {
-          Q1: 'red',
-          Q2: 'orange',
-          Q3: 'blue',
-          Q4: 'default',
-        };
-        return <Tag color={colorMap[q] || 'default'}>{q}</Tag>;
-      },
-    },
-    {
-      title: 'Vai trò',
-      dataIndex: 'myRole',
-      width: 100,
-      render: (role) => {
-        if (!role) return '-';
-        const config = AUTHOR_ROLE_MAP[role as keyof typeof AUTHOR_ROLE_MAP];
-        return config ? <Tag color={config.color}>{config.text}</Tag> : role;
-      },
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'publicationStatus',
-      width: 110,
-      render: (status) => {
-        const config = PUBLICATION_STATUS_MAP[status as keyof typeof PUBLICATION_STATUS_MAP];
-        return config ? <Tag color={config.color}>{config.text}</Tag> : status;
-      },
-    },
-    {
-      title: 'Nguồn',
-      dataIndex: 'source',
-      width: 110,
-      render: (source) => {
-        const sourceMap: Record<string, { text: string; color: string }> = {
-          INTERNAL: { text: 'Nội bộ', color: 'blue' },
-          GOOGLE_SCHOLAR: { text: 'Scholar', color: 'green' },
-          SCV_DHDN: { text: 'SCV', color: 'purple' },
-        };
-        const config = sourceMap[source as string];
-        return config ? <Tag color={config.color}>{config.text}</Tag> : source;
-      },
-    },
-    {
-      title: 'DOI/Link',
-      width: 80,
-      align: 'center',
-      render: (_, record) =>
-        record.doi ? (
-          <a href={`https://doi.org/${record.doi}`} target="_blank" rel="noopener noreferrer">
-            <GlobalOutlined /> DOI
-          </a>
-        ) : record.url ? (
-          <a href={record.url} target="_blank" rel="noopener noreferrer">
-            <GlobalOutlined /> Link
-          </a>
-        ) : (
-          '-'
-        ),
-    },
-  ];
+  // Open drawer for create
+  const handleCreate = () => {
+    setEditingPub(null);
+    setAuthors([]);
+    form.resetFields();
+    setDrawerVisible(true);
+  };
+
+  // Open drawer for edit
+  const handleEdit = async (pub: PublicationItem) => {
+    setEditingPub(pub as unknown as Publication);
+    form.setFieldsValue({
+      ...pub,
+      academicYear: (pub as any).academicYear,
+      domesticRuleType: (pub as any).domesticRuleType,
+      hdgsnnScore: (pub as any).hdgsnnScore,
+    });
+    
+    // Load authors
+    try {
+      const res = await getMyPublicationAuthors(pub.id);
+      if (res.success && res.data) {
+        setAuthors(res.data);
+      }
+    } catch (e) {
+      setAuthors([]);
+    }
+    
+    setDrawerVisible(true);
+  };
+
+  // Delete publication
+  const handleDelete = async (id: number) => {
+    try {
+      const res = await deleteMyPublication(id);
+      if (res.success) {
+        message.success('Đã xóa công bố');
+        onReloadPublications();
+      }
+    } catch (e) {
+      message.error('Có lỗi xảy ra');
+    }
+  };
+
+  // Preview converted hours
+  const handlePreviewHours = (pub: PublicationItem) => {
+    setPreviewPubId(pub.id);
+    setPreviewPubTitle(pub.title);
+    setPreviewModalVisible(true);
+  };
+
+  // Save publication
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+
+      let pubId: number;
+      
+      if (editingPub) {
+        // Update
+        const res = await updateMyPublication(editingPub.id, values);
+        if (!res.success) {
+          throw new Error('Cập nhật thất bại');
+        }
+        pubId = editingPub.id;
+        message.success('Đã cập nhật công bố');
+      } else {
+        // Create
+        const res = await createMyPublication({
+          ...values,
+          source: 'INTERNAL',
+          verifiedByNcv: false,
+          publicationStatus: values.publicationStatus || 'PUBLISHED',
+        });
+        if (!res.success || !res.data) {
+          throw new Error('Tạo mới thất bại');
+        }
+        pubId = res.data.id;
+        message.success('Đã thêm công bố mới');
+      }
+
+      // Save authors if any
+      if (authors.length > 0) {
+        await saveMyPublicationAuthors(pubId, authors);
+      }
+
+      setDrawerVisible(false);
+      onReloadPublications();
+    } catch (e: any) {
+      message.error(e.message || 'Có lỗi xảy ra');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="publications-tab">
@@ -310,14 +341,22 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
       {/* Section A: Publications attached to profile */}
       <div className="publications-main-section">
-        <div className="section-header">
-          <Title level={5}>
-            <BookOutlined /> Bài báo đã gắn vào hồ sơ ({publications.length})
+        <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <Title level={5} style={{ margin: 0 }}>
+            <BookOutlined /> Công bố khoa học ({publications.length})
           </Title>
+          <Space wrap>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+              Thêm thủ công
+            </Button>
+            <Button icon={<ImportOutlined />} onClick={() => setSemanticScholarModalVisible(true)}>
+              Thêm từ Semantic Scholar
+            </Button>
+          </Space>
         </div>
 
         {/* Filters */}
-        <div className="publications-filters">
+        <div className="publications-filters" style={{ marginTop: 16 }}>
           <Space wrap>
             <Select
               placeholder="Năm"
@@ -435,25 +474,34 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                 },
                 actions: {
                   render: (_, record) => [
-                    <Button key="view" type="link" size="small" onClick={() => handleViewDetail(record)}>
-                      Chi tiết
+                    <Button
+                      key="edit"
+                      type="link"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => handleEdit(record)}
+                    >
+                      Sửa
                     </Button>,
-                    record.doi && (
-                      <a
-                        key="doi"
-                        href={`https://doi.org/${record.doi}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        DOI
-                      </a>
-                    ),
-                    record.attachmentUrl && (
-                      <a key="file" href={record.attachmentUrl} target="_blank" rel="noopener noreferrer">
-                        Minh chứng
-                      </a>
-                    ),
-                  ].filter(Boolean),
+                    <Popconfirm
+                      key="delete"
+                      title="Xóa công bố này?"
+                      onConfirm={() => handleDelete(record.id)}
+                    >
+                      <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                        Xóa
+                      </Button>
+                    </Popconfirm>,
+                    <Button
+                      key="preview"
+                      type="link"
+                      size="small"
+                      icon={<CalculatorOutlined />}
+                      onClick={() => handlePreviewHours(record)}
+                    >
+                      Xem thử quy đổi giờ
+                    </Button>,
+                  ],
                 },
               }}
             />
@@ -466,7 +514,16 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                 : 'Chưa có công bố khoa học nào'
             }
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-          />
+          >
+            <Space>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                Thêm thủ công
+              </Button>
+              <Button icon={<ImportOutlined />} onClick={() => setSemanticScholarModalVisible(true)}>
+                Thêm từ Semantic Scholar
+              </Button>
+            </Space>
+          </Empty>
         )}
       </div>
 
@@ -479,16 +536,9 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           <Button key="close" onClick={() => setDetailModalVisible(false)}>
             Đóng
           </Button>,
-          selectedPub?.doi && (
-            <Button
-              key="doi"
-              type="primary"
-              href={`https://doi.org/${selectedPub.doi}`}
-              target="_blank"
-            >
-              Mở DOI
-            </Button>
-          ),
+          <Button key="edit" type="primary" onClick={() => { setDetailModalVisible(false); selectedPub && handleEdit(selectedPub); }}>
+            Chỉnh sửa
+          </Button>,
         ]}
         width={700}
       >
@@ -649,6 +699,217 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           </div>
         )}
       </Modal>
+
+      {/* Publication Form Drawer */}
+      <Drawer
+        title={editingPub ? 'Chỉnh sửa công bố' : 'Thêm công bố mới'}
+        open={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        width={800}
+        extra={
+          <Space>
+            <Button onClick={() => setDrawerVisible(false)}>Hủy</Button>
+            <Button type="primary" loading={saving} onClick={handleSave}>
+              Lưu
+            </Button>
+          </Space>
+        }
+      >
+        <Form form={form} layout="vertical">
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item
+                name="title"
+                label="Tên bài báo"
+                rules={[{ required: true, message: 'Vui lòng nhập tên bài báo' }]}
+              >
+                <Input.TextArea rows={2} placeholder="Nhập tên bài báo đầy đủ" />
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item
+                name="academicYear"
+                label="Năm học"
+                rules={[{ required: true, message: 'Vui lòng chọn năm học' }]}
+              >
+                <Select options={academicYearOptions} placeholder="Chọn năm học" />
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item name="year" label="Năm xuất bản">
+                <InputNumber style={{ width: '100%' }} min={1900} max={2100} placeholder="VD: 2024" />
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item
+                name="publicationType"
+                label="Loại công bố"
+                rules={[{ required: true, message: 'Vui lòng chọn loại công bố' }]}
+              >
+                <Select
+                  options={Object.entries(PUBLICATION_TYPE_MAP).map(([value, { text }]) => ({
+                    label: text,
+                    value,
+                  }))}
+                  placeholder="Chọn loại"
+                />
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item name="journalOrConference" label="Tạp chí / Hội thảo">
+                <Input placeholder="Tên tạp chí hoặc hội thảo" />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item
+                name="rank"
+                label="Phân hạng"
+                rules={[{ required: true, message: 'Vui lòng chọn phân hạng' }]}
+              >
+                <Select options={RANK_OPTIONS} placeholder="Chọn phân hạng" />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item
+                name="quartile"
+                label="Quartile"
+                rules={[
+                  {
+                    required: watchRank === 'ISI' || watchRank === 'SCOPUS',
+                    message: 'Vui lòng chọn Q',
+                  },
+                ]}
+              >
+                <Select
+                  options={QUARTILE_OPTIONS}
+                  placeholder="Chọn Q"
+                  disabled={watchRank !== 'ISI' && watchRank !== 'SCOPUS'}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item name="publicationStatus" label="Trạng thái">
+                <Select
+                  options={[
+                    { label: 'Đã xuất bản', value: 'PUBLISHED' },
+                    { label: 'Đã chấp nhận', value: 'ACCEPTED' },
+                    { label: 'Đang review', value: 'UNDER_REVIEW' },
+                  ]}
+                  placeholder="Chọn trạng thái"
+                />
+              </Form.Item>
+            </Col>
+
+            {/* Conditional fields for DOMESTIC/OTHER */}
+            {(watchRank === 'DOMESTIC' || watchRank === 'OTHER') && (
+              <>
+                <Col span={12}>
+                  <Form.Item
+                    name="domesticRuleType"
+                    label="Quy tắc tính giờ"
+                    rules={[{ required: true, message: 'Vui lòng chọn quy tắc' }]}
+                  >
+                    <Select options={DOMESTIC_RULE_TYPE_OPTIONS} placeholder="Chọn quy tắc" />
+                  </Form.Item>
+                </Col>
+
+                <Col span={12}>
+                  <Form.Item
+                    noStyle
+                    shouldUpdate={(prev, cur) => prev.domesticRuleType !== cur.domesticRuleType}
+                  >
+                    {({ getFieldValue }) =>
+                      getFieldValue('domesticRuleType') === 'HDGSNN_SCORE' ? (
+                        <Form.Item
+                          name="hdgsnnScore"
+                          label="Điểm HĐGSNN"
+                          rules={[{ required: true, message: 'Vui lòng nhập điểm' }]}
+                        >
+                          <InputNumber
+                            style={{ width: '100%' }}
+                            min={0}
+                            max={10}
+                            step={0.25}
+                            placeholder="VD: 0.75"
+                          />
+                        </Form.Item>
+                      ) : null
+                    }
+                  </Form.Item>
+                </Col>
+              </>
+            )}
+
+            <Col span={24}>
+              <Form.Item name="authors" label="Danh sách tác giả (text)">
+                <Input.TextArea rows={2} placeholder="VD: Nguyễn Văn A, Trần Thị B, ..." />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item name="volume" label="Volume">
+                <Input placeholder="VD: 15" />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item name="issue" label="Issue">
+                <Input placeholder="VD: 3" />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item name="pages" label="Trang">
+                <Input placeholder="VD: 123-145" />
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item name="doi" label="DOI">
+                <Input placeholder="VD: 10.1234/example" />
+              </Form.Item>
+            </Col>
+
+            <Col span={12}>
+              <Form.Item name="issn" label="ISSN">
+                <Input placeholder="VD: 1234-5678" />
+              </Form.Item>
+            </Col>
+
+            <Col span={24}>
+              <Form.Item name="url" label="Link bài báo">
+                <Input placeholder="https://..." />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider>Danh sách tác giả chi tiết (để tính quy đổi giờ)</Divider>
+
+          <AuthorsEditor value={authors} onChange={setAuthors} />
+        </Form>
+      </Drawer>
+
+      {/* Converted Hours Preview Modal */}
+      <ConvertedHoursPreviewModal
+        open={previewModalVisible}
+        publicationId={previewPubId}
+        publicationTitle={previewPubTitle}
+        onClose={() => setPreviewModalVisible(false)}
+      />
+
+      {/* Semantic Scholar Import Modal */}
+      <SemanticScholarImportModal
+        open={semanticScholarModalVisible}
+        onClose={() => setSemanticScholarModalVisible(false)}
+        onSuccess={onReloadPublications}
+      />
     </div>
   );
 };
@@ -670,9 +931,6 @@ const MyProfilePage: React.FC = () => {
   const [suggestions, setSuggestions] = useState<PublicationSuggestion[]>([]);
   const [activeTab, setActiveTab] = useState<string>('general');
   const [languageEditableKeys, setLanguageEditableKeys] = useState<React.Key[]>([]);
-  const [exportModalVisible, setExportModalVisible] = useState(false);
-  const [exportTemplate, setExportTemplate] = useState<CVTemplate>('DHDN');
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('PDF');
 
   // Load profile data
   const loadProfile = useCallback(async () => {
@@ -680,27 +938,25 @@ const MyProfilePage: React.FC = () => {
 
     setLoading(true);
     try {
-      // Use user role as userId for demo (in real app, use actual userId)
-      const userId = currentUser.role === 'NCV' ? 'user-1' : 
-                    currentUser.role === 'CNDT' ? 'user-2' : 
-                    `user-${currentUser.role.toLowerCase()}`;
-
-      const result = await queryMyProfile(userId);
+      const result = await getMyProfile();
       
-      if (result.data) {
+      if (result.success && result.data) {
         setProfile(result.data);
         // Load suggestions
-        const sugResult = await getSuggestions(result.data.id);
-        setSuggestions(sugResult.data);
+        const sugResult = await getMySuggestions();
+        if (sugResult.success) {
+          setSuggestions(sugResult.data);
+        }
       } else {
         // Create new profile if not exists
-        const createResult = await createMyProfile(
-          userId,
-          currentUser.name,
-          `${currentUser.name.toLowerCase().replace(/\s+/g, '')}@university.edu.vn`,
-          'Trường Đại học Bách khoa - ĐHĐN'
-        );
-        setProfile(createResult.data);
+        const createResult = await createMyProfile({
+          fullName: currentUser.name,
+          workEmail: `${currentUser.name.toLowerCase().replace(/\s+/g, '')}@university.edu.vn`,
+          organization: 'Trường Đại học Bách khoa - ĐHĐN',
+        });
+        if (createResult.success) {
+          setProfile(createResult.data);
+        }
       }
     } catch (error) {
       message.error('Không thể tải hồ sơ');
@@ -727,7 +983,7 @@ const MyProfilePage: React.FC = () => {
 
     setSaving(true);
     try {
-      const result = await updateMyProfile(profile.id, {
+      const result = await updateMyProfile({
         ...values,
         status: 'DRAFT',
       });
@@ -749,12 +1005,10 @@ const MyProfilePage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const result = await submitProfileUpdate(profile.id);
+      const result = await submitProfile();
 
       if (result.success && result.data) {
         setProfile(result.data);
-        // Notify Phong KH
-        await notifyProfileSubmitted(result.data.id, result.data.fullName);
         message.success('Đã gửi cập nhật hồ sơ');
       }
     } catch (error) {
@@ -772,24 +1026,20 @@ const MyProfilePage: React.FC = () => {
     try {
       let result;
       if (source === 'scholar') {
-        result = await syncFromGoogleScholar(profile.id);
+        result = await syncGoogleScholar();
       } else {
-        result = await syncFromSCV(profile.id);
+        result = await syncSCV();
       }
 
       if (result.success) {
         // Reload suggestions
-        const sugResult = await getSuggestions(profile.id);
-        setSuggestions(sugResult.data);
+        const sugResult = await getMySuggestions();
+        if (sugResult.success) {
+          setSuggestions(sugResult.data);
+        }
 
-        if (result.newCount > 0) {
-          // Notify user about new suggestions
-          await notifyPublicationSync(
-            profile.userId,
-            result.newCount,
-            source === 'scholar' ? 'Google Scholar' : 'SCV ĐHĐN'
-          );
-          message.success(`Tìm thấy ${result.newCount} công bố gợi ý mới`);
+        if (result.data?.newCount && result.data.newCount > 0) {
+          message.success(`Tìm thấy ${result.data.newCount} công bố gợi ý mới`);
         } else {
           message.info('Không có công bố mới');
         }
@@ -802,7 +1052,8 @@ const MyProfilePage: React.FC = () => {
   };
 
   // Confirm suggestion
-  const handleConfirmSuggestion = async (suggestionId: string) => {
+  const handleConfirmSuggestion = async (suggestionId: number) => {
+    if (!profile) return;
     const result = await confirmSuggestion(suggestionId);
     if (result.success) {
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
@@ -813,7 +1064,8 @@ const MyProfilePage: React.FC = () => {
   };
 
   // Ignore suggestion
-  const handleIgnoreSuggestion = async (suggestionId: string) => {
+  const handleIgnoreSuggestion = async (suggestionId: number) => {
+    if (!profile) return;
     const result = await ignoreSuggestion(suggestionId);
     if (result.success) {
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
@@ -821,24 +1073,24 @@ const MyProfilePage: React.FC = () => {
     }
   };
 
-  // Export CV
-  const handleExportCV = async () => {
+  // Export CV as PDF
+  const handleExportCvPdf = async () => {
     if (!profile) return;
 
     setExporting(true);
     try {
-      const result = await exportCV(profile.id, exportTemplate, exportFormat);
+      const result = await exportMyCvPdf();
 
-      if (result.success) {
-        message.success(`Đang tạo CV mẫu ${exportTemplate} định dạng ${exportFormat}...`);
-        // V1: Mock download - in real app, trigger actual download
-        setTimeout(() => {
-          message.info('CV đã được tạo (V1 Mock - file placeholder)');
-          setExportModalVisible(false);
-        }, 500);
+      if (result instanceof Blob) {
+        const filename = `CV_${profile.fullName.replace(/\s+/g, '_')}.pdf`;
+        downloadBlob(result, filename);
+        message.success('Đã tải CV thành công');
+      } else if (result.url) {
+        downloadFromUrl(result.url, `CV_${profile.fullName}.pdf`);
+        message.success('Đã tải CV thành công');
       }
     } catch (error) {
-      message.error('Lỗi xuất CV');
+      message.error('Không thể xuất CV. Vui lòng thử lại.');
     } finally {
       setExporting(false);
     }
@@ -1010,14 +1262,21 @@ const MyProfilePage: React.FC = () => {
 
   const statusConfig = PROFILE_STATUS_MAP[profile.status];
 
-  // Checklist for completeness
-  const checklist = [
-    { label: 'Email & Đơn vị', done: !!profile.workEmail && !!profile.organization },
-    { label: 'Học vị', done: !!profile.degree },
-    { label: 'Hướng nghiên cứu', done: !!profile.mainResearchArea },
-    { label: 'Ngoại ngữ', done: (profile.languages?.length || 0) > 0 },
-    { label: 'Công bố/Đề tài', done: (profile.publications?.length || 0) > 0 || (profile.linkedProjects?.length || 0) > 0 },
+  // Checklist for completeness - with tab navigation
+  const checklist: ChecklistItem[] = [
+    { key: 'email', label: 'Email & Đơn vị', done: !!profile.workEmail && !!profile.organization, tabKey: 'general' },
+    { key: 'degree', label: 'Học vị', done: !!profile.degree, tabKey: 'education' },
+    { key: 'research', label: 'Hướng nghiên cứu', done: !!profile.mainResearchArea, tabKey: 'research' },
+    { key: 'language', label: 'Ngoại ngữ', done: (profile.languages?.length || 0) > 0, tabKey: 'languages' },
+    { key: 'publications', label: 'Công bố/Đề tài', done: (profile.publications?.length || 0) > 0 || (profile.linkedProjects?.length || 0) > 0, tabKey: 'publications' },
   ];
+
+  // Handle checklist item click - navigate to tab
+  const handleChecklistItemClick = (item: ChecklistItem) => {
+    if (item.tabKey) {
+      setActiveTab(item.tabKey);
+    }
+  };
 
   return (
     <PageContainer
@@ -1027,33 +1286,45 @@ const MyProfilePage: React.FC = () => {
       {/* Header compact */}
       <Card className="profile-header-card" bordered={false}>
         <div className="profile-header">
-          <Avatar 
-            size={72} 
-            src={profile.avatarUrl} 
-            icon={<UserOutlined />}
-            className="profile-avatar"
-          />
-          <div className="profile-header-info">
-            <Title level={4} className="profile-name">
-              {profile.fullName}
-              {profile.status === 'VERIFIED' && (
-                <Tooltip title="Hồ sơ đã xác thực">
-                  <SafetyCertificateOutlined className="verified-badge" />
-                </Tooltip>
-              )}
-            </Title>
-            <Text type="secondary">
-              {[profile.organization, profile.faculty, profile.department]
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
-            <div className="profile-badges">
-              <Tag color={statusConfig.color}>{statusConfig.text}</Tag>
-              {profile.degree && <Tag>{profile.degree}</Tag>}
-              {profile.academicTitle && profile.academicTitle !== 'Không' && (
-                <Tag color="gold">{profile.academicTitle}</Tag>
-              )}
+          <div className="profile-header-left">
+            <Avatar 
+              size={72} 
+              src={profile.avatarUrl} 
+              icon={<UserOutlined />}
+              className="profile-avatar"
+            />
+            <div className="profile-header-info">
+              <Title level={4} className="profile-name">
+                {profile.fullName}
+                {profile.status === 'VERIFIED' && (
+                  <Tooltip title="Hồ sơ đã xác thực">
+                    <SafetyCertificateOutlined className="verified-badge" />
+                  </Tooltip>
+                )}
+              </Title>
+              <Text type="secondary">
+                {[profile.organization, profile.faculty, profile.department]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+              <div className="profile-badges">
+                <Tag color={statusConfig.color}>{statusConfig.text}</Tag>
+                {profile.degree && <Tag>{profile.degree}</Tag>}
+                {profile.academicTitle && profile.academicTitle !== 'Không' && (
+                  <Tag color="gold">{profile.academicTitle}</Tag>
+                )}
+              </div>
             </div>
+          </div>
+          <div className="profile-header-actions">
+            <Button
+              type="primary"
+              icon={<FilePdfOutlined />}
+              loading={exporting}
+              onClick={handleExportCvPdf}
+            >
+              Xuất CV (PDF)
+            </Button>
           </div>
         </div>
       </Card>
@@ -1074,9 +1345,16 @@ const MyProfilePage: React.FC = () => {
         />
       )}
 
+      {/* Profile Completion Bar */}
+      <ProfileCompletionBar
+        completeness={profile.completeness}
+        checklist={checklist}
+        onItemClick={handleChecklistItemClick}
+      />
+
       <Row gutter={24} className="profile-content">
-        {/* Left column: Tabs content (70%) */}
-        <Col xs={24} lg={17}>
+        {/* Main content - full width */}
+        <Col span={24}>
           <Card bordered={false} className="profile-tabs-card">
             <Tabs
               activeKey={activeTab}
@@ -1446,6 +1724,7 @@ const MyProfilePage: React.FC = () => {
                       suggestions={suggestions}
                       onConfirmSuggestion={handleConfirmSuggestion}
                       onIgnoreSuggestion={handleIgnoreSuggestion}
+                      onReloadPublications={loadProfile}
                     />
                   ),
                 },
@@ -1512,286 +1791,11 @@ const MyProfilePage: React.FC = () => {
                     </div>
                   ),
                 },
-                {
-                  key: 'attachments',
-                  label: (
-                    <span>
-                      <FileTextOutlined />
-                      Tệp đính kèm
-                    </span>
-                  ),
-                  children: (
-                    <div className="attachments-tab">
-                      <div className="section-header">
-                        <Title level={5}>Tệp đính kèm</Title>
-                        <Text type="secondary">
-                          Bằng cấp, chứng chỉ, CV PDF...
-                        </Text>
-                      </div>
-                      {profile.attachments && profile.attachments.length > 0 ? (
-                        <ProList<ProfileAttachment>
-                          dataSource={profile.attachments}
-                          rowKey="id"
-                          metas={{
-                            title: {
-                              dataIndex: 'name',
-                            },
-                            description: {
-                              render: (_, record) => (
-                                <Space>
-                                  <Tag>
-                                    {record.type === 'CV_PDF'
-                                      ? 'CV PDF'
-                                      : record.type === 'DEGREE'
-                                      ? 'Bằng cấp'
-                                      : record.type === 'CERTIFICATE'
-                                      ? 'Chứng chỉ'
-                                      : 'Khác'}
-                                  </Tag>
-                                  <Text type="secondary">{record.uploadedAt}</Text>
-                                </Space>
-                              ),
-                            },
-                            actions: {
-                              render: () => [
-                                <a key="download" href="#">
-                                  Tải xuống
-                                </a>,
-                              ],
-                            },
-                          }}
-                        />
-                      ) : (
-                        <Empty description="Chưa có tệp đính kèm" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-                          <Button type="dashed" disabled>
-                            Upload file (V1 Mock)
-                          </Button>
-                        </Empty>
-                      )}
-                    </div>
-                  ),
-                },
-                {
-                  key: 'export',
-                  label: (
-                    <span>
-                      <DownloadOutlined />
-                      Xuất CV
-                    </span>
-                  ),
-                  children: (
-                    <div className="export-tab">
-                      <div className="export-intro">
-                        <Title level={5}>Xuất CV theo mẫu chuẩn</Title>
-                        <Paragraph type="secondary">
-                          Chọn mẫu CV và định dạng file để xuất. Hệ thống sẽ tự động điền thông tin từ hồ sơ khoa học của bạn.
-                        </Paragraph>
-                      </div>
-
-                      <div className="export-options">
-                        <div className="option-group">
-                          <Text strong>Mẫu CV:</Text>
-                          <Radio.Group
-                            value={exportTemplate}
-                            onChange={(e) => setExportTemplate(e.target.value)}
-                            optionType="button"
-                            buttonStyle="solid"
-                          >
-                            <Radio.Button value="BO_KHCN">Bộ KH&CN</Radio.Button>
-                            <Radio.Button value="DHDN">ĐHĐN</Radio.Button>
-                            <Radio.Button value="NOI_BO">Nội bộ Trường</Radio.Button>
-                          </Radio.Group>
-                        </div>
-
-                        <div className="option-group">
-                          <Text strong>Định dạng:</Text>
-                          <Radio.Group
-                            value={exportFormat}
-                            onChange={(e) => setExportFormat(e.target.value)}
-                            optionType="button"
-                          >
-                            <Radio.Button value="PDF">PDF</Radio.Button>
-                            <Radio.Button value="DOCX">DOCX</Radio.Button>
-                          </Radio.Group>
-                        </div>
-
-                        <Button
-                          type="primary"
-                          size="large"
-                          icon={<DownloadOutlined />}
-                          loading={exporting}
-                          onClick={handleExportCV}
-                          className="export-btn"
-                        >
-                          Xuất CV
-                        </Button>
-
-                        <Alert
-                          message="V1 Mock"
-                          description="Phiên bản V1 sẽ tạo file placeholder. Tính năng generate CV thực sẽ được phát triển ở phiên bản sau."
-                          type="info"
-                          showIcon
-                          style={{ marginTop: 24 }}
-                        />
-                      </div>
-                    </div>
-                  ),
-                },
               ]}
             />
           </Card>
         </Col>
-
-        {/* Right column: Summary sticky (30%) */}
-        <Col xs={24} lg={7}>
-          <div className="profile-summary-sticky">
-            {/* Progress card */}
-            <Card className="summary-card progress-card" bordered={false}>
-              <div className="progress-header">
-                <Title level={5}>Hoàn thiện hồ sơ</Title>
-                <Progress
-                  type="circle"
-                  percent={profile.completeness}
-                  width={80}
-                  strokeColor={{
-                    '0%': '#108ee9',
-                    '100%': '#87d068',
-                  }}
-                />
-              </div>
-              <div className="checklist">
-                {checklist.map((item, index) => (
-                  <div key={index} className={`checklist-item ${item.done ? 'done' : ''}`}>
-                    {item.done ? (
-                      <CheckCircleOutlined className="icon done" />
-                    ) : (
-                      <ExclamationCircleOutlined className="icon pending" />
-                    )}
-                    <span>{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Status card */}
-            <Card className="summary-card status-card" bordered={false}>
-              <div className="status-header">
-                <Title level={5}>Trạng thái</Title>
-                <Tag color={statusConfig.color} className="status-tag">
-                  {statusConfig.text}
-                </Tag>
-              </div>
-              {profile.verifiedAt && (
-                <div className="verify-info">
-                  <Text type="secondary">
-                    <ClockCircleOutlined /> Xác thực: {new Date(profile.verifiedAt).toLocaleDateString('vi-VN')}
-                  </Text>
-                  {profile.verifiedBy && (
-                    <Text type="secondary">
-                      <TeamOutlined /> Bởi: {profile.verifiedBy}
-                    </Text>
-                  )}
-                </div>
-              )}
-            </Card>
-
-            {/* Actions card */}
-            <Card className="summary-card actions-card" bordered={false}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Button
-                  block
-                  icon={<SaveOutlined />}
-                  onClick={() => {
-                    const form = document.querySelector('.ant-pro-form') as HTMLFormElement;
-                    form?.dispatchEvent(new Event('submit', { bubbles: true }));
-                  }}
-                  loading={saving}
-                >
-                  Lưu nháp
-                </Button>
-
-                {(profile.status === 'DRAFT' || profile.status === 'NEED_MORE_INFO') && (
-                  <Button
-                    block
-                    type="primary"
-                    icon={<SendOutlined />}
-                    onClick={handleSubmitUpdate}
-                    loading={submitting}
-                  >
-                    Gửi cập nhật
-                  </Button>
-                )}
-
-                <Divider style={{ margin: '12px 0', fontSize: 13 }}>Đồng bộ công bố khoa học & bài báo</Divider>
-
-                <Button
-                  block
-                  icon={<SyncOutlined spin={syncing} />}
-                  onClick={() => handleSync('scholar')}
-                  loading={syncing}
-                >
-                  Google Scholar
-                </Button>
-
-                <Button
-                  block
-                  icon={<SyncOutlined spin={syncing} />}
-                  onClick={() => handleSync('scv')}
-                  loading={syncing}
-                >
-                  SCV ĐHĐN
-                </Button>
-              </Space>
-            </Card>
-
-            {/* Last updated */}
-            <div className="last-updated">
-              <Text type="secondary">
-                Cập nhật: {new Date(profile.updatedAt).toLocaleString('vi-VN')}
-              </Text>
-            </div>
-          </div>
-        </Col>
       </Row>
-
-      {/* Export Modal */}
-      <Modal
-        title="Xuất CV"
-        open={exportModalVisible}
-        onCancel={() => setExportModalVisible(false)}
-        onOk={handleExportCV}
-        confirmLoading={exporting}
-        okText="Xuất"
-        cancelText="Hủy"
-      >
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
-          <div>
-            <Text strong>Mẫu CV:</Text>
-            <Select
-              value={exportTemplate}
-              onChange={setExportTemplate}
-              style={{ width: '100%', marginTop: 8 }}
-              options={[
-                { label: 'Bộ KH&CN', value: 'BO_KHCN' },
-                { label: 'ĐHĐN', value: 'DHDN' },
-                { label: 'Nội bộ Trường', value: 'NOI_BO' },
-              ]}
-            />
-          </div>
-          <div>
-            <Text strong>Định dạng:</Text>
-            <Select
-              value={exportFormat}
-              onChange={setExportFormat}
-              style={{ width: '100%', marginTop: 8 }}
-              options={[
-                { label: 'PDF', value: 'PDF' },
-                { label: 'DOCX', value: 'DOCX' },
-              ]}
-            />
-          </div>
-        </Space>
-      </Modal>
     </PageContainer>
   );
 };

@@ -41,7 +41,16 @@
 .profile-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 24px;
+}
+
+.profile-header-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex: 1;
+  min-width: 0;
 }
 
 .profile-avatar {
@@ -52,6 +61,22 @@
 
 .profile-header-info {
   flex: 1;
+  min-width: 0;
+}
+
+.profile-header-actions {
+  flex-shrink: 0;
+
+  .ant-btn {
+    border-radius: 8px;
+    height: 40px;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(24, 144, 255, 0.2);
+
+    &:hover {
+      box-shadow: 0 4px 8px rgba(24, 144, 255, 0.3);
+    }
+  }
 }
 
 .profile-name {
@@ -109,7 +134,7 @@
 
   .ant-tabs {
     .ant-tabs-nav {
-      padding: 0 24px;
+      padding: 0 16px;
       margin-bottom: 0;
       background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
       border-bottom: 1px solid #f0f0f0;
@@ -139,7 +164,7 @@
     }
 
     .ant-tabs-content-holder {
-      padding: 24px;
+      padding: 16px;
     }
   }
 }
@@ -408,138 +433,7 @@
   }
 }
 
-/* Summary sticky column */
-.profile-summary-sticky {
-  position: sticky;
-  top: 80px;
-}
-
-.summary-card {
-  border-radius: @border-radius;
-  box-shadow: @box-shadow;
-  margin-bottom: 16px;
-  border: none;
-  transition: box-shadow 0.3s ease;
-
-  &:hover {
-    box-shadow: @box-shadow-hover;
-  }
-
-  .ant-card-body {
-    padding: 20px;
-  }
-
-  h5 {
-    font-size: 14px;
-    color: #666;
-    margin-bottom: 16px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-}
-
-/* Progress card */
-.progress-card {
-  background: linear-gradient(135deg, #e6f7ff 0%, #f0f5ff 100%);
-
-  .progress-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 20px;
-
-    h5 {
-      margin-bottom: 0;
-    }
-  }
-
-  .checklist {
-    .checklist-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 0;
-      color: #666;
-      font-size: 13px;
-
-      &.done {
-        color: @success-color;
-      }
-
-      .icon {
-        font-size: 14px;
-
-        &.done {
-          color: @success-color;
-        }
-
-        &.pending {
-          color: @warning-color;
-        }
-      }
-    }
-  }
-}
-
-/* Status card */
-.status-card {
-  .status-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-
-    h5 {
-      margin-bottom: 0;
-    }
-  }
-
-  .status-tag {
-    font-size: 13px;
-    padding: 4px 12px;
-    border-radius: 6px;
-  }
-
-  .verify-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 12px;
-
-    .anticon {
-      margin-right: 6px;
-    }
-  }
-}
-
-/* Actions card */
-.actions-card {
-  .ant-btn {
-    border-radius: 8px;
-    height: 40px;
-
-    &.ant-btn-primary {
-      background: linear-gradient(135deg, @primary-color 0%, #40a9ff 100%);
-      border: none;
-
-      &:hover {
-        background: linear-gradient(135deg, #40a9ff 0%, @primary-color 100%);
-      }
-    }
-  }
-
-  .ant-divider {
-    font-size: 12px;
-    color: #999;
-  }
-}
-
-/* Last updated */
-.last-updated {
-  text-align: center;
-  padding: 12px;
-  font-size: 12px;
-}
+/* NOTE: Old sidebar styles removed - see ProfileCompletionBar component */
 
 /* Editable table */
 .ant-pro-table {
@@ -551,23 +445,27 @@
 
 /* Responsive */
 @media (max-width: 992px) {
-  .profile-summary-sticky {
-    position: static;
-  }
-
   .profile-header {
     flex-direction: column;
     text-align: center;
+    gap: 16px;
+  }
+
+  .profile-header-left {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .profile-header-actions {
+    width: 100%;
+
+    .ant-btn {
+      width: 100%;
+    }
   }
 
   .profile-badges {
     justify-content: center;
-  }
-
-  .summary-card {
-    .ant-card-body {
-      padding: 16px;
-    }
   }
 }
 

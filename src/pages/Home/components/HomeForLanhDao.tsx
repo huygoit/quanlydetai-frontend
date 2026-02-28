@@ -41,20 +41,19 @@ import {
   ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useEffect, useState, useRef } from 'react';
+import { useModel } from '@umijs/max';
 import {
-  fetchCurrentUser,
   fetchHomeSummary,
   fetchHomeCharts,
   fetchTopProjects,
   fetchTopResearchers,
   fetchWarnings,
-  type CurrentUser,
   type HomeSummaryCard,
   type HomeCharts,
   type TopProjectItem,
   type TopResearcherItem,
   type WarningItem,
-} from '@/services/mock/homeMockService';
+} from '@/services/api/home';
 import styles from './HomeForLanhDao.less';
 
 const { Title, Text } = Typography;
@@ -529,7 +528,8 @@ const WarningCards: React.FC<WarningCardsProps> = ({ warnings, loading }) => {
 // ============ MAIN COMPONENT ============
 
 const HomeForLanhDao: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const { initialState } = useModel('@@initialState');
+  const currentUser = initialState?.currentUser;
   const [summaryCards, setSummaryCards] = useState<HomeSummaryCard[]>([]);
   const [charts, setCharts] = useState<HomeCharts | null>(null);
   const [topProjects, setTopProjects] = useState<TopProjectItem[]>([]);
@@ -541,23 +541,20 @@ const HomeForLanhDao: React.FC = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const user = await fetchCurrentUser();
-        setCurrentUser(user);
-
-        const [summary, chartsData, projects, researchers, warningList] =
+        const [summaryRes, chartsRes, projectsRes, researchersRes, warningsRes] =
           await Promise.all([
-            fetchHomeSummary('LANH_DAO'),
+            fetchHomeSummary(),
             fetchHomeCharts(),
             fetchTopProjects(),
             fetchTopResearchers(),
             fetchWarnings(),
           ]);
 
-        setSummaryCards(summary);
-        setCharts(chartsData);
-        setTopProjects(projects);
-        setTopResearchers(researchers);
-        setWarnings(warningList);
+        if (summaryRes.success) setSummaryCards(summaryRes.data);
+        if (chartsRes.success) setCharts(chartsRes.data);
+        if (projectsRes.success) setTopProjects(projectsRes.data);
+        if (researchersRes.success) setTopResearchers(researchersRes.data);
+        if (warningsRes.success) setWarnings(warningsRes.data);
       } catch (error) {
         console.error('Error loading home data:', error);
       } finally {
@@ -880,6 +877,7 @@ const HomeForLanhDao: React.FC = () => {
 };
 
 export default HomeForLanhDao;
+
 
 
 

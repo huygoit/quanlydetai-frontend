@@ -35,12 +35,10 @@ import {
   DEGREE_OPTIONS,
   RESEARCH_AREAS,
   FACULTIES,
-} from '@/services/profile';
-import type { ScientificProfile, ProfileStatus, Degree } from '@/services/profile';
-import {
-  notifyProfileVerified,
-  notifyNeedMoreInfo,
-} from '@/services/notification';
+  type ScientificProfile,
+  type ProfileStatus,
+  type Degree,
+} from '@/services/api/profile';
 import './index.less';
 
 const ProfileListPage: React.FC = () => {
@@ -72,32 +70,18 @@ const ProfileListPage: React.FC = () => {
     setVerifyLoading(true);
 
     try {
-      const actorRole = currentUser.role === 'ADMIN' ? 'ADMIN' : 'PHONG_KH';
-
       if (values.action === 'verify') {
-        const result = await verifyProfile(
-          selectedProfile.id,
-          values.note,
-          actorRole as 'PHONG_KH' | 'ADMIN',
-          currentUser.name
-        );
+        const result = await verifyProfile(selectedProfile.id, values.note || '');
 
         if (result.success) {
-          await notifyProfileVerified(selectedProfile.userId, selectedProfile.fullName);
           message.success('Đã xác thực hồ sơ');
           setVerifyDrawerVisible(false);
           actionRef.current?.reload();
         }
       } else {
-        const result = await requestMoreInfo(
-          selectedProfile.id,
-          values.note,
-          actorRole as 'PHONG_KH' | 'ADMIN',
-          currentUser.name
-        );
+        const result = await requestMoreInfo(selectedProfile.id, values.note || '');
 
         if (result.success) {
-          await notifyNeedMoreInfo(selectedProfile.userId, values.note);
           message.success('Đã gửi yêu cầu bổ sung');
           setVerifyDrawerVisible(false);
           actionRef.current?.reload();
@@ -280,13 +264,13 @@ const ProfileListPage: React.FC = () => {
             degree: params.degree as Degree,
             mainResearchArea: params.mainResearchArea,
             status: params.status as ProfileStatus,
-            current: params.current,
-            pageSize: params.pageSize,
+            page: params.current,
+            perPage: params.pageSize,
           });
 
           return {
             data: result.data,
-            total: result.total,
+            total: result.meta?.total || 0,
             success: result.success,
           };
         }}

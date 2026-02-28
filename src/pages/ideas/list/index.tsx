@@ -7,7 +7,7 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { ProColumns, ActionType } from '@ant-design/pro-components';
 import { Badge, Button, Card, Col, Drawer, Descriptions, Progress, Row, Space, Tag, Typography, Alert } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, EyeOutlined, LinkOutlined, TrophyOutlined } from '@ant-design/icons';
-import { THRESHOLD_SCORE, MAX_WEIGHTED_SCORE, SCORING_CRITERIA } from '@/services/ideaCouncil';
+import { THRESHOLD_SCORE, MAX_WEIGHTED_SCORE, SCORING_CRITERIA } from '@/services/api/ideaCouncil';
 import { useRef, useState } from 'react';
 import {
   queryIdeas,
@@ -16,12 +16,18 @@ import {
   IDEA_STATUS_MAP,
   IDEA_PRIORITY_MAP,
   PROJECT_LEVEL_MAP,
-  PROJECT_LEVELS,
-  REJECT_STAGE_MAP,
   type Idea,
   type IdeaStatus,
   type ProjectLevel,
-} from '@/services/ideas';
+} from '@/services/api/ideas';
+
+const PROJECT_LEVELS: ProjectLevel[] = Object.keys(PROJECT_LEVEL_MAP) as ProjectLevel[];
+
+const REJECT_STAGE_MAP: Record<string, string> = {
+  PHONG_KH_SO_LOAI: 'Bị từ chối ở giai đoạn sơ loại (Phòng KH)',
+  HOI_DONG_DE_XUAT: 'Bị từ chối ở giai đoạn Hội đồng đề xuất',
+  LANH_DAO_PHE_DUYET: 'Bị từ chối ở giai đoạn Lãnh đạo phê duyệt',
+};
 
 const { Text } = Typography;
 
@@ -192,15 +198,15 @@ const IdeaListPage: React.FC = () => {
         request={async (params) => {
           const { current, pageSize, code, title, suitableLevels, ...rest } = params;
           const result = await queryIdeas({
-            current,
-            pageSize,
+            page: current,
+            perPage: pageSize,
             keyword: code || title,
             suitableLevels: suitableLevels as ProjectLevel[],
             ...rest,
           });
           return {
             data: result.data,
-            total: result.total,
+            total: result.meta?.total || 0,
             success: result.success,
           };
         }}

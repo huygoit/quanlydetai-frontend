@@ -43,21 +43,20 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { useEffect, useState, useRef } from 'react';
+import { useModel } from '@umijs/max';
 import {
-  fetchCurrentUser,
   fetchHomeSummary,
   fetchHomeTasks,
   fetchHomeIdeas,
   fetchWorkflowSteps,
   fetchPendingProposals,
   fetchDelayedProjects,
-  type CurrentUser,
   type HomeSummaryCard,
   type HomeTaskItem,
   type HomeIdeaShort,
   type HomeProjectShort,
   type WorkflowStep,
-} from '@/services/mock/homeMockService';
+} from '@/services/api/home';
 import styles from './HomeForPhongKH.less';
 
 const { Title, Text } = Typography;
@@ -424,7 +423,8 @@ const ApprovalTaskList: React.FC<ApprovalTaskListProps> = ({ tasks, loading }) =
 // ============ MAIN COMPONENT ============
 
 const HomeForPhongKH: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const { initialState } = useModel('@@initialState');
+  const currentUser = initialState?.currentUser;
   const [summaryCards, setSummaryCards] = useState<HomeSummaryCard[]>([]);
   const [tasks, setTasks] = useState<HomeTaskItem[]>([]);
   const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
@@ -437,32 +437,31 @@ const HomeForPhongKH: React.FC = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const user = await fetchCurrentUser();
-        setCurrentUser(user);
-
         const [
-          summary,
-          taskList,
-          workflow,
-          proposals,
-          ideas,
-          delayed,
+          summaryRes,
+          taskRes,
+          workflowRes,
+          proposalRes,
+          ideaRes,
+          delayedRes,
         ] = await Promise.all([
-          fetchHomeSummary('PHONG_KH'),
-          fetchHomeTasks('PHONG_KH'),
+          fetchHomeSummary(),
+          fetchHomeTasks(),
           fetchWorkflowSteps(),
           fetchPendingProposals(),
-          fetchHomeIdeas('PHONG_KH'),
+          fetchHomeIdeas(),
           fetchDelayedProjects(),
         ]);
 
-        setSummaryCards(summary);
-        setTasks(taskList);
-        setWorkflowSteps(workflow);
-        setPendingProposals(proposals);
-        // Filter top ideas by score
-        setTopIdeas(ideas.filter((i) => i.score && i.score >= 7).sort((a, b) => (b.score || 0) - (a.score || 0)));
-        setDelayedProjects(delayed);
+        if (summaryRes.success) setSummaryCards(summaryRes.data);
+        if (taskRes.success) setTasks(taskRes.data);
+        if (workflowRes.success) setWorkflowSteps(workflowRes.data);
+        if (proposalRes.success) setPendingProposals(proposalRes.data);
+        if (ideaRes.success) {
+          // Filter top ideas by score
+          setTopIdeas(ideaRes.data.filter((i) => i.score && i.score >= 7).sort((a, b) => (b.score || 0) - (a.score || 0)));
+        }
+        if (delayedRes.success) setDelayedProjects(delayedRes.data);
       } catch (error) {
         console.error('Error loading home data:', error);
       } finally {
@@ -815,6 +814,7 @@ const HomeForPhongKH: React.FC = () => {
 };
 
 export default HomeForPhongKH;
+
 
 
 

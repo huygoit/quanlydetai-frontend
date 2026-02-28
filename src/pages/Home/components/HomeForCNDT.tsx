@@ -42,20 +42,19 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { useEffect, useState, useRef } from 'react';
+import { useModel } from '@umijs/max';
 import {
-  fetchCurrentUser,
   fetchHomeSummary,
   fetchHomeTasks,
   fetchHomeNotifications,
   fetchHomeProjects,
   fetchHomeIdeas,
-  type CurrentUser,
   type HomeSummaryCard,
   type HomeTaskItem,
   type HomeNotification,
   type HomeProjectShort,
   type HomeIdeaShort,
-} from '@/services/mock/homeMockService';
+} from '@/services/api/home';
 import styles from './HomeForCNDT.less';
 
 const { Title, Text, Paragraph } = Typography;
@@ -472,7 +471,8 @@ const QuickActions: React.FC = () => {
 // ============ MAIN COMPONENT ============
 
 const HomeForCNDT: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const { initialState } = useModel('@@initialState');
+  const currentUser = initialState?.currentUser;
   const [summaryCards, setSummaryCards] = useState<HomeSummaryCard[]>([]);
   const [tasks, setTasks] = useState<HomeTaskItem[]>([]);
   const [notifications, setNotifications] = useState<HomeNotification[]>([]);
@@ -484,22 +484,19 @@ const HomeForCNDT: React.FC = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const user = await fetchCurrentUser();
-        setCurrentUser(user);
-
-        const [summary, taskList, notiList, projectList, ideaList] = await Promise.all([
-          fetchHomeSummary('CNDT'),
-          fetchHomeTasks('CNDT'),
-          fetchHomeNotifications('CNDT'),
-          fetchHomeProjects('CNDT'),
-          fetchHomeIdeas('CNDT'),
+        const [summaryRes, taskRes, notiRes, projectRes, ideaRes] = await Promise.all([
+          fetchHomeSummary(),
+          fetchHomeTasks(),
+          fetchHomeNotifications(),
+          fetchHomeProjects(),
+          fetchHomeIdeas(),
         ]);
 
-        setSummaryCards(summary);
-        setTasks(taskList);
-        setNotifications(notiList);
-        setProjects(projectList);
-        setIdeas(ideaList);
+        if (summaryRes.success) setSummaryCards(summaryRes.data);
+        if (taskRes.success) setTasks(taskRes.data);
+        if (notiRes.success) setNotifications(notiRes.data);
+        if (projectRes.success) setProjects(projectRes.data);
+        if (ideaRes.success) setIdeas(ideaRes.data);
       } catch (error) {
         console.error('Error loading home data:', error);
       } finally {

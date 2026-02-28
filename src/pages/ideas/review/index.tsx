@@ -27,7 +27,6 @@ import {
   queryIdeas,
   receiveIdea,
   approveInternalIdea,
-  // proposeOrderIdea, // NOTE: Hội đồng chấm điểm qua phiên, không dùng trực tiếp
   approveOrderIdea,
   rejectIdea,
   createProjectFromIdea,
@@ -36,18 +35,23 @@ import {
   IDEA_STATUS_MAP,
   IDEA_PRIORITY_MAP,
   PROJECT_LEVEL_MAP,
-  REJECT_STAGE_MAP,
   type Idea,
   type IdeaStatus,
   type IdeaPriority,
-} from '@/services/ideas';
+} from '@/services/api/ideas';
 import {
-  computeIdeaResult,
+  getSessionResults,
   SCORING_CRITERIA,
   THRESHOLD_SCORE,
   MAX_WEIGHTED_SCORE,
   type IdeaCouncilResult,
-} from '@/services/ideaCouncil';
+} from '@/services/api/ideaCouncil';
+
+const REJECT_STAGE_MAP: Record<string, string> = {
+  PHONG_KH_SO_LOAI: 'Bị từ chối ở giai đoạn sơ loại (Phòng KH)',
+  HOI_DONG_DE_XUAT: 'Bị từ chối ở giai đoạn Hội đồng đề xuất',
+  LANH_DAO_PHE_DUYET: 'Bị từ chối ở giai đoạn Lãnh đạo phê duyệt',
+};
 
 const { Text } = Typography;
 
@@ -106,15 +110,10 @@ const IdeaReviewPage: React.FC = () => {
     
     // Load council result if idea has been scored by council
     if (record.councilSessionId) {
-      const res = await computeIdeaResult(record.councilSessionId, record.id);
+      const res = await getSessionResults(record.councilSessionId);
       if (res.success && res.data) {
-        setCouncilResult(res.data);
-      }
-    } else if (['APPROVED_INTERNAL', 'PROPOSED_FOR_ORDER', 'APPROVED_FOR_ORDER'].includes(record.status)) {
-      // Fallback: try with session-1 (mock)
-      const res = await computeIdeaResult('session-1', record.id);
-      if (res.success && res.data) {
-        setCouncilResult(res.data);
+        const result = res.data.find((r: IdeaCouncilResult) => r.ideaId === record.id);
+        if (result) setCouncilResult(result);
       }
     }
   };

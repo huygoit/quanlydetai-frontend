@@ -29,8 +29,9 @@ import {
   queryNotifications,
   markRead,
   markAllRead,
-} from '@/services/notification';
-import type { Notification, NotificationType } from '@/services/notification';
+  type Notification,
+  type NotificationType,
+} from '@/services/api/notifications';
 import './index.less';
 
 const { Text } = Typography;
@@ -46,35 +47,31 @@ const ICON_MAP: Record<NotificationType, React.ReactNode> = {
 };
 
 interface NotificationBellProps {
-  userId?: string;
+  userId?: string; // Kept for backward compatibility but not used
 }
 
-const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) => {
-  const { initialState } = useModel('@@initialState');
-  const currentUser = initialState?.currentUser;
+const NotificationBell: React.FC<NotificationBellProps> = () => {
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const effectiveUserId = userId || currentUser?.role || 'user-1';
-
   // Load notifications
   const loadNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await queryNotifications(effectiveUserId);
+      const result = await queryNotifications({ perPage: 10 });
       if (result.success) {
-        setNotifications(result.data.slice(0, 10)); // Show only 10 latest
-        setUnreadCount(result.unreadCount);
+        setNotifications(result.data);
+        setUnreadCount(result.meta?.unreadCount || 0);
       }
     } catch (error) {
       console.error('Failed to load notifications:', error);
     } finally {
       setLoading(false);
     }
-  }, [effectiveUserId]);
+  }, []);
 
   useEffect(() => {
     loadNotifications();
@@ -86,11 +83,15 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) => {
   // Handle click notification
   const handleClick = async (notification: Notification) => {
     if (!notification.read) {
-      await markRead(notification.id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      try {
+        await markRead(notification.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
     }
 
     if (notification.link) {
@@ -101,10 +102,14 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) => {
 
   // Mark all as read
   const handleMarkAllRead = async () => {
-    await markAllRead(effectiveUserId);
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    setUnreadCount(0);
-    message.success('Đã đánh dấu tất cả đã đọc');
+    try {
+      await markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+      message.success('Đã đánh dấu tất cả đã đọc');
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
   };
 
   // Format time

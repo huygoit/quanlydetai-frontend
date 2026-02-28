@@ -226,10 +226,10 @@ export default defineConfig({
           access: 'canViewAdmin',
         },
         {
-          path: '/admin/catalogs',
+          path: '/admin/catalog',
           name: 'Danh mục hệ thống',
           icon: 'AppstoreOutlined',
-          component: '@/pages/admin/catalogs',
+          component: '@/pages/admin/catalog',
           access: 'canViewAdmin',
         },
       ],

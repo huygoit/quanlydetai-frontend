@@ -1,19 +1,11 @@
 /**
- * Danh mục hệ thống
+ * Danh mục hệ thống (redirect to /admin/catalog)
+ * @deprecated Use /admin/catalog instead
  */
-import { PageContainer } from '@ant-design/pro-components';
-import { Card } from 'antd';
+import { Navigate } from '@umijs/max';
 
 const AdminCatalogsPage: React.FC = () => {
-  return (
-    <PageContainer>
-      <Card>
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
-          📚 Danh mục hệ thống - Đang phát triển
-        </div>
-      </Card>
-    </PageContainer>
-  );
+  return <Navigate to="/admin/catalog" replace />;
 };
 
 export default AdminCatalogsPage;

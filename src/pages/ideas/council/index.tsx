@@ -48,24 +48,22 @@ import {
 import { useRef, useState, useEffect } from 'react';
 import { useAccess } from '@umijs/max';
 import {
-  queryCouncilSessions,
-  getCouncilSession,
-  createCouncilSession,
+  querySessions,
+  getSession,
+  createSession,
   openSession,
   closeSession,
-  querySessionMembers,
+  getSessionMembers,
   addSessionMember,
   removeSessionMember,
-  querySessionIdeas,
-  addIdeasToSession,
-  removeIdeaFromSession,
-  getMyScore,
-  saveScoreDraft,
-  submitScore,
-  getScoresForIdea,
-  computeIdeaResult,
-  computeSessionResults,
-  getSessionScoringStats,
+  getSessionIdeas,
+  addSessionIdeas,
+  removeSessionIdea,
+  getScoreSheet,
+  saveScoreSheet,
+  submitScoreSheet,
+  getIdeaAllScores,
+  getSessionResults,
   calculateWeightedScore,
   SESSION_STATUS_MAP,
   MEMBER_ROLE_MAP,
@@ -79,8 +77,8 @@ import {
   type SessionIdea,
   type IdeaCouncilScore,
   type IdeaCouncilResult,
-} from '@/services/ideaCouncil';
-import { queryIdeas, type Idea } from '@/services/ideas';
+} from '@/services/api/ideaCouncil';
+import { queryIdeas, type Idea } from '@/services/api/ideas';
 
 const { Text, Title } = Typography;
 
@@ -131,7 +129,7 @@ const CouncilPage: React.FC = () => {
   // Load sessions
   const loadSessions = async () => {
     setLoading(true);
-    const res = await queryCouncilSessions();
+    const res = await querySessions();
     if (res.success) {
       setSessions(res.data);
     }
@@ -159,27 +157,33 @@ const CouncilPage: React.FC = () => {
     setDetailDrawerVisible(true);
     
     // Load members
-    const membersRes = await querySessionMembers(session.id);
+    const membersRes = await getSessionMembers(session.id);
     if (membersRes.success) setMembers(membersRes.data);
     
     // Load ideas
-    const ideasRes = await querySessionIdeas(session.id);
+    const ideasRes = await getSessionIdeas(session.id);
     if (ideasRes.success) setSessionIdeas(ideasRes.data);
     
     // Load results if closed
     if (['CLOSED', 'PUBLISHED'].includes(session.status)) {
-      const resultsRes = await computeSessionResults(session.id);
+      const resultsRes = await getSessionResults(session.id);
       if (resultsRes.success) setResults(resultsRes.data);
     }
     
-    // Load stats
-    const statsRes = await getSessionScoringStats(session.id);
-    if (statsRes.success) setScoringStats(statsRes.data);
+    // Load stats from session detail
+    const sessionRes = await getSession(session.id);
+    if (sessionRes.success && sessionRes.data) {
+      setScoringStats({
+        totalIdeas: sessionRes.data.ideaCount,
+        memberCount: sessionRes.data.memberCount,
+        completionRate: Math.round((sessionRes.data.scoredIdeas || 0) / Math.max(1, sessionRes.data.ideaCount) * 100),
+      });
+    }
   };
 
   // Create session
   const handleCreateSession = async (values: any) => {
-    const res = await createCouncilSession(values);
+    const res = await createSession(values);
     if (res.success) {
       message.success('Đã tạo phiên hội đồng mới');
       setCreateModalVisible(false);
@@ -224,7 +228,7 @@ const CouncilPage: React.FC = () => {
       if (currentSession?.id === session.id) {
         setCurrentSession(res.data);
         // Load results
-        const resultsRes = await computeSessionResults(session.id);
+        const resultsRes = await getSessionResults(session.id);
         if (resultsRes.success) setResults(resultsRes.data);
       }
     } else {
@@ -238,11 +242,11 @@ const CouncilPage: React.FC = () => {
     const res = await addSessionMember(currentSession.id, values);
     if (res.success) {
       message.success('Đã thêm thành viên');
-      const membersRes = await querySessionMembers(currentSession.id);
+      const membersRes = await getSessionMembers(currentSession.id);
       if (membersRes.success) setMembers(membersRes.data);
       
       // Update session
-      const sessionRes = await getCouncilSession(currentSession.id);
+      const sessionRes = await getSession(currentSession.id);
       if (sessionRes.data) setCurrentSession(sessionRes.data);
       
       setAddMemberModalVisible(false);
@@ -258,10 +262,10 @@ const CouncilPage: React.FC = () => {
     const res = await removeSessionMember(currentSession.id, member.id);
     if (res.success) {
       message.success('Đã xóa thành viên');
-      const membersRes = await querySessionMembers(currentSession.id);
+      const membersRes = await getSessionMembers(currentSession.id);
       if (membersRes.success) setMembers(membersRes.data);
       
-      const sessionRes = await getCouncilSession(currentSession.id);
+      const sessionRes = await getSession(currentSession.id);
       if (sessionRes.data) setCurrentSession(sessionRes.data);
     }
   };
@@ -291,13 +295,13 @@ const CouncilPage: React.FC = () => {
         field: i.field,
       }));
     
-    const res = await addIdeasToSession(currentSession.id, ideas);
+    const res = await addSessionIdeas(currentSession.id, ideas);
     if (res.success) {
       message.success(`Đã thêm ${ideas.length} ý tưởng`);
-      const ideasRes = await querySessionIdeas(currentSession.id);
+      const ideasRes = await getSessionIdeas(currentSession.id);
       if (ideasRes.success) setSessionIdeas(ideasRes.data);
       
-      const sessionRes = await getCouncilSession(currentSession.id);
+      const sessionRes = await getSession(currentSession.id);
       if (sessionRes.data) setCurrentSession(sessionRes.data);
       
       setAddIdeaModalVisible(false);
@@ -307,13 +311,13 @@ const CouncilPage: React.FC = () => {
   // Remove idea from session
   const handleRemoveIdea = async (idea: SessionIdea) => {
     if (!currentSession) return;
-    const res = await removeIdeaFromSession(currentSession.id, idea.id);
+    const res = await removeSessionIdea(currentSession.id, idea.id);
     if (res.success) {
       message.success('Đã xóa ý tưởng');
-      const ideasRes = await querySessionIdeas(currentSession.id);
+      const ideasRes = await getSessionIdeas(currentSession.id);
       if (ideasRes.success) setSessionIdeas(ideasRes.data);
       
-      const sessionRes = await getCouncilSession(currentSession.id);
+      const sessionRes = await getSession(currentSession.id);
       if (sessionRes.data) setCurrentSession(sessionRes.data);
     }
   };
@@ -325,7 +329,7 @@ const CouncilPage: React.FC = () => {
     setCurrentIdea(idea);
     
     // Load existing score
-    const res = await getMyScore(currentSession.id, idea.ideaId);
+    const res = await getScoreSheet(currentSession.id, idea.ideaId);
     if (res.data) {
       setMyScore(res.data);
       setFormValues({
@@ -361,11 +365,7 @@ const CouncilPage: React.FC = () => {
   const handleSaveScore = async () => {
     if (!currentSession || !currentIdea) return;
     
-    const res = await saveScoreDraft({
-      sessionId: currentSession.id,
-      ideaId: currentIdea.ideaId,
-      ...formValues,
-    });
+    const res = await saveScoreSheet(currentSession.id, currentIdea.ideaId, formValues);
     
     if (res.success) {
       message.success('Đã lưu nháp');
@@ -401,11 +401,7 @@ const CouncilPage: React.FC = () => {
     }
     
     // Save first
-    const saveRes = await saveScoreDraft({
-      sessionId: currentSession.id,
-      ideaId: currentIdea.ideaId,
-      ...formValues,
-    });
+    const saveRes = await saveScoreSheet(currentSession.id, currentIdea.ideaId, formValues);
     
     if (!saveRes.success) {
       message.error('Không thể lưu phiếu');
@@ -413,14 +409,20 @@ const CouncilPage: React.FC = () => {
     }
     
     // Submit
-    const submitRes = await submitScore(saveRes.data.id);
+    const submitRes = await submitScoreSheet(currentSession.id, currentIdea.ideaId);
     if (submitRes.success) {
       message.success('Đã gửi phiếu chấm điểm');
       setScoreModalVisible(false);
       
-      // Refresh stats
-      const statsRes = await getSessionScoringStats(currentSession.id);
-      if (statsRes.success) setScoringStats(statsRes.data);
+      // Refresh stats from session detail
+      const sessionRes = await getSession(currentSession.id);
+      if (sessionRes.success && sessionRes.data) {
+        setScoringStats({
+          totalIdeas: sessionRes.data.ideaCount,
+          memberCount: sessionRes.data.memberCount,
+          completionRate: Math.round((sessionRes.data.scoredIdeas || 0) / Math.max(1, sessionRes.data.ideaCount) * 100),
+        });
+      }
     } else {
       message.error('Không thể gửi phiếu');
     }
@@ -431,7 +433,7 @@ const CouncilPage: React.FC = () => {
     if (!currentSession) return;
     
     setCurrentIdea(idea);
-    const res = await getScoresForIdea(currentSession.id, idea.ideaId);
+    const res = await getIdeaAllScores(currentSession.id, idea.ideaId);
     if (res.success) {
       setIdeaScores(res.data);
       setAllScoresDrawerVisible(true);

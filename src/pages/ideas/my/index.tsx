@@ -7,7 +7,7 @@ import { PageContainer, ProTable, ModalForm, ProFormText, ProFormSelect, ProForm
 import type { ProColumns, ActionType } from '@ant-design/pro-components';
 import { Badge, Button, Card, Col, Drawer, Descriptions, Progress, Row, Space, Tag, Typography, message, Popconfirm, Empty, Alert } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SendOutlined, LinkOutlined, TrophyOutlined } from '@ant-design/icons';
-import { THRESHOLD_SCORE, MAX_WEIGHTED_SCORE, SCORING_CRITERIA } from '@/services/ideaCouncil';
+import { THRESHOLD_SCORE, MAX_WEIGHTED_SCORE, SCORING_CRITERIA } from '@/services/api/ideaCouncil';
 import { useRef, useState } from 'react';
 import { useModel } from '@umijs/max';
 import {
@@ -20,12 +20,18 @@ import {
   IDEA_STATUS_MAP,
   IDEA_PRIORITY_MAP,
   PROJECT_LEVEL_MAP,
-  PROJECT_LEVELS,
-  REJECT_STAGE_MAP,
   type Idea,
   type IdeaCreateData,
   type ProjectLevel,
-} from '@/services/ideas';
+} from '@/services/api/ideas';
+
+const PROJECT_LEVELS: ProjectLevel[] = Object.keys(PROJECT_LEVEL_MAP) as ProjectLevel[];
+
+const REJECT_STAGE_MAP: Record<string, string> = {
+  PHONG_KH_SO_LOAI: 'Bị từ chối ở giai đoạn sơ loại (Phòng KH)',
+  HOI_DONG_DE_XUAT: 'Bị từ chối ở giai đoạn Hội đồng đề xuất',
+  LANH_DAO_PHE_DUYET: 'Bị từ chối ở giai đoạn Lãnh đạo phê duyệt',
+};
 
 const { Text } = Typography;
 
@@ -58,58 +64,58 @@ const MyIdeasPage: React.FC = () => {
   };
 
   // Xóa ý tưởng (chỉ khi DRAFT)
-  const handleDelete = async (id: string) => {
-    const result = await deleteIdea(id);
-    if (result.success) {
-      message.success('Đã xóa ý tưởng');
-      actionRef.current?.reload();
-    } else {
+  const handleDelete = async (id: number) => {
+    try {
+      const result = await deleteIdea(id);
+      if (result.success) {
+        message.success('Đã xóa ý tưởng');
+        actionRef.current?.reload();
+      }
+    } catch (error) {
       message.error('Chỉ có thể xóa ý tưởng ở trạng thái Nháp');
     }
   };
 
   // Gửi ý tưởng (DRAFT → SUBMITTED)
-  const handleSubmit = async (id: string) => {
-    const result = await submitIdea(id);
-    if (result.success) {
-      message.success('Đã gửi ý tưởng thành công');
-      actionRef.current?.reload();
-    } else {
+  const handleSubmit = async (id: number) => {
+    try {
+      const result = await submitIdea(id);
+      if (result.success) {
+        message.success('Đã gửi ý tưởng thành công');
+        actionRef.current?.reload();
+      }
+    } catch (error) {
       message.error('Không thể gửi ý tưởng này');
     }
   };
 
   // Submit form thêm/sửa
   const handleFormSubmit = async (values: IdeaCreateData) => {
-    if (editingIdea) {
-      // Update (chỉ khi DRAFT)
-      const result = await updateIdea(editingIdea.id, values);
-      if (result.success) {
-        message.success('Đã cập nhật ý tưởng');
-        setModalVisible(false);
-        actionRef.current?.reload();
-        return true;
+    try {
+      if (editingIdea) {
+        // Update (chỉ khi DRAFT)
+        const result = await updateIdea(editingIdea.id, values);
+        if (result.success) {
+          message.success('Đã cập nhật ý tưởng');
+          setModalVisible(false);
+          actionRef.current?.reload();
+          return true;
+        }
+        return false;
       } else {
-        message.error('Chỉ có thể sửa ý tưởng ở trạng thái Nháp');
+        // Create
+        const result = await createIdea(values);
+        if (result.success) {
+          message.success('Đã tạo ý tưởng mới');
+          setModalVisible(false);
+          actionRef.current?.reload();
+          return true;
+        }
         return false;
       }
-    } else {
-      // Create
-      const result = await createIdea(
-        values,
-        currentUser?.name ? 'user-current' : 'user-1',
-        currentUser?.name || 'Người dùng',
-        'Khoa CNTT'
-      );
-      if (result.success) {
-        message.success('Đã tạo ý tưởng mới');
-        setModalVisible(false);
-        actionRef.current?.reload();
-        return true;
-      } else {
-        message.error('Không thể tạo ý tưởng');
-        return false;
-      }
+    } catch (error) {
+      message.error(editingIdea ? 'Chỉ có thể sửa ý tưởng ở trạng thái Nháp' : 'Không thể tạo ý tưởng');
+      return false;
     }
   };
 
@@ -287,17 +293,16 @@ const MyIdeasPage: React.FC = () => {
         columns={columns}
         request={async (params) => {
           const { current, pageSize, code, title, ...rest } = params;
-          // Chỉ lấy ý tưởng của user hiện tại (mock: user-1)
+          // API sẽ tự filter theo user hiện tại dựa trên token
           const result = await queryIdeas({
-            current,
-            pageSize,
+            page: current,
+            perPage: pageSize,
             keyword: code || title,
-            ownerId: 'user-1', // Mock current user
             ...rest,
           });
           return {
             data: result.data,
-            total: result.total,
+            total: result.meta?.total || 0,
             success: result.success,
           };
         }}

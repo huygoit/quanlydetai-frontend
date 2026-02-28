@@ -9,33 +9,19 @@ import {
   Checkbox,
   Form,
   Input,
-  Select,
   Typography,
   message,
-  Space,
 } from 'antd';
 import {
-  UserOutlined,
   LockOutlined,
   MailOutlined,
-  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useModel, history } from '@umijs/max';
 import type { UserRole } from '@/services/mock/homeMockService';
+import { login } from '@/services/api/auth';
 import styles from './index.less';
 
 const { Title, Text } = Typography;
-
-// Danh sách role với label hiển thị
-const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: 'NCV', label: 'Nhà khoa học / Giảng viên / NCV' },
-  { value: 'CNDT', label: 'Chủ nhiệm đề tài' },
-  { value: 'TRUONG_DON_VI', label: 'Trưởng khoa' },
-  { value: 'PHONG_KH', label: 'Phòng khoa học, CNTT và HTQT' },
-  { value: 'HOI_DONG', label: 'Hội đồng' },
-  { value: 'LANH_DAO', label: 'Lãnh đạo' },
-  { value: 'ADMIN', label: 'Quản trị hệ thống' },
-];
 
 // Role label mapping
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -52,7 +38,6 @@ const ROLE_LABELS: Record<UserRole, string> = {
 interface LoginFormValues {
   email: string;
   password: string;
-  role: UserRole;
   remember: boolean;
 }
 
@@ -63,39 +48,43 @@ const LoginPage: React.FC = () => {
 
   // Handle login submit
   const handleSubmit = async (values: LoginFormValues) => {
-    const { email, role, remember } = values;
+    const { email, password, remember } = values;
 
     setLoading(true);
 
-    // Simulate network delay (300-500ms)
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
     try {
-      // Tạo user mock từ form
-      const user = {
-        email,
-        role,
-        name: email?.split('@')?.[0] || 'Người dùng demo',
-        roleLabel: ROLE_LABELS[role],
-      };
+      const response = await login({ email, password });
 
-      // Lưu vào initialState
-      await setInitialState((prev: any) => ({
-        ...prev,
-        currentUser: user,
-      }));
+      if (response.success && response.data) {
+        const userData = response.data.user;
+        const user = {
+          email: userData.email,
+          role: userData.role,
+          name: userData.fullName,
+          roleLabel: ROLE_LABELS[userData.role],
+        };
 
-      // Lưu vào localStorage nếu chọn "Ghi nhớ tôi"
-      if (remember) {
-        localStorage.setItem('khcn-current-user', JSON.stringify(user));
+        // Lưu vào initialState
+        await setInitialState((prev: any) => ({
+          ...prev,
+          currentUser: user,
+        }));
+
+        // Lưu vào localStorage nếu chọn "Ghi nhớ tôi" (để cache)
+        if (remember) {
+          localStorage.setItem('khcn-current-user', JSON.stringify(user));
+        }
+
+        message.success(`Đăng nhập thành công! Xin chào ${user.name}`);
+
+        // Redirect về Home
+        history.push('/home');
+      } else {
+        message.error(response.message || 'Đăng nhập thất bại');
       }
-
-      message.success(`Đăng nhập thành công! Xin chào ${user.name}`);
-
-      // Redirect về Home
-      history.push('/home');
-    } catch (error) {
-      message.error('Đăng nhập thất bại, vui lòng thử lại');
+    } catch (error: any) {
+      const errorMsg = error?.data?.message || 'Đăng nhập thất bại, vui lòng thử lại';
+      message.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -136,7 +125,6 @@ const LoginPage: React.FC = () => {
           layout="vertical"
           initialValues={{
             remember: true,
-            role: 'CNDT',
           }}
           size="large"
         >
@@ -166,19 +154,6 @@ const LoginPage: React.FC = () => {
               prefix={<LockOutlined className={styles.inputIcon} />}
               placeholder="Nhập mật khẩu"
               autoComplete="current-password"
-            />
-          </Form.Item>
-
-          {/* Vai trò */}
-          <Form.Item
-            name="role"
-            label="Vai trò"
-            rules={[{ required: true, message: 'Vui lòng chọn vai trò' }]}
-          >
-            <Select
-              placeholder="Chọn vai trò"
-              options={ROLE_OPTIONS}
-              suffixIcon={<SafetyCertificateOutlined />}
             />
           </Form.Item>
 

@@ -10,21 +10,26 @@ import { PlusOutlined, EyeOutlined, EditOutlined, SendOutlined, DeleteOutlined, 
 import { useModel } from '@umijs/max';
 import type { UserRole } from '@/access';
 import {
-  queryProjectProposals,
-  createProjectProposal,
-  updateProjectProposal,
-  submitProjectProposal,
-  withdrawProjectProposal,
-  deleteProjectProposal,
-  unitReviewProjectProposal,
-  sciDeptReviewProjectProposal,
-  PROPOSAL_STATUS_CONFIG,
+  queryProposals,
+  createProposal,
+  updateProposal,
+  submitProposal,
+  withdrawProposal,
+  deleteProposal,
+  unitReviewProposal,
+  sciDeptReviewProposal,
+  PROPOSAL_STATUS_MAP,
   FIELD_OPTIONS,
   LEVEL_OPTIONS,
   UNIT_OPTIONS,
   PRIORITY_OPTIONS,
-} from '@/services/projectsRegister';
-import type { ProjectProposal, ProposalStatus } from '@/services/projectsRegister';
+  type ProjectProposal,
+  type ProposalStatus,
+} from '@/services/api/projectProposals';
+
+const PROPOSAL_STATUS_CONFIG = Object.fromEntries(
+  Object.entries(PROPOSAL_STATUS_MAP).map(([k, v]) => [k, { label: v.label, color: v.color }])
+) as Record<ProposalStatus, { label: string; color: string }>;
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -277,7 +282,7 @@ const ProjectRegisterPage: React.FC = () => {
       okText: 'Gửi',
       cancelText: 'Huỷ',
       onOk: async () => {
-        const result = await submitProjectProposal(record.id);
+        const result = await submitProposal(record.id);
         if (result.success) {
           message.success('Đã gửi đề xuất thành công!');
           tableRef.current?.reload();
@@ -296,7 +301,7 @@ const ProjectRegisterPage: React.FC = () => {
       okButtonProps: { danger: true },
       cancelText: 'Huỷ',
       onOk: async () => {
-        const result = await withdrawProjectProposal(record.id);
+        const result = await withdrawProposal(record.id);
         if (result.success) {
           message.success('Đã rút đề xuất!');
           tableRef.current?.reload();
@@ -315,7 +320,7 @@ const ProjectRegisterPage: React.FC = () => {
       okButtonProps: { danger: true },
       cancelText: 'Huỷ',
       onOk: async () => {
-        const result = await deleteProjectProposal(record.id);
+        const result = await deleteProposal(record.id);
         if (result.success) {
           message.success('Đã xoá đề xuất!');
           tableRef.current?.reload();
@@ -349,12 +354,12 @@ const ProjectRegisterPage: React.FC = () => {
 
     let result;
     if (editingProposal) {
-      result = await updateProjectProposal(editingProposal.id, proposalData);
+      result = await updateProposal(editingProposal.id, proposalData);
       if (result.success) {
         message.success('Cập nhật đề xuất thành công!');
       }
     } else {
-      result = await createProjectProposal(proposalData);
+      result = await createProposal(proposalData);
       if (result.success) {
         message.success('Tạo đề xuất mới thành công!');
       }
@@ -382,9 +387,9 @@ const ProjectRegisterPage: React.FC = () => {
 
     let result;
     if (editingProposal) {
-      result = await updateProjectProposal(editingProposal.id, { ...proposalData, status: 'SUBMITTED' });
+      result = await updateProposal(editingProposal.id, { ...proposalData, status: 'SUBMITTED' });
     } else {
-      result = await createProjectProposal(proposalData);
+      result = await createProposal(proposalData);
     }
 
     if (result.success) {
@@ -405,7 +410,7 @@ const ProjectRegisterPage: React.FC = () => {
   const handleUnitReviewSubmit = async () => {
     try {
       const values = await unitReviewForm.validateFields();
-      const result = await unitReviewProjectProposal(reviewProposal!.id, {
+      const result = await unitReviewProposal(reviewProposal!.id, {
         unitApproved: values.unitApproved,
         unitComment: values.unitComment,
       });
@@ -430,7 +435,7 @@ const ProjectRegisterPage: React.FC = () => {
   const handleSciDeptReviewSubmit = async () => {
     try {
       const values = await sciDeptReviewForm.validateFields();
-      const result = await sciDeptReviewProjectProposal(reviewProposal!.id, {
+      const result = await sciDeptReviewProposal(reviewProposal!.id, {
         status: values.status,
         sciDeptPriority: values.sciDeptPriority,
         sciDeptComment: values.sciDeptComment,
@@ -484,10 +489,14 @@ const ProjectRegisterPage: React.FC = () => {
             queryParams.unit = params.ownerUnit;
           }
 
-          const result = await queryProjectProposals(queryParams);
+          const result = await queryProposals({
+            ...queryParams,
+            page: queryParams.current,
+            perPage: queryParams.pageSize,
+          });
           return {
             data: result.data,
-            total: result.total,
+            total: result.meta?.total || 0,
             success: result.success,
           };
         }}
