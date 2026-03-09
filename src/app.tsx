@@ -10,7 +10,7 @@ import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import * as allIcons from '@ant-design/icons';
 import type { UserRole } from '@/services/mock/homeMockService';
 import NotificationBell from '@/components/NotificationBell';
-import { getCurrentUser, logout as apiLogout } from '@/services/api/auth';
+import { getCurrentUser, logout as apiLogout, normalizePermissions } from '@/services/api/auth';
 import { getToken, removeToken } from '@/services/request';
 import './global.less';
 
@@ -69,16 +69,21 @@ export function rootContainer(container: React.ReactNode) {
 
 // Interface cho CurrentUser
 export interface CurrentUser {
+  id?: number;
   name: string;
   email?: string;
-  role: UserRole;
+  role?: UserRole;
   roleLabel?: string;
   avatar?: string;
+  permissions?: string[];
+  roles?: Array<{ id: number; code: string; name: string }>;
 }
 
 // Interface cho InitialState
 export interface InitialState {
   currentUser?: CurrentUser;
+  permissions?: string[];
+  fetchUserInfo?: () => Promise<CurrentUser | undefined>;
   loading?: boolean;
 }
 
@@ -106,42 +111,64 @@ export async function getInitialState(): Promise<InitialState> {
   const { pathname } = history.location;
   const token = getToken();
 
-  // Nếu không có token và không phải trang login -> redirect
+  // Nếu không có token và không phải trang login/register -> redirect
   if (!token) {
-    if (pathname !== '/login') {
+    if (pathname !== '/login' && pathname !== '/register') {
       history.push('/login');
     }
     return { currentUser: undefined };
   }
 
-  // Có token, fetch user info từ API
+  const fetchUserInfo = async (): Promise<CurrentUser | undefined> => {
+    try {
+      const response = await getCurrentUser();
+      if (response?.data) {
+        const userData = response.data as any;
+        const perms = normalizePermissions(userData);
+        const role = userData.role ?? userData.roles?.[0]?.code;
+        const currentUser: CurrentUser = {
+          id: userData.id,
+          name: userData.fullName ?? userData.full_name ?? userData.email ?? '',
+          email: userData.email,
+          role: role,
+          roleLabel: getRoleLabel(role),
+          avatar: userData.avatar,
+          permissions: perms,
+          roles: userData.roles,
+        };
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(currentUser));
+        return currentUser;
+      }
+    } catch (e) {
+      console.error('fetchUserInfo error:', e);
+    }
+    return undefined;
+  };
+
   try {
-    const response = await getCurrentUser();
-    if (response.success && response.data) {
-      const userData = response.data;
-      const currentUser: CurrentUser = {
-        name: userData.fullName,
-        email: userData.email,
-        role: userData.role,
-        roleLabel: getRoleLabel(userData.role),
+    const currentUser = await fetchUserInfo();
+    if (currentUser) {
+      return {
+        currentUser,
+        permissions: currentUser.permissions ?? [],
+        fetchUserInfo,
       };
-      // Cache user info
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(currentUser));
-      return { currentUser };
     }
   } catch (error) {
     console.error('Error fetching current user:', error);
-    // Token không hợp lệ, xóa và redirect
     removeToken();
     localStorage.removeItem(USER_STORAGE_KEY);
   }
 
-  // Fallback: thử đọc từ cache (offline mode)
   const cached = localStorage.getItem(USER_STORAGE_KEY);
   if (cached) {
     try {
       const user = JSON.parse(cached) as CurrentUser;
-      return { currentUser: user };
+      return {
+        currentUser: user,
+        permissions: user.permissions ?? [],
+        fetchUserInfo,
+      };
     } catch (e) {
       localStorage.removeItem(USER_STORAGE_KEY);
     }
@@ -154,8 +181,8 @@ export async function getInitialState(): Promise<InitialState> {
 }
 
 // Helper để lấy label cho role
-function getRoleLabel(role: UserRole): string {
-  const roleLabels: Record<UserRole, string> = {
+function getRoleLabel(role: UserRole | string | undefined): string {
+  const roleLabels: Record<string, string> = {
     NCV: 'Nghiên cứu viên',
     CNDT: 'Chủ nhiệm đề tài',
     TRUONG_DON_VI: 'Trưởng đơn vị',
@@ -163,8 +190,9 @@ function getRoleLabel(role: UserRole): string {
     HOI_DONG: 'Thành viên hội đồng',
     LANH_DAO: 'Lãnh đạo',
     ADMIN: 'Quản trị viên',
+    SUPER_ADMIN: 'Super Admin',
   };
-  return roleLabels[role] || role;
+  return roleLabels[role || ''] || (role as string) || '';
 }
 
 /**
@@ -184,101 +212,108 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
   };
 
   return {
+    // ========== TOP MENU LAYOUT ==========
+    layout: 'top',
     logo: '/logo-khcn.png',
-    title: 'Hệ thống Quản lý KH&CN',
+    title: 'KH&CN',
+    navTheme: 'light',
+    contentWidth: 'Fluid',
+    fixedHeader: true,
+    splitMenus: false,
     menu: {
       locale: false,
+      defaultOpenAll: false,
+      autoClose: false,
     },
-    fixedHeader: true,
-    fixSiderbar: true,
-    // Render tất cả menu item với icon
+    token: {
+      header: {
+        colorBgHeader: 'transparent',
+        colorHeaderTitle: '#ffffff',
+        colorTextMenu: '#ffffff',
+        colorTextMenuSecondary: '#ffffff',
+        colorTextMenuSelected: '#ffffff',
+        colorBgMenuItemSelected: 'rgba(255,255,255,0.25)',
+        colorTextMenuActive: '#ffffff',
+        colorBgMenuItemHover: 'rgba(255,255,255,0.15)',
+        colorTextRightActionsItem: '#ffffff',
+        heightLayoutHeader: 60,
+      },
+      sider: {
+        colorMenuBackground: 'transparent',
+        colorTextMenu: '#ffffff',
+        colorTextMenuSelected: '#ffffff',
+        colorBgMenuItemSelected: 'rgba(255,255,255,0.25)',
+      },
+      pageContainer: {
+        paddingBlockPageContainerContent: 24,
+        paddingInlinePageContainerContent: 32,
+      },
+    },
+    // Custom logo + title trên header - 2 dòng
+    headerTitleRender: (logo, title, props) => {
+      return (
+        <Link to="/home" className="khcn-top-header-logo">
+          <div className="khcn-logo-wrapper">
+            {logo}
+          </div>
+          <div className="khcn-title-wrapper">
+            <span className="khcn-title-line1">KHCN</span>
+            <span className="khcn-title-line2">ĐMST</span>
+          </div>
+        </Link>
+      );
+    },
+    // Menu item render
     menuItemRender: (item: any, dom: React.ReactNode) => {
-      // Debug: xem cấu trúc item (mở DevTools Console để xem)
-      console.log('Menu item:', item.name, 'icon:', item.icon, 'parent:', item.pro_layout_parentKeys);
-      
-      // Kiểm tra nếu là child menu (có parent)
-      const hasParent = item.pro_layout_parentKeys && item.pro_layout_parentKeys.length > 0;
-      
-      if (hasParent) {
-        // Lấy icon từ item.icon (có thể là string hoặc React element)
-        let iconElement = null;
-        if (typeof item.icon === 'string') {
-          iconElement = getIcon(item.icon);
-        } else if (item.icon) {
-          iconElement = item.icon;
-        }
-        
-        return (
-          <Link to={item.path || '/'} className="khcn-submenu-item">
-            {iconElement}
-            <span>{item.name}</span>
-          </Link>
-        );
-      }
-      
       return <Link to={item.path || '/'}>{dom}</Link>;
     },
-    // Custom menu header với logo + 2 dòng chữ
-    menuHeaderRender: (logoDom, _titleDom, props) => {
-      if (props?.collapsed) {
-        return <div className="khcn-menu-header-collapsed">{logoDom}</div>;
-      }
-      return (
-        <div className="khcn-menu-header">
-          <div className="khcn-logo">{logoDom}</div>
-          <div className="khcn-title-wrap">
-            <div className="khcn-title-main">Hệ thống Quản lý</div>
-            <div className="khcn-title-sub">Khoa học &amp; Công nghệ</div>
-          </div>
-        </div>
-      );
+    // Submenu item render với icon
+    subMenuItemRender: (item: any, dom: React.ReactNode) => {
+      return dom;
     },
     // Header bên phải: Chuông thông báo + User info + Logout
-    rightContentRender: () => {
-      if (!currentUser) return null;
+    actionsRender: () => {
+      if (!currentUser) return [];
       
-      return (
-        <Space size={16} className="khcn-header-right">
-          {/* Chuông thông báo với dropdown */}
-          <NotificationBell userId={currentUser.role} />
-          
-          {/* User dropdown */}
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: 'userInfo',
-                  label: (
-                    <div className="khcn-user-dropdown-info">
-                      <div className="khcn-user-name">{currentUser.name}</div>
-                      <div className="khcn-user-role">{currentUser.roleLabel || currentUser.role}</div>
-                    </div>
-                  ),
-                  disabled: true,
-                },
-                { type: 'divider' },
-                {
-                  key: 'logout',
-                  icon: <LogoutOutlined />,
-                  label: 'Đăng xuất',
-                  onClick: handleLogout,
-                },
-              ],
-            }}
-            placement="bottomRight"
-          >
-            <Space className="khcn-user-trigger">
-              <Avatar 
-                size="small" 
-                icon={<UserOutlined />} 
-                src={currentUser.avatar}
-                style={{ backgroundColor: '#1890ff' }}
-              />
-              <span className="khcn-user-name-header">{currentUser.name}</span>
-            </Space>
-          </Dropdown>
-        </Space>
-      );
+      return [
+        <NotificationBell key="notifications" userId={currentUser.role} />,
+        <Dropdown
+          key="user"
+          menu={{
+            items: [
+              {
+                key: 'userInfo',
+                label: (
+                  <div className="khcn-user-dropdown-info">
+                    <div className="khcn-user-name">{currentUser.name}</div>
+                    <div className="khcn-user-role">{currentUser.roleLabel || currentUser.role}</div>
+                  </div>
+                ),
+                disabled: true,
+              },
+              { type: 'divider' },
+              {
+                key: 'logout',
+                icon: <LogoutOutlined />,
+                label: 'Đăng xuất',
+                onClick: handleLogout,
+                danger: true,
+              },
+            ],
+          }}
+          placement="bottomRight"
+        >
+          <Space className="khcn-user-trigger-top">
+            <Avatar 
+              size="small" 
+              icon={<UserOutlined />} 
+              src={currentUser.avatar}
+              style={{ backgroundColor: '#1890ff' }}
+            />
+            <span className="khcn-user-name-top">{currentUser.name}</span>
+          </Space>
+        </Dropdown>,
+      ];
     },
     // Logout handler
     logout: handleLogout,

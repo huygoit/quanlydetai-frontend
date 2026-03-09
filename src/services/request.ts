@@ -64,7 +64,7 @@ export async function request<T = any>(
     // Handle different error types
     if (error.response) {
       const status = error.response.status;
-      const data = error.data || {};
+      const data = error.response.data ?? error.data ?? {};
 
       switch (status) {
         case 401:
@@ -76,14 +76,20 @@ export async function request<T = any>(
         case 403:
           message.error('Bạn không có quyền thực hiện thao tác này.');
           break;
+        case 400:
+          message.error(data.message || 'Yêu cầu không hợp lệ.');
+          break;
         case 404:
           message.error(data.message || 'Không tìm thấy tài nguyên.');
           break;
         case 422:
-          // Validation error
-          if (data.errors) {
-            const firstError = Object.values(data.errors)[0];
-            message.error(Array.isArray(firstError) ? firstError[0] : String(firstError));
+          // Validation error (AdonisJS: errors là mảng {field, rule, message})
+          if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+            const first = data.errors[0];
+            message.error(first?.message || data.errors[0]);
+          } else if (data.errors && typeof data.errors === 'object') {
+            const firstVal = Object.values(data.errors)[0];
+            message.error(Array.isArray(firstVal) ? firstVal[0] : String(firstVal));
           } else {
             message.error(data.message || 'Dữ liệu không hợp lệ.');
           }

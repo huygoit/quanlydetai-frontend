@@ -11,7 +11,7 @@ import { THRESHOLD_SCORE, MAX_WEIGHTED_SCORE, SCORING_CRITERIA } from '@/service
 import { useRef, useState } from 'react';
 import { useModel } from '@umijs/max';
 import {
-  queryIdeas,
+  queryMyIdeas,
   createIdea,
   updateIdea,
   deleteIdea,
@@ -293,8 +293,7 @@ const MyIdeasPage: React.FC = () => {
         columns={columns}
         request={async (params) => {
           const { current, pageSize, code, title, ...rest } = params;
-          // API sẽ tự filter theo user hiện tại dựa trên token
-          const result = await queryIdeas({
+          const result = await queryMyIdeas({
             page: current,
             perPage: pageSize,
             keyword: code || title,

@@ -14,7 +14,7 @@ export default defineConfig({
   initialState: {},
   request: {},
   layout: {
-    title: 'Hệ thống Quản lý KH&CN',
+    title: 'KHCN & ĐMST',
     locale: false,
   },
   routes: [
@@ -24,12 +24,18 @@ export default defineConfig({
       component: '@/pages/login',
       layout: false,
     },
+    // Trang đăng ký - không hiển thị layout
+    {
+      path: '/register',
+      component: '@/pages/user/Register',
+      layout: false,
+    },
 
-    // Trang chủ
+    // Dashboard
     {
       path: '/home',
-      name: 'Trang chủ',
-      icon: 'HomeOutlined',
+      name: 'Dashboard',
+      icon: 'DashboardOutlined',
       component: '@/pages/Home',
       access: 'canViewHome',
     },
@@ -73,6 +79,13 @@ export default defineConfig({
       icon: 'BulbOutlined',
       access: 'canViewIdeaBank',
       routes: [
+        {
+          path: '/ideas/new',
+          name: 'Tạo ý tưởng mới',
+          component: '@/pages/ideas/new',
+          access: 'canViewIdeaBank',
+          hideInMenu: true,
+        },
         {
           path: '/ideas/list',
           name: 'Danh sách ý tưởng',
@@ -197,19 +210,54 @@ export default defineConfig({
       ],
     },
 
-    // Quản trị hệ thống
+    // Hệ thống - Quản trị hệ thống
     {
       path: '/admin',
-      name: 'Quản trị hệ thống',
+      name: 'Hệ thống',
       icon: 'SettingOutlined',
       access: 'canViewAdmin',
       routes: [
         {
+          path: '/admin/departments',
+          name: 'Quản lý đơn vị',
+          icon: 'ClusterOutlined',
+          component: '@/pages/admin/departments',
+          access: 'canViewDepartments',
+        },
+        {
           path: '/admin/users',
-          name: 'Người dùng & phân quyền',
-          icon: 'UserSwitchOutlined',
+          name: 'Quản lý người dùng',
+          icon: 'UserOutlined',
           component: '@/pages/admin/users',
-          access: 'canViewAdmin',
+          access: 'canViewUsers',
+        },
+        {
+          path: '/admin/iam/roles',
+          name: 'Vai trò',
+          icon: 'CrownOutlined',
+          component: '@/pages/admin/iam/roles',
+          access: 'canViewRoles',
+        },
+        {
+          path: '/admin/iam/roles/:id/permissions',
+          name: 'Phân quyền vai trò',
+          component: '@/pages/admin/iam/roles/permissions',
+          access: 'canViewRoles',
+          hideInMenu: true,
+        },
+        {
+          path: '/admin/iam/permissions',
+          name: 'Quyền',
+          icon: 'KeyOutlined',
+          component: '@/pages/admin/iam/permissions',
+          access: 'canViewPermissions',
+        },
+        {
+          path: '/admin/iam/user-roles',
+          name: 'Gán vai trò người dùng',
+          icon: 'UserSwitchOutlined',
+          component: '@/pages/admin/iam/user-roles',
+          access: 'canViewUsers',
         },
         {
           path: '/admin/config',

@@ -1,82 +1,112 @@
 /**
  * Access Control - Quản lý quyền truy cập
- * Dựa trên specs/menu-enterprise.md
+ * Kết hợp permission-based (IAM) và role-based (legacy)
  */
+import { hasPermission, hasAnyPermission as hasAnyPerm, PERM } from '@/utils/permission';
 
 export type UserRole =
-  | 'NCV'           // Nhà khoa học / Giảng viên
-  | 'CNDT'          // Chủ nhiệm đề tài
-  | 'TRUONG_DON_VI' // Trưởng đơn vị
-  | 'PHONG_KH'      // Phòng Khoa học
-  | 'HOI_DONG'      // Hội đồng
-  | 'LANH_DAO'      // Lãnh đạo
-  | 'ADMIN';        // Admin
+  | 'NCV'
+  | 'CNDT'
+  | 'TRUONG_DON_VI'
+  | 'PHONG_KH'
+  | 'HOI_DONG'
+  | 'LANH_DAO'
+  | 'ADMIN'
+  | 'SUPER_ADMIN';
 
-// Interface phải khớp với getInitialState() trong app.ts
-export interface InitialState {
+export interface AccessInitialState {
   currentUser?: {
     name: string;
-    role: UserRole;
-    roleLabel: string;
+    role?: UserRole;
+    roleLabel?: string;
     avatar?: string;
+    permissions?: string[];
   };
+  permissions?: string[];
   loading?: boolean;
 }
 
-/**
- * Access function - Trả về object các quyền
- * Được gọi tự động bởi Umi Max với initialState từ app.ts
- */
-export default function access(initialState?: InitialState) {
+export default function access(initialState: AccessInitialState | undefined) {
+  const permissions = initialState?.permissions ?? initialState?.currentUser?.permissions ?? [];
   const role = initialState?.currentUser?.role ?? 'NCV';
 
-  // Role checks
-  const isAdmin = role === 'ADMIN';
+  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
   const isNCV = role === 'NCV';
   const isCNDT = role === 'CNDT';
   const isTruongDonVi = role === 'TRUONG_DON_VI';
   const isPhongKH = role === 'PHONG_KH';
   const isLanhDao = role === 'LANH_DAO';
   const isHoiDong = role === 'HOI_DONG';
+  const isResearcher = isNCV || isCNDT;
 
-  // Nhóm quyền cơ bản
-  const isResearcher = isNCV || isCNDT; // Người làm nghiên cứu
+  // Permission-based checks cho IAM Admin
+  const canViewDepartments = hasPermission(permissions, PERM.department.view);
+  const canCreateDepartment = hasPermission(permissions, PERM.department.create);
+  const canEditDepartment = hasPermission(permissions, PERM.department.update);
+  const canViewUsers = hasPermission(permissions, PERM.user.view);
+  const canCreateUser = hasPermission(permissions, PERM.user.create);
+  const canEditUser = hasPermission(permissions, PERM.user.update);
+  const canAssignUserRole = hasPermission(permissions, PERM.user.assign_role);
+  const canResetUserPassword = hasPermission(permissions, PERM.user.reset_password);
+  const canViewRoles = hasPermission(permissions, PERM.role.view);
+  const canCreateRole = hasPermission(permissions, PERM.role.create);
+  const canEditRole = hasPermission(permissions, PERM.role.update);
+  const canAssignRolePermission = hasPermission(permissions, PERM.role.assign_permission);
+  const canViewPermissions = hasPermission(permissions, PERM.permission.view);
+
+  const hasAdminPermission = hasAnyPerm(permissions, [
+    PERM.department.view,
+    PERM.user.view,
+    PERM.role.view,
+    PERM.permission.view,
+  ]);
+
+  const canViewAdmin = isAdmin || hasAdminPermission;
+
+  // Fallback: ADMIN/SUPER_ADMIN hoặc permission "*" = có tất cả quyền IAM
+  const hasPermsFromBackend = permissions.length > 0;
+  const hasWildcard = permissions.includes('*');
+  const adminHasAll = (isAdmin && !hasPermsFromBackend) || hasWildcard;
 
   return {
-    // ============ MENU ACCESS - theo specs/menu-enterprise.md ============
+    isLogin: !!initialState?.currentUser,
 
-    // 1. Trang chủ - Ai cũng xem được
+    hasPermission: (code: string) => hasPermission(permissions, code),
+    hasAnyPermission: (codes: string[]) => hasAnyPerm(permissions, codes),
+
+    canViewAdmin,
+    canViewDepartments: canViewDepartments || adminHasAll,
+    canCreateDepartment: canCreateDepartment || adminHasAll,
+    canEditDepartment: canEditDepartment || adminHasAll,
+    canViewUsers: canViewUsers || adminHasAll,
+    canCreateUser: canCreateUser || adminHasAll,
+    canEditUser: canEditUser || adminHasAll,
+    canAssignUserRole: canAssignUserRole || adminHasAll,
+    canResetUserPassword: canResetUserPassword || adminHasAll,
+    canViewRoles: canViewRoles || adminHasAll,
+    canCreateRole: canCreateRole || adminHasAll,
+    canEditRole: canEditRole || adminHasAll,
+    canAssignRolePermission: canAssignRolePermission || adminHasAll,
+    canViewPermissions: canViewPermissions || adminHasAll,
+
     canViewHome: true,
-
-    // 2. Hồ sơ khoa học - theo specs/scientific-profile.md
     canViewProfile: isResearcher || isTruongDonVi || isPhongKH || isHoiDong || isLanhDao || isAdmin,
     canViewProfileSelf: isResearcher || isTruongDonVi || isPhongKH || isLanhDao || isAdmin,
     canEditProfileSelf: isResearcher || isTruongDonVi || isPhongKH || isLanhDao || isAdmin,
     canViewProfileAll: isPhongKH || isHoiDong || isLanhDao || isAdmin,
     canVerifyProfile: isPhongKH || isAdmin,
     canExportProfile: isResearcher || isPhongKH || isLanhDao || isAdmin,
-
-    // 3. Ngân hàng ý tưởng - theo specs/ideas-v3-final.md & ideas-council-weighted.md
     canViewIdeaBank: isResearcher || isPhongKH || isLanhDao || isHoiDong || isAdmin,
-    canManageIdeaBank: isPhongKH || isHoiDong || isLanhDao || isAdmin, // Menu: Sơ loại & đặt hàng
-    canReviewIdea: isPhongKH || isAdmin, // Phòng KH: sơ loại (SUBMITTED → REVIEWING → APPROVED_INTERNAL)
-    canScoreIdea: isHoiDong || isAdmin, // Hội đồng KH&ĐT: chấm điểm ý tưởng (specs/ideas-council-weighted.md)
-    canProposeOrder: isHoiDong || isAdmin, // Hội đồng KH&ĐT: đề xuất đặt hàng (APPROVED_INTERNAL → PROPOSED_FOR_ORDER)
-    canApproveOrder: isLanhDao || isAdmin, // Lãnh đạo: phê duyệt đặt hàng (PROPOSED_FOR_ORDER → APPROVED_FOR_ORDER)
-
-    // 4. Đề tài nghiên cứu
-    canViewProjectRegister: isResearcher || isTruongDonVi || isPhongKH || isAdmin, // Đăng ký đề xuất GĐ1
-    canViewProjectManage: isCNDT || isPhongKH || isLanhDao || isAdmin, // Đề tài của tôi GĐ3
-    canViewProjectCouncil: isHoiDong || isPhongKH || isLanhDao || isAdmin, // Hội đồng 2A/2B
-    canViewAcceptance: isCNDT || isPhongKH || isHoiDong || isLanhDao || isAdmin, // Nghiệm thu GĐ4
-
-    // 5. Tài chính đề tài
+    canManageIdeaBank: isPhongKH || isHoiDong || isLanhDao || isAdmin,
+    canReviewIdea: isPhongKH || isAdmin,
+    canScoreIdea: isHoiDong || isAdmin,
+    canProposeOrder: isHoiDong || isAdmin,
+    canApproveOrder: isLanhDao || isAdmin,
+    canViewProjectRegister: isResearcher || isTruongDonVi || isPhongKH || isAdmin,
+    canViewProjectManage: isCNDT || isPhongKH || isLanhDao || isAdmin,
+    canViewProjectCouncil: isHoiDong || isPhongKH || isLanhDao || isAdmin,
+    canViewAcceptance: isCNDT || isPhongKH || isHoiDong || isLanhDao || isAdmin,
     canViewFinance: isCNDT || isPhongKH || isLanhDao || isAdmin,
-
-    // 6. Báo cáo & thống kê
     canViewReports: isPhongKH || isLanhDao || isAdmin,
-
-    // 7. Quản trị hệ thống
-    canViewAdmin: isAdmin,
   };
 }

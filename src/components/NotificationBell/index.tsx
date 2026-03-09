@@ -41,6 +41,7 @@ const ICON_MAP: Record<NotificationType, React.ReactNode> = {
   PROFILE_VERIFIED: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
   PROFILE_NEED_INFO: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
   PUBLICATION_SYNC: <FileSearchOutlined style={{ color: '#722ed1' }} />,
+  IDEA_SUBMITTED: <BulbOutlined style={{ color: '#eb2f96' }} />,
   IDEA_STATUS_CHANGED: <BulbOutlined style={{ color: '#eb2f96' }} />,
   PROJECT_UPDATE: <ProjectOutlined style={{ color: '#13c2c2' }} />,
   SYSTEM: <BellOutlined style={{ color: '#8c8c8c' }} />,
@@ -193,7 +194,10 @@ const NotificationBell: React.FC<NotificationBellProps> = () => {
       content={content}
       trigger="click"
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(visible) => {
+        setOpen(visible);
+        if (visible) loadNotifications();
+      }}
       placement="bottomRight"
       overlayClassName="notification-popover"
       arrow={false}

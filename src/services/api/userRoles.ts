@@ -1,0 +1,121 @@
+/**
+ * User Roles API Service (Quản lý gán role cho user)
+ */
+import { get, post, patch, del, ApiResponse, PaginatedResponse } from '../request';
+import type { RoleItem } from './roles';
+
+// Types
+export interface UserItem {
+  id: number;
+  full_name: string;
+  username: string;
+  email: string;
+  department?: {
+    id: number;
+    name: string;
+    code?: string;
+  };
+  status?: string;
+  roles?: RoleItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UserRoleAssignment {
+  id: number;
+  role_id: number;
+  user_id: number;
+  role: RoleItem;
+  is_active: boolean;
+  start_at?: string | null;
+  end_at?: string | null;
+  note?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface QueryUsersParams {
+  page?: number;
+  perPage?: number;
+  keyword?: string;
+  full_name?: string;
+  username?: string;
+  email?: string;
+  department_id?: number;
+  status?: string;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
+}
+
+export interface AssignRolePayload {
+  role_id: number;
+  is_active?: boolean;
+  start_at?: string | null;
+  end_at?: string | null;
+  note?: string;
+}
+
+export interface UpdateAssignmentStatusPayload {
+  is_active: boolean;
+}
+
+// Constants
+export const USER_STATUS_MAP: Record<string, { text: string; color: string; status: string }> = {
+  ACTIVE: { text: 'Hoạt động', color: 'success', status: 'success' },
+  INACTIVE: { text: 'Ngừng hoạt động', color: 'default', status: 'default' },
+  PENDING: { text: 'Chờ kích hoạt', color: 'warning', status: 'warning' },
+  LOCKED: { text: 'Bị khóa', color: 'error', status: 'error' },
+};
+
+export const USER_STATUS_OPTIONS = Object.entries(USER_STATUS_MAP).map(([value, config]) => ({
+  value,
+  label: config.text,
+}));
+
+// API Functions
+
+/**
+ * Lấy danh sách user (có phân trang)
+ */
+export async function queryUsers(params?: QueryUsersParams): Promise<PaginatedResponse<UserItem>> {
+  return get<PaginatedResponse<UserItem>>('/api/admin/users', params);
+}
+
+/**
+ * Lấy chi tiết user
+ */
+export async function getUserDetail(id: number): Promise<ApiResponse<UserItem>> {
+  return get<ApiResponse<UserItem>>(`/api/admin/users/${id}`);
+}
+
+/**
+ * Lấy danh sách role assignments của user
+ */
+export async function getUserRoles(userId: number): Promise<ApiResponse<UserRoleAssignment[]>> {
+  return get<ApiResponse<UserRoleAssignment[]>>(`/api/admin/users/${userId}/roles`);
+}
+
+/**
+ * Gán role cho user
+ */
+export async function assignRoleToUser(userId: number, payload: AssignRolePayload): Promise<ApiResponse<UserRoleAssignment>> {
+  return post<ApiResponse<UserRoleAssignment>>(`/api/admin/users/${userId}/roles`, payload);
+}
+
+/**
+ * Cập nhật trạng thái assignment (bật/tắt)
+ */
+export async function updateAssignmentStatus(
+  userId: number,
+  assignmentId: number,
+  payload: UpdateAssignmentStatusPayload
+): Promise<ApiResponse<UserRoleAssignment>> {
+  return patch<ApiResponse<UserRoleAssignment>>(`/api/admin/users/${userId}/roles/${assignmentId}/status`, payload);
+}
+
+/**
+ * Thu hồi role của user (xóa assignment)
+ */
+export async function removeUserRole(userId: number, assignmentId: number): Promise<ApiResponse<any>> {
+  return del<ApiResponse<any>>(`/api/admin/users/${userId}/roles/${assignmentId}`);
+}

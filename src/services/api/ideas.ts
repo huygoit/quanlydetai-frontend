@@ -84,10 +84,17 @@ export interface IdeaCreateData {
 // API Functions
 
 /**
- * Lấy danh sách ý tưởng
+ * Lấy danh sách ý tưởng (tất cả / filter - dùng cho Danh sách ý tưởng)
  */
 export async function queryIdeas(params?: IdeaQueryParams): Promise<PaginatedResponse<Idea>> {
   return get<PaginatedResponse<Idea>>('/api/ideas', params);
+}
+
+/**
+ * Lấy danh sách ý tưởng của tôi (chỉ của user đang đăng nhập)
+ */
+export async function queryMyIdeas(params?: Omit<IdeaQueryParams, 'ownerId'>): Promise<PaginatedResponse<Idea>> {
+  return get<PaginatedResponse<Idea>>('/api/ideas/my', params);
 }
 
 /**
@@ -167,7 +174,7 @@ export async function approveOrderIdea(
  */
 export async function rejectIdea(
   id: number,
-  data: { rejectedReason: string }
+  data: { rejectedReason: string; rejectedByRole?: 'PHONG_KH' | 'HOI_DONG' | 'LANH_DAO' }
 ): Promise<ApiResponse<Idea>> {
   return post<ApiResponse<Idea>>(`/api/ideas/${id}/reject`, data);
 }

@@ -1,9 +1,9 @@
 /**
- * Login Page Styles
- * Theo specs/auth-login.md
+ * Register Page Styles
+ * Giống style Login page
  */
 
-.loginContainer {
+.registerContainer {
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -20,7 +20,7 @@
   left: -50%;
   width: 200%;
   height: 200%;
-  background: 
+  background:
     radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
     radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
     radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.05) 0%, transparent 30%);
@@ -28,7 +28,8 @@
 }
 
 @keyframes bgMove {
-  0%, 100% {
+  0%,
+  100% {
     transform: translate(0, 0) rotate(0deg);
   }
   50% {
@@ -36,7 +37,7 @@
   }
 }
 
-.loginCard {
+.registerCard {
   width: 100%;
   max-width: 420px;
   border-radius: 16px !important;
@@ -86,7 +87,7 @@
   color: #bfbfbf;
 }
 
-.loginButton {
+.registerButton {
   height: 48px !important;
   font-size: 16px !important;
   font-weight: 500 !important;
@@ -122,7 +123,6 @@
   }
 }
 
-/* Form styling */
 :global {
   .ant-form-item-label > label {
     font-weight: 500;
@@ -133,11 +133,11 @@
   .ant-select-selector {
     border-radius: 8px !important;
     border-color: #d9d9d9 !important;
-    
+
     &:hover {
       border-color: #722ed1 !important;
     }
-    
+
     &:focus,
     &-focused {
       border-color: #722ed1 !important;
@@ -148,29 +148,10 @@
   .ant-input-affix-wrapper-lg {
     padding: 12px 16px;
   }
-
-  .ant-select-lg .ant-select-selector {
-    height: 48px !important;
-    padding: 8px 16px !important;
-  }
-
-  .ant-select-selection-item {
-    line-height: 30px !important;
-  }
-
-  .ant-checkbox-wrapper {
-    color: #595959;
-  }
-
-  .ant-checkbox-checked .ant-checkbox-inner {
-    background-color: #722ed1;
-    border-color: #722ed1;
-  }
 }
 
-/* Responsive */
 @media screen and (max-width: 480px) {
-  .loginCard {
+  .registerCard {
     :global {
       .ant-card-body {
         padding: 24px;
@@ -191,4 +172,3 @@
     font-size: 14px !important;
   }
 }
-

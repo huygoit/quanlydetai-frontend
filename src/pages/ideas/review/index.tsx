@@ -195,8 +195,8 @@ const IdeaReviewPage: React.FC = () => {
   // Khởi tạo đề tài (ACTION - không phải status change)
   const handleCreateProject = async (record: Idea) => {
     const result = await createProjectFromIdea(record.id);
-    if (result.success) {
-      message.success(`Đã khởi tạo đề tài: ${result.projectId}`);
+    if (result.success && result.data) {
+      message.success(`Đã khởi tạo đề tài: ${result.data.linkedProjectId}`);
       actionRef.current?.reload();
     } else {
       message.error('Chỉ có thể khởi tạo đề tài từ ý tưởng đã được phê duyệt đặt hàng');
@@ -460,7 +460,13 @@ const IdeaReviewPage: React.FC = () => {
     <PageContainer>
       <Tabs
         activeKey={activeTab}
-        onChange={setActiveTab}
+        onChange={(key) => {
+          setActiveTab(key);
+          // Reset status filter khi chuyển tab
+          if (formRef.current) {
+            formRef.current.setFieldsValue({ status: undefined });
+          }
+        }}
         items={[
           { key: 'pending', label: 'Chờ xử lý' },
           { key: 'approved', label: 'Đã phê duyệt' },
@@ -481,31 +487,48 @@ const IdeaReviewPage: React.FC = () => {
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
-        params={{ activeTab, defaultStatus }}
+        params={{ activeTab }}
         request={async (params) => {
-          const { current, pageSize, code, title, status, activeTab: tab, defaultStatus: defStatus, ...rest } = params;
+          const { current, pageSize, code, title, status, activeTab: tab, ...rest } = params;
           
-          // Sử dụng status từ form, nếu không có thì dùng default theo role
-          const effectiveStatus = status || defStatus;
+          // Lấy danh sách status cho phép theo tab
+          const allowedStatuses = getStatusFilterByTab(tab || 'pending');
           
+          // Xác định status để query API
+          let apiStatus: IdeaStatus | undefined;
+          
+          if (status) {
+            // User đã chọn status cụ thể trong form filter
+            apiStatus = status;
+          } else if (tab === 'pending' && defaultStatus) {
+            // Tab pending + có defaultStatus theo role -> query với defaultStatus
+            apiStatus = defaultStatus;
+          } else if (tab === 'approved') {
+            // Tab approved -> query với APPROVED_FOR_ORDER
+            apiStatus = 'APPROVED_FOR_ORDER';
+          } else if (tab === 'rejected') {
+            // Tab rejected -> query với REJECTED
+            apiStatus = 'REJECTED';
+          }
+          // Nếu không có gì, sẽ query tất cả và filter client-side
+          
+          // Query API - ProTable dùng current/pageSize, API dùng page/perPage
           const result = await queryIdeas({
-            current,
-            pageSize,
+            page: current,
+            perPage: pageSize,
             keyword: code || title,
-            status: effectiveStatus as IdeaStatus,
-            ...rest,
+            status: apiStatus,
           });
           
-          // Filter based on tab
-          const allowedStatuses = getStatusFilterByTab(tab || 'pending');
+          // Filter dữ liệu theo tab (để đảm bảo chỉ hiển thị đúng tab)
           let data = result.data.filter(i => {
             // Exclude DRAFT
             if (i.status === 'DRAFT') return false;
             
-            // If status filter applied (from form or default), use it
-            if (effectiveStatus) return i.status === effectiveStatus;
+            // Nếu có status filter từ form, filter theo nó
+            if (status) return i.status === status;
             
-            // Otherwise filter by tab
+            // Nếu không có filter, filter theo các status được phép của tab
             return allowedStatuses.includes(i.status);
           });
           
@@ -516,9 +539,6 @@ const IdeaReviewPage: React.FC = () => {
           };
         }}
         formRef={formRef}
-        form={{
-          initialValues: defaultStatus ? { status: defaultStatus } : undefined,
-        }}
         search={{
           labelWidth: 'auto',
           defaultCollapsed: false,

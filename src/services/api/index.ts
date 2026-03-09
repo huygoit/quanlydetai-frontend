@@ -31,3 +31,18 @@ export * from './ideaCouncil';
 
 // Home/Dashboard
 export * from './home';
+
+// Departments (Admin)
+export * from './departments';
+
+// IAM - Roles
+export * from './roles';
+
+// IAM - Permissions
+export * from './permissions';
+
+// IAM - User Roles
+export * from './userRoles';
+
+// IAM - Users Management
+export * from './iamUsers';

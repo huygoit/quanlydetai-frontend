@@ -1,9 +1,326 @@
 /**
- * Global Styles
- * Theo specs/layout-branding.md
+ * Global Styles - Top Menu Layout
+ * Professional & Modern Design
  */
 
-/* ========== BRANDING HEADER ========== */
+/* ========== TOP MENU LAYOUT STYLES ========== */
+
+// Header với logo và title
+.khcn-top-header-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  height: 100%;
+  padding: 0 4px;
+  
+  &:hover {
+    text-decoration: none;
+  }
+}
+
+.khcn-logo-wrapper {
+  display: flex;
+  align-items: center;
+  
+  img {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: contain;
+  }
+}
+
+.khcn-title-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+
+.khcn-title-line1,
+.khcn-title-line2 {
+  font-weight: 700;
+  color: #f5a623;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.khcn-title-line1 {
+  font-size: 15px;
+}
+
+.khcn-title-line2 {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+// User dropdown trên top menu
+.khcn-user-trigger-top {
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+}
+
+.khcn-user-name-top {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* ========== PRO LAYOUT TOP MENU OVERRIDES ========== */
+
+// Header styling với gradient xanh dương #1890ff
+.ant-pro-top-nav-header {
+  background: linear-gradient(135deg, #0050b3 0%, #1890ff 50%, #40a9ff 100%) !important;
+  box-shadow: 0 4px 16px rgba(24, 144, 255, 0.35);
+  
+  .ant-pro-top-nav-header-main {
+    max-width: 100%;
+    padding: 0 24px;
+    background: transparent !important;
+  }
+  
+  .ant-pro-top-nav-header-logo {
+    background: transparent !important;
+  }
+}
+
+// Menu styling cho top nav - FIX: Đảm bảo text màu trắng rõ ràng
+.ant-pro-top-nav-header-menu,
+.ant-pro-top-nav-header .ant-pro-top-nav-header-menu {
+  .ant-menu,
+  .ant-menu-horizontal,
+  .ant-menu-light {
+    background: transparent !important;
+    border-bottom: none !important;
+    line-height: 58px;
+    color: #fff !important;
+    
+    // Tất cả menu items - compact hơn để đủ chỗ
+    .ant-menu-item,
+    .ant-menu-submenu,
+    .ant-menu-overflow-item {
+      padding: 0 10px !important;
+      margin: 0 1px !important;
+      border-radius: 6px;
+      color: #fff !important;
+      
+      // Tất cả text và links - font nhỏ hơn để compact
+      &,
+      a,
+      span,
+      .ant-menu-title-content {
+        color: #fff !important;
+        font-weight: 500;
+        font-size: 13px;
+      }
+      
+      // Icons - nhỏ hơn
+      .anticon,
+      .ant-menu-item-icon {
+        color: #fff !important;
+        font-size: 14px;
+      }
+      
+      &:hover {
+        background-color: rgba(255, 255, 255, 0.18) !important;
+        
+        &,
+        a,
+        span,
+        .ant-menu-title-content,
+        .anticon {
+          color: #fff !important;
+        }
+      }
+    }
+    
+    // Selected state
+    .ant-menu-item-selected,
+    .ant-menu-submenu-selected,
+    .ant-menu-item-active {
+      background-color: rgba(255, 255, 255, 0.22) !important;
+      
+      &::after {
+        display: none !important;
+      }
+      
+      &,
+      a,
+      span,
+      .ant-menu-title-content,
+      .anticon {
+        color: #fff !important;
+      }
+    }
+    
+    // Submenu title (dropdown trigger)
+    .ant-menu-submenu-title {
+      display: flex !important;
+      align-items: center;
+      gap: 6px;
+      color: #fff !important;
+      padding: 0 14px !important;
+      
+      &,
+      span,
+      .ant-menu-title-content,
+      .anticon,
+      .ant-menu-submenu-arrow {
+        color: #fff !important;
+      }
+    }
+  }
+}
+
+// Dropdown menu styling - FIX: Text màu đen rõ ràng trên nền trắng, width rộng hơn
+.ant-menu-submenu-popup {
+  .ant-menu {
+    padding: 8px !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    min-width: 220px !important;
+    box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.12), 
+                0 3px 6px -4px rgba(0, 0, 0, 0.15), 
+                0 9px 28px 8px rgba(0, 0, 0, 0.08);
+    
+    // Menu item trong dropdown - text màu đen, width đủ rộng
+    .ant-menu-item {
+      color: rgba(0, 0, 0, 0.88) !important;
+      margin: 4px 0 !important;
+      padding: 10px 16px !important;
+      border-radius: 8px !important;
+      height: auto !important;
+      line-height: 1.6 !important;
+      font-size: 14px !important;
+      white-space: nowrap !important;
+      
+      a {
+        color: rgba(0, 0, 0, 0.88) !important;
+        display: block;
+        width: 100%;
+      }
+      
+      .anticon {
+        color: rgba(0, 0, 0, 0.65) !important;
+        margin-right: 10px;
+        font-size: 15px;
+      }
+      
+      .ant-menu-title-content {
+        color: rgba(0, 0, 0, 0.88) !important;
+        font-weight: 400;
+      }
+      
+      &:hover {
+        background-color: #e6f7ff !important;
+        color: #1890ff !important;
+        
+        a, .ant-menu-title-content {
+          color: #1890ff !important;
+        }
+        
+        .anticon {
+          color: #1890ff !important;
+        }
+      }
+      
+      &.ant-menu-item-selected {
+        background-color: #e6f7ff !important;
+        color: #1890ff !important;
+        font-weight: 500;
+        
+        a, .ant-menu-title-content {
+          color: #1890ff !important;
+        }
+        
+        .anticon {
+          color: #1890ff !important;
+        }
+      }
+    }
+    
+    // Submenu trong dropdown
+    .ant-menu-submenu {
+      .ant-menu-submenu-title {
+        color: rgba(0, 0, 0, 0.88) !important;
+        padding: 8px 16px !important;
+        border-radius: 6px;
+        
+        .anticon {
+          color: rgba(0, 0, 0, 0.65) !important;
+        }
+        
+        .ant-menu-title-content {
+          color: rgba(0, 0, 0, 0.88) !important;
+        }
+        
+        &:hover {
+          background-color: #f5f5f5 !important;
+        }
+      }
+    }
+  }
+}
+
+// Override cho tất cả popup menu từ top nav - width rộng, style đẹp
+.ant-pro-top-nav-header .ant-menu-submenu-popup,
+.ant-menu-submenu-popup.ant-menu-submenu-placement-bottomLeft,
+.ant-menu-submenu-popup.ant-menu-submenu-placement-bottomRight {
+  .ant-menu {
+    background: #fff !important;
+    min-width: 200px !important;
+    padding: 6px !important;
+    border-radius: 10px !important;
+    
+    .ant-menu-item {
+      color: rgba(0, 0, 0, 0.85) !important;
+      padding: 10px 16px !important;
+      margin: 3px 0 !important;
+      border-radius: 6px !important;
+      font-size: 14px !important;
+      
+      &:hover {
+        color: #1890ff !important;
+        background: #e6f7ff !important;
+      }
+      
+      a,
+      .ant-menu-title-content {
+        color: inherit !important;
+      }
+      
+      &.ant-menu-item-selected {
+        color: #1890ff !important;
+        background: #e6f7ff !important;
+        font-weight: 500 !important;
+      }
+    }
+  }
+}
+
+// Actions area (notifications, user)
+.ant-pro-top-nav-header-main-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ========== LEGACY SIDEBAR STYLES (fallback) ========== */
 
 .khcn-menu-header {
   display: flex;
@@ -19,30 +336,6 @@
   padding: 16px 0;
 }
 
-.khcn-logo img {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-}
-
-.khcn-title-wrap {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.khcn-title-main {
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.khcn-title-sub {
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 /* ========== HEADER RIGHT ========== */
 
 .khcn-header-right {
@@ -54,11 +347,11 @@
 .khcn-header-icon {
   font-size: 18px;
   cursor: pointer;
-  color: rgba(0, 0, 0, 0.65);
+  color: rgba(255, 255, 255, 0.75);
   transition: color 0.3s;
   
   &:hover {
-    color: #1890ff;
+    color: #fff;
   }
 }
 
@@ -69,13 +362,13 @@
   transition: background-color 0.3s;
   
   &:hover {
-    background-color: rgba(0, 0, 0, 0.04);
+    background-color: rgba(255, 255, 255, 0.1);
   }
 }
 
 .khcn-user-name-header {
   font-size: 14px;
-  color: rgba(0, 0, 0, 0.85);
+  color: rgba(255, 255, 255, 0.9);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -225,6 +518,134 @@
 
   .ant-descriptions-item-content {
     color: #1a1a2e;
+  }
+}
+
+/* ========== PRO TABLE COMPACT FILTER ========== */
+// Giảm chiều cao bộ lọc ProTable
+.ant-pro-table-search {
+  padding: 12px 16px !important;
+  margin-bottom: 0 !important;
+  
+  .ant-form {
+    gap: 8px !important;
+  }
+  
+  .ant-form-item {
+    margin-bottom: 8px !important;
+  }
+  
+  .ant-row {
+    row-gap: 8px !important;
+  }
+}
+
+// Form item trong bộ lọc compact hơn
+.ant-pro-query-filter {
+  padding: 12px 16px !important;
+  
+  .ant-form-item {
+    margin-bottom: 8px !important;
+    
+    .ant-form-item-label {
+      padding-bottom: 2px !important;
+      
+      > label {
+        font-size: 13px !important;
+        height: 24px !important;
+      }
+    }
+    
+    .ant-form-item-control-input {
+      min-height: 32px !important;
+    }
+  }
+  
+  .ant-pro-query-filter-actions {
+    margin-bottom: 8px !important;
+  }
+}
+
+// Page header và content căn chỉnh thẳng hàng
+.ant-pro-page-container-warp,
+.ant-pro-page-container {
+  // Page header - padding-left 32px giống bộ lọc
+  .ant-page-header {
+    padding: 12px 32px !important;
+    margin: 0 !important;
+    background: transparent !important;
+    
+    .ant-page-header-heading {
+      display: flex !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+      flex-direction: row !important;
+      
+      .ant-page-header-heading-left {
+        flex: none;
+        margin: 0 !important;
+        
+        .ant-page-header-heading-title {
+          font-size: 18px;
+          font-weight: 600;
+          margin: 0;
+        }
+      }
+      
+      .ant-page-header-heading-extra {
+        margin: 0 !important;
+      }
+    }
+  }
+  
+  // Breadcrumb bên phải
+  nav.ant-breadcrumb {
+    position: absolute !important;
+    right: 32px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    margin: 0 !important;
+    font-size: 12px !important;
+    
+    .ant-breadcrumb-link,
+    .ant-breadcrumb-separator,
+    a {
+      color: #888 !important;
+      font-size: 12px !important;
+    }
+    
+    a:hover {
+      color: #1890ff !important;
+    }
+  }
+  
+  // Container cần position relative cho breadcrumb absolute
+  .ant-pro-page-container-warp-page-header,
+  > .ant-page-header {
+    position: relative !important;
+  }
+}
+
+
+// ProTable - đảm bảo không có margin/padding thừa
+.ant-pro-table {
+  margin: 0 !important;
+  padding: 0 !important;
+  
+  .ant-pro-table-search {
+    margin: 0 0 16px 0 !important;
+    border-radius: 8px;
+    background: #fafafa;
+    border: 1px solid #f0f0f0;
+  }
+  
+  .ant-pro-table-list-toolbar {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .ant-pro-card {
+    padding: 0 !important;
   }
 }
 

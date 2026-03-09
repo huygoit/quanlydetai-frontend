@@ -16,7 +16,7 @@ import {
   LockOutlined,
   MailOutlined,
 } from '@ant-design/icons';
-import { useModel, history } from '@umijs/max';
+import { history, Link } from '@umijs/max';
 import type { UserRole } from '@/services/mock/homeMockService';
 import { login } from '@/services/api/auth';
 import styles from './index.less';
@@ -44,7 +44,6 @@ interface LoginFormValues {
 const LoginPage: React.FC = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const { setInitialState } = useModel('@@initialState');
 
   // Handle login submit
   const handleSubmit = async (values: LoginFormValues) => {
@@ -63,22 +62,12 @@ const LoginPage: React.FC = () => {
           name: userData.fullName,
           roleLabel: ROLE_LABELS[userData.role],
         };
-
-        // Lưu vào initialState
-        await setInitialState((prev: any) => ({
-          ...prev,
-          currentUser: user,
-        }));
-
-        // Lưu vào localStorage nếu chọn "Ghi nhớ tôi" (để cache)
         if (remember) {
           localStorage.setItem('khcn-current-user', JSON.stringify(user));
         }
-
         message.success(`Đăng nhập thành công! Xin chào ${user.name}`);
-
-        // Redirect về Home
-        history.push('/home');
+        // Redirect + reload để getInitialState chạy lại và fetch full profile + permissions
+        window.location.href = '/home';
       } else {
         message.error(response.message || 'Đăng nhập thất bại');
       }
@@ -178,9 +167,13 @@ const LoginPage: React.FC = () => {
 
         {/* Footer */}
         <div className={styles.footer}>
-          <Text type="secondary">
-            Hệ thống Quản lý Khoa học & Công nghệ © 2025
-          </Text>
+          <Text type="secondary">Chưa có tài khoản? </Text>
+          <Link to="/register">Đăng ký</Link>
+          <div style={{ marginTop: 16 }}>
+            <Text type="secondary">
+              Hệ thống Quản lý Khoa học & Công nghệ © 2025
+            </Text>
+          </div>
         </div>
       </Card>
     </div>

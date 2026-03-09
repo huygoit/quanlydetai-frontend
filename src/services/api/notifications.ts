@@ -9,6 +9,7 @@ export type NotificationType =
   | 'PROFILE_VERIFIED'
   | 'PROFILE_NEED_INFO'
   | 'PUBLICATION_SYNC'
+  | 'IDEA_SUBMITTED'
   | 'IDEA_STATUS_CHANGED'
   | 'PROJECT_UPDATE'
   | 'SYSTEM';

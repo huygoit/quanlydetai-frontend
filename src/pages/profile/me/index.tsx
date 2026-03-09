@@ -15,6 +15,7 @@ import {
   Button,
   Space,
   Tabs,
+  Steps,
   message,
   Spin,
   Alert,
@@ -939,27 +940,28 @@ const MyProfilePage: React.FC = () => {
     setLoading(true);
     try {
       const result = await getMyProfile();
-      
+
       if (result.success && result.data) {
         setProfile(result.data);
-        // Load suggestions
         const sugResult = await getMySuggestions();
         if (sugResult.success) {
           setSuggestions(sugResult.data);
         }
       } else {
-        // Create new profile if not exists
+        // Chưa có hồ sơ -> tạo mới (không show message, đây là luồng bình thường)
         const createResult = await createMyProfile({
           fullName: currentUser.name,
-          workEmail: `${currentUser.name.toLowerCase().replace(/\s+/g, '')}@university.edu.vn`,
+          workEmail: currentUser.email || `${currentUser.name.toLowerCase().replace(/\s+/g, '')}@university.edu.vn`,
           organization: 'Trường Đại học Bách khoa - ĐHĐN',
         });
-        if (createResult.success) {
+        if (createResult.success && createResult.data) {
           setProfile(createResult.data);
         }
       }
-    } catch (error) {
-      message.error('Không thể tải hồ sơ');
+    } catch (error: any) {
+      if (!error?.response) {
+        message.error('Không thể tải hồ sơ. Vui lòng thử lại.');
+      }
     } finally {
       setLoading(false);
     }
@@ -969,6 +971,8 @@ const MyProfilePage: React.FC = () => {
     loadProfile();
   }, [loadProfile]);
 
+  const isOnboarding = searchParams.get('onboarding') === '1';
+
   // Handle tab from URL
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -976,6 +980,10 @@ const MyProfilePage: React.FC = () => {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  const dismissOnboarding = () => {
+    history.replace('/profile/me');
+  };
 
   // Save draft
   const handleSaveDraft = async (values: any) => {
@@ -1343,6 +1351,57 @@ const MyProfilePage: React.FC = () => {
             </Button>
           }
         />
+      )}
+
+      {/* Onboarding banner - hướng dẫn từng bước cho người đăng ký mới */}
+      {isOnboarding && (
+        <Card className="profile-onboarding-banner" bordered={false}>
+          <div className="profile-onboarding-header">
+            <div>
+              <Title level={5} style={{ margin: 0 }}>
+                Chào mừng bạn! Hoàn thiện hồ sơ khoa học
+              </Title>
+              <Text type="secondary">Làm lần lượt các bước bên dưới để cập nhật hồ sơ của bạn.</Text>
+            </div>
+            <Button type="link" size="small" onClick={dismissOnboarding}>
+              Đã hiểu
+            </Button>
+          </div>
+          <Steps
+            current={
+              checklist.findIndex((c) => !c.done) === -1
+                ? checklist.length
+                : checklist.findIndex((c) => !c.done)
+            }
+            size="small"
+            style={{ marginTop: 16 }}
+          >
+            {checklist.map((item, idx) => (
+              <Steps.Step
+                key={item.key}
+                title={item.label}
+                status={item.done ? 'finish' : idx === checklist.findIndex((c) => !c.done) ? 'process' : 'wait'}
+                icon={item.done ? <CheckCircleOutlined /> : undefined}
+              />
+            ))}
+          </Steps>
+          {checklist.some((c) => !c.done) && (
+            <div style={{ marginTop: 12 }}>
+              <Text type="secondary">Bước tiếp theo: </Text>
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0, height: 'auto' }}
+                onClick={() => {
+                  const next = checklist.find((c) => !c.done);
+                  if (next) handleChecklistItemClick(next);
+                }}
+              >
+                {checklist.find((c) => !c.done)?.label}
+              </Button>
+            </div>
+          )}
+        </Card>
       )}
 
       {/* Profile Completion Bar */}
