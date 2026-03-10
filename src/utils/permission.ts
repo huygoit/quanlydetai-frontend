@@ -67,4 +67,10 @@ export const PERM = {
   permission: {
     view: 'permission.view',
   },
+  personal_profile: {
+    view: 'personal_profile.view',
+    create: 'personal_profile.create',
+    update: 'personal_profile.update',
+    change_status: 'personal_profile.change_status',
+  },
 } as const;

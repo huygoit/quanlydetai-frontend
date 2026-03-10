@@ -22,13 +22,20 @@ export interface UserItem {
 }
 
 export interface UserRoleAssignment {
-  id: number;
-  role_id: number;
-  user_id: number;
-  role: RoleItem;
-  is_active: boolean;
+  id?: number;
+  assignmentId?: number;
+  role_id?: number;
+  roleId?: number;
+  user_id?: number;
+  role?: RoleItem;
+  roleCode?: string;
+  roleName?: string;
+  is_active?: boolean;
+  isActive?: boolean;
   start_at?: string | null;
+  startAt?: string | null;
   end_at?: string | null;
+  endAt?: string | null;
   note?: string;
   created_at?: string;
   updated_at?: string;
@@ -49,6 +56,7 @@ export interface QueryUsersParams {
 
 export interface AssignRolePayload {
   role_id: number;
+  /** Mặc định true - vai trò mới gán nên bật ngay */
   is_active?: boolean;
   start_at?: string | null;
   end_at?: string | null;
@@ -56,7 +64,8 @@ export interface AssignRolePayload {
 }
 
 export interface UpdateAssignmentStatusPayload {
-  is_active: boolean;
+  is_active?: boolean;
+  isActive?: boolean;
 }
 
 // Constants
@@ -104,13 +113,21 @@ export async function assignRoleToUser(userId: number, payload: AssignRolePayloa
 
 /**
  * Cập nhật trạng thái assignment (bật/tắt)
+ * PATCH /api/admin/users/:id/roles/:assignmentId/status
+ * Body: { is_active: boolean } hoặc { isActive: boolean }
  */
 export async function updateAssignmentStatus(
   userId: number,
   assignmentId: number,
   payload: UpdateAssignmentStatusPayload
 ): Promise<ApiResponse<UserRoleAssignment>> {
-  return patch<ApiResponse<UserRoleAssignment>>(`/api/admin/users/${userId}/roles/${assignmentId}/status`, payload);
+  const val = payload.is_active ?? payload.isActive;
+  if (typeof val !== 'boolean') {
+    throw new Error('is_active phải là boolean');
+  }
+  const data = { is_active: val };
+  const url = `/api/admin/users/${Number(userId)}/roles/${Number(assignmentId)}/status`;
+  return patch<ApiResponse<UserRoleAssignment>>(url, data);
 }
 
 /**

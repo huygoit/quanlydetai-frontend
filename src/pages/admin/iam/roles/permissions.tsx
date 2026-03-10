@@ -92,8 +92,9 @@ const RolePermissionsPage: React.FC = () => {
       }
 
       if (rolePermissionsRes?.data) {
-        setSelectedIds(rolePermissionsRes.data);
-        setInitialSelectedIds(rolePermissionsRes.data);
+        const ids = (rolePermissionsRes.data || []).map((p: any) => Number(typeof p === 'object' ? p.id : p));
+        setSelectedIds(ids);
+        setInitialSelectedIds(ids);
       }
     } catch (error) {
       message.error('Không thể tải dữ liệu');

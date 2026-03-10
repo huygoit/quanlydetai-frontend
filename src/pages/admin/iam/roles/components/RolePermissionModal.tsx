@@ -67,7 +67,8 @@ const RolePermissionModal: React.FC<RolePermissionModalProps> = ({
       }
 
       if (rolePermissionsRes?.data) {
-        setSelectedIds(rolePermissionsRes.data);
+        const ids = (rolePermissionsRes.data || []).map((p: any) => Number(typeof p === 'object' ? p.id : p));
+        setSelectedIds(ids);
       }
     } catch (error) {
       message.error('Không thể tải danh sách quyền');

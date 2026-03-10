@@ -26,9 +26,15 @@ export interface AccessInitialState {
   loading?: boolean;
 }
 
+function normalizeRole(role: string | undefined): string {
+  if (!role || typeof role !== 'string') return '';
+  return role.toString().toUpperCase().replace(/-/g, '_');
+}
+
 export default function access(initialState: AccessInitialState | undefined) {
   const permissions = initialState?.permissions ?? initialState?.currentUser?.permissions ?? [];
-  const role = initialState?.currentUser?.role ?? 'NCV';
+  const rawRole = initialState?.currentUser?.role ?? 'NCV';
+  const role = normalizeRole(rawRole) || 'NCV';
 
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
   const isNCV = role === 'NCV';
@@ -53,12 +59,17 @@ export default function access(initialState: AccessInitialState | undefined) {
   const canEditRole = hasPermission(permissions, PERM.role.update);
   const canAssignRolePermission = hasPermission(permissions, PERM.role.assign_permission);
   const canViewPermissions = hasPermission(permissions, PERM.permission.view);
+  const canViewPersonalProfiles = hasPermission(permissions, PERM.personal_profile.view);
+  const canCreatePersonalProfile = hasPermission(permissions, PERM.personal_profile.create);
+  const canEditPersonalProfile = hasPermission(permissions, PERM.personal_profile.update);
+  const canChangePersonalProfileStatus = hasPermission(permissions, PERM.personal_profile.change_status);
 
   const hasAdminPermission = hasAnyPerm(permissions, [
     PERM.department.view,
     PERM.user.view,
     PERM.role.view,
     PERM.permission.view,
+    PERM.personal_profile.view,
   ]);
 
   const canViewAdmin = isAdmin || hasAdminPermission;
@@ -88,6 +99,10 @@ export default function access(initialState: AccessInitialState | undefined) {
     canEditRole: canEditRole || adminHasAll,
     canAssignRolePermission: canAssignRolePermission || adminHasAll,
     canViewPermissions: canViewPermissions || adminHasAll,
+    canViewPersonalProfiles: canViewPersonalProfiles || adminHasAll,
+    canCreatePersonalProfile: canCreatePersonalProfile || adminHasAll,
+    canEditPersonalProfile: canEditPersonalProfile || adminHasAll,
+    canChangePersonalProfileStatus: canChangePersonalProfileStatus || adminHasAll,
 
     canViewHome: true,
     canViewProfile: isResearcher || isTruongDonVi || isPhongKH || isHoiDong || isLanhDao || isAdmin,
@@ -100,6 +115,8 @@ export default function access(initialState: AccessInitialState | undefined) {
     canManageIdeaBank: isPhongKH || isHoiDong || isLanhDao || isAdmin,
     canReviewIdea: isPhongKH || isAdmin,
     canScoreIdea: isHoiDong || isAdmin,
+    /** Tạo phiên, quản lý hội đồng, chấm điểm - PHONG_KH + HOI_DONG + ADMIN/SUPER_ADMIN */
+    canAccessCouncil: isPhongKH || isHoiDong || isAdmin,
     canProposeOrder: isHoiDong || isAdmin,
     canApproveOrder: isLanhDao || isAdmin,
     canViewProjectRegister: isResearcher || isTruongDonVi || isPhongKH || isAdmin,

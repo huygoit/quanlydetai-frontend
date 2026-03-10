@@ -46,3 +46,6 @@ export * from './userRoles';
 
 // IAM - Users Management
 export * from './iamUsers';
+
+// Personal Profiles
+export * from './personalProfiles';

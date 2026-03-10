@@ -91,7 +91,7 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
       return;
     }
 
-    const alreadyAssigned = assignments.some((a) => a.role_id === selectedRoleId);
+    const alreadyAssigned = assignments.some((a) => (a.role_id ?? a.roleId) === selectedRoleId);
     if (alreadyAssigned) {
       message.warning('Vai trò này đã được gán cho người dùng');
       return;
@@ -119,21 +119,29 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
 
   const handleToggleStatus = async (assignment: UserRoleAssignment) => {
     if (!user) return;
+    const assignmentId = assignment.id ?? assignment.assignmentId;
+    if (assignmentId == null) {
+      message.error('Không thể cập nhật: thiếu ID assignment');
+      return;
+    }
 
     try {
-      const result = await updateAssignmentStatus(user.id, assignment.id, {
-        is_active: !assignment.is_active,
+      const currentlyActive = assignment.is_active ?? assignment.isActive ?? false;
+      const result = await updateAssignmentStatus(user.id, assignmentId, {
+        is_active: !currentlyActive,
       });
 
       if (result?.data || result) {
         message.success(
-          assignment.is_active ? 'Đã tắt vai trò' : 'Đã bật vai trò'
+          (assignment.is_active ?? assignment.isActive) ? 'Đã tắt vai trò' : 'Đã bật vai trò'
         );
         loadData();
         onSuccess();
       }
     } catch (error: any) {
-      message.error(error?.message || 'Không thể cập nhật trạng thái');
+      const msg = error?.response?.data?.message ?? error?.data?.message ?? error?.message ?? 'Không thể cập nhật trạng thái';
+      message.error(msg);
+      console.error('[updateAssignmentStatus]', { userId: user.id, assignmentId, error });
     }
   };
 
@@ -141,7 +149,12 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
     if (!user) return;
 
     try {
-      const result = await removeUserRole(user.id, assignment.id);
+      const assignmentId = assignment.id ?? assignment.assignmentId;
+      if (assignmentId == null) {
+        message.error('Không thể thu hồi: thiếu ID assignment');
+        return;
+      }
+      const result = await removeUserRole(user.id, assignmentId);
 
       if (result?.data || result) {
         message.success('Đã thu hồi vai trò');
@@ -153,7 +166,7 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
     }
   };
 
-  const assignedRoleIds = assignments.map((a) => a.role_id);
+  const assignedRoleIds = assignments.map((a) => a.role_id ?? a.roleId).filter(Boolean);
   const unassignedRoles = availableRoles.filter(
     (role) => !assignedRoleIds.includes(role.id)
   );
@@ -263,16 +276,16 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
                     <List.Item.Meta
                       title={
                         <Space>
-                          <span>{item.role.name}</span>
-                          <Tag color={item.is_active ? 'green' : 'default'}>
-                            {item.is_active ? 'Đang hoạt động' : 'Đã tắt'}
+                          <span>{item.role?.name ?? item.roleName ?? item.roleCode ?? `Role #${item.role_id ?? item.roleId ?? item.id ?? item.assignmentId}`}</span>
+                          <Tag color={(item.is_active ?? item.isActive) ? 'green' : 'default'}>
+                            {(item.is_active ?? item.isActive) ? 'Đang hoạt động' : 'Đã tắt'}
                           </Tag>
                         </Space>
                       }
                       description={
                         <Space direction="vertical" size={0}>
                           <Text type="secondary" style={{ fontSize: 12 }}>
-                            Mã: {item.role.code}
+                            Mã: {item.role?.code ?? item.roleCode ?? '-'}
                           </Text>
                           {item.created_at && (
                             <Text type="secondary" style={{ fontSize: 12 }}>

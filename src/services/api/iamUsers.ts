@@ -154,9 +154,12 @@ export async function resetIAMUserPassword(id: number, payload: ResetPasswordPay
 
 /**
  * Gán roles cho user
+ * Gửi cả role_ids (snake_case) và roleIds (camelCase) để tương thích backend
  */
 export async function assignRolesToUser(id: number, payload: AssignRolesPayload): Promise<ApiResponse<IAMUserItem>> {
-  return put<ApiResponse<IAMUserItem>>(`/api/admin/users/${id}/roles`, payload);
+  const ids = (payload.role_ids || []).map((rid) => Number(rid));
+  const data = { role_ids: ids, roleIds: ids };
+  return put<ApiResponse<IAMUserItem>>(`/api/admin/users/${id}/roles`, data);
 }
 
 /**

@@ -99,16 +99,20 @@ export async function updateRoleStatus(id: number, payload: UpdateRoleStatusPayl
 
 /**
  * Lấy danh sách permission của role
+ * Backend trả data: [{ id, code, name, module, action }, ...]
  */
-export async function getRolePermissions(id: number): Promise<ApiResponse<number[]>> {
-  return get<ApiResponse<number[]>>(`/api/admin/roles/${id}/permissions`);
+export async function getRolePermissions(id: number): Promise<ApiResponse<Array<{ id: number } | number>>> {
+  return get<ApiResponse<Array<{ id: number } | number>>>(`/api/admin/roles/${id}/permissions`);
 }
 
 /**
  * Cập nhật permissions cho role
+ * PUT /api/admin/roles/:id/permissions
+ * Body: { permission_ids: number[] } - chỉ mảng số, không gửi object
  */
 export async function updateRolePermissions(id: number, payload: UpdateRolePermissionsPayload): Promise<ApiResponse<any>> {
-  return put<ApiResponse<any>>(`/api/admin/roles/${id}/permissions`, payload);
+  const ids = (payload.permission_ids || []).map((pid) => Number(pid));
+  return put<ApiResponse<any>>(`/api/admin/roles/${id}/permissions`, { permission_ids: ids });
 }
 
 /**

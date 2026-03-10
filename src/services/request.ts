@@ -5,8 +5,9 @@
 import { request as umiRequest, history } from '@umijs/max';
 import { message } from 'antd';
 
-// API Base URL - thay đổi theo môi trường
-export const API_BASE_URL = process.env.API_URL || 'http://localhost:3333';
+// API Base URL - dev dùng '' để qua proxy, prod dùng env hoặc full URL
+const isDev = process.env.NODE_ENV === 'development';
+export const API_BASE_URL = process.env.API_URL || (isDev ? '' : 'http://localhost:3333');
 
 // Token storage key
 const TOKEN_KEY = 'khcn-access-token';

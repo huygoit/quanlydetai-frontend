@@ -9,6 +9,12 @@ export default defineConfig({
     antd: true,
     baseNavigator: false,
   },
+  proxy: {
+    '/api': {
+      target: 'http://localhost:3333',
+      changeOrigin: true,
+    },
+  },
   access: {},
   model: {},
   initialState: {},
@@ -112,7 +118,7 @@ export default defineConfig({
           name: 'Hội đồng chấm điểm',
           icon: 'TrophyOutlined',
           component: '@/pages/ideas/council',
-          access: 'canScoreIdea',
+          access: 'canAccessCouncil',
         },
       ],
     },
@@ -258,6 +264,25 @@ export default defineConfig({
           icon: 'UserSwitchOutlined',
           component: '@/pages/admin/iam/user-roles',
           access: 'canViewUsers',
+        },
+        {
+          path: '/admin/personal-profiles',
+          name: 'Hồ sơ cá nhân',
+          icon: 'IdcardOutlined',
+          component: '@/pages/admin/personal-profiles',
+          access: 'canViewPersonalProfiles',
+        },
+        {
+          path: '/admin/personal-profiles/new',
+          component: '@/pages/admin/personal-profiles/edit',
+          access: 'canViewPersonalProfiles',
+          hideInMenu: true,
+        },
+        {
+          path: '/admin/personal-profiles/:id/edit',
+          component: '@/pages/admin/personal-profiles/edit',
+          access: 'canViewPersonalProfiles',
+          hideInMenu: true,
         },
         {
           path: '/admin/config',
