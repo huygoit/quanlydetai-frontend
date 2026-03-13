@@ -7,8 +7,7 @@ import { PageContainer, ProTable, StepsForm, ProFormText, ProFormSelect, ProForm
 import type { ProColumns, ActionType, ProFormInstance } from '@ant-design/pro-components';
 import { Button, Drawer, Tag, Space, Descriptions, Divider, Modal, message, Card, Typography, Form, Input, Radio, Badge } from 'antd';
 import { PlusOutlined, EyeOutlined, EditOutlined, SendOutlined, DeleteOutlined, UndoOutlined, CheckCircleOutlined, CloseCircleOutlined, CommentOutlined } from '@ant-design/icons';
-import { useModel } from '@umijs/max';
-import type { UserRole } from '@/access';
+import { useModel, useAccess } from '@umijs/max';
 import {
   queryProposals,
   createProposal,
@@ -37,8 +36,8 @@ const { Text, Title, Paragraph } = Typography;
 
 const ProjectRegisterPage: React.FC = () => {
   const { initialState } = useModel('@@initialState');
+  const access = useAccess();
   const currentUser = initialState?.currentUser;
-  const role = (currentUser?.role || 'NCV') as UserRole;
 
   // Refs
   const tableRef = useRef<ActionType>();
@@ -53,11 +52,10 @@ const ProjectRegisterPage: React.FC = () => {
   const [sciDeptReviewVisible, setSciDeptReviewVisible] = useState(false);
   const [reviewProposal, setReviewProposal] = useState<ProjectProposal | null>(null);
 
-  // Role checks
-  const isResearcher = role === 'NCV' || role === 'CNDT';
-  const isTruongDonVi = role === 'TRUONG_DON_VI';
-  const isPhongKHOrHigher = role === 'PHONG_KH' || role === 'LANH_DAO' || role === 'ADMIN';
-  const canCreate = isResearcher;
+  const canCreate = access.canCreateProjectProposal;
+  const canUnitReview = access.canUnitReviewProjectProposal;
+  const canSciDeptReview = access.canReviewProjectProposal;
+  const hideUnitSearch = !canSciDeptReview && !canUnitReview;
 
   // Current user info for filtering
   const currentUserId = 'user-001'; // Mock: thay bằng currentUser?.id
@@ -99,7 +97,7 @@ const ProjectRegisterPage: React.FC = () => {
         options: UNIT_OPTIONS.map((u) => ({ label: u, value: u })),
         showSearch: true,
       },
-      hideInSearch: isResearcher, // NCV/CNDT không cần filter đơn vị
+      hideInSearch: hideUnitSearch,
     },
     {
       title: 'Lĩnh vực',
@@ -198,8 +196,8 @@ const ProjectRegisterPage: React.FC = () => {
       </a>
     );
 
-    // Actions cho NCV/CNDT (là owner)
-    if (isResearcher && record.ownerId === currentUserId) {
+    // Actions cho creator/owner (NCV/CNDT - người tạo đề xuất)
+    if (canCreate && record.ownerId === currentUserId) {
       // Sửa - chỉ DRAFT hoặc REJECTED
       if (record.status === 'DRAFT' || record.status === 'REJECTED') {
         actions.push(
@@ -237,8 +235,8 @@ const ProjectRegisterPage: React.FC = () => {
       }
     }
 
-    // Actions cho TRUONG_DON_VI
-    if (isTruongDonVi && record.status === 'SUBMITTED') {
+    // Actions cho unit review (Trưởng đơn vị / tương đương)
+    if (canUnitReview && record.status === 'SUBMITTED') {
       actions.push(
         <a key="unitReview" style={{ color: '#1890ff' }} onClick={() => handleUnitReview(record)}>
           <CommentOutlined /> Ý kiến
@@ -246,8 +244,8 @@ const ProjectRegisterPage: React.FC = () => {
       );
     }
 
-    // Actions cho PHONG_KH / LANH_DAO / ADMIN
-    if (isPhongKHOrHigher && (record.status === 'SUBMITTED' || record.status === 'UNIT_REVIEWED')) {
+    // Actions cho sơ duyệt Phòng KH / Lãnh đạo
+    if (canSciDeptReview && (record.status === 'SUBMITTED' || record.status === 'UNIT_REVIEWED')) {
       actions.push(
         <a key="sciDeptReview" style={{ color: '#52c41a' }} onClick={() => handleSciDeptReview(record)}>
           <CheckCircleOutlined /> Sơ duyệt
@@ -479,11 +477,12 @@ const ProjectRegisterPage: React.FC = () => {
             field: params.field,
           };
 
-          // Filter by role
-          if (isResearcher) {
+          // Filter theo quyền: creator-only / unit / all
+          const isCreatorOnly = canCreate && !canUnitReview && !canSciDeptReview;
+          if (isCreatorOnly) {
             queryParams.ownerOnly = true;
             queryParams.ownerId = currentUserId;
-          } else if (isTruongDonVi) {
+          } else if (canUnitReview) {
             queryParams.unit = currentUserUnit || params.ownerUnit;
           } else {
             queryParams.unit = params.ownerUnit;

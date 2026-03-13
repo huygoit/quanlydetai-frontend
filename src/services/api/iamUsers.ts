@@ -38,12 +38,13 @@ export interface IAMUserItem {
 export interface QueryIAMUsersParams {
   page?: number;
   perPage?: number;
+  /** Tìm chung theo tên, email (backend nhận keyword) */
   keyword?: string;
   username?: string;
   full_name?: string;
   email?: string;
-  department_id?: number;
-  role_id?: number;
+  departmentId?: number;
+  roleId?: number;
   status?: UserStatus;
   sortBy?: string;
   order?: 'asc' | 'desc';
@@ -78,7 +79,8 @@ export interface ChangeUserStatusPayload {
 }
 
 export interface ResetPasswordPayload {
-  new_password: string;
+  password: string;
+  confirmPassword: string;
 }
 
 export interface AssignRolesPayload {
@@ -105,12 +107,12 @@ export const USER_STATUS_OPTIONS = Object.entries(USER_STATUS_MAP).map(([value, 
 export async function queryIAMUsers(params?: QueryIAMUsersParams): Promise<any> {
   const q: Record<string, any> = {};
   if (params?.page != null) q.page = params.page;
-  if (params?.perPage != null) q.per_page = params.perPage;
-  if (params?.keyword) q.keyword = params.keyword;
-  if (params?.full_name) q.full_name = params.full_name;
-  if (params?.email) q.email = params.email;
-  if (params?.department_id != null) q.department_id = params.department_id;
-  if (params?.role_id != null) q.role_id = params.role_id;
+  if (params?.perPage != null) q.perPage = params.perPage;
+  const keyword = params?.keyword || params?.full_name || params?.email;
+  if (keyword) q.keyword = keyword;
+  if (params?.username) q.username = params.username;
+  if (params?.departmentId != null) q.departmentId = params.departmentId;
+  if (params?.roleId != null) q.roleId = params.roleId;
   if (params?.status) q.status = params.status;
   if (params?.sortBy) q.sortBy = params.sortBy;
   if (params?.order) q.order = params.order;
@@ -149,7 +151,7 @@ export async function changeIAMUserStatus(id: number, payload: ChangeUserStatusP
  * Reset mật khẩu user
  */
 export async function resetIAMUserPassword(id: number, payload: ResetPasswordPayload): Promise<ApiResponse<any>> {
-  return post<ApiResponse<any>>(`/api/admin/users/${id}/reset-password`, payload);
+  return patch<ApiResponse<any>>(`/api/admin/users/${id}/reset-password`, payload);
 }
 
 /**

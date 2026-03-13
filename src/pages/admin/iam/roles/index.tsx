@@ -3,7 +3,7 @@
  */
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { ProColumns, ActionType } from '@ant-design/pro-components';
-import { Badge, Button, message, Popconfirm, Space } from 'antd';
+import { Badge, Button, message, Popconfirm, Space, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, SwapOutlined, KeyOutlined } from '@ant-design/icons';
 import { useRef, useState } from 'react';
 import { useAccess } from '@umijs/max';
@@ -76,6 +76,12 @@ const RolesPage: React.FC = () => {
       width: 140,
       copyable: true,
       fieldProps: { placeholder: 'Tìm theo mã' },
+      render: (_, record) => (
+        <Space>
+          <span>{record.code}</span>
+          {record.code === 'BASIC' && <Tag color="blue">Hệ thống</Tag>}
+        </Space>
+      ),
     },
     {
       title: 'Tên vai trò',

@@ -69,10 +69,14 @@ export async function request<T = any>(
 
       switch (status) {
         case 401:
-          // Unauthorized - clear token and redirect to login
           removeToken();
-          message.error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
-          history.push('/login');
+          // Đang ở trang login: hiển thị message từ backend (sai email/mật khẩu), không redirect
+          if (history.location?.pathname === '/login') {
+            message.error(data.message || 'Email hoặc mật khẩu không đúng.');
+          } else {
+            message.error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+            history.push('/login');
+          }
           break;
         case 403:
           message.error('Bạn không có quyền thực hiện thao tác này.');

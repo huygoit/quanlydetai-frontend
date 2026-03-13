@@ -110,6 +110,12 @@ const RoleForm: React.FC<RoleFormProps> = ({
           { required: true, message: 'Vui lòng nhập tên vai trò' },
           { max: 100, message: 'Tên vai trò tối đa 100 ký tự' },
         ]}
+        disabled={editingRecord?.code === 'BASIC'}
+        fieldProps={
+          editingRecord?.code === 'BASIC'
+            ? { title: 'Vai trò hệ thống Basic không được đổi tên' }
+            : undefined
+        }
       />
       <ProFormTextArea
         name="description"

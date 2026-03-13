@@ -3,7 +3,7 @@
  * Theo specs/scientific-profile.md.md Section 5.3
  */
 import React, { useRef, useState } from 'react';
-import { history, useModel } from '@umijs/max';
+import { history, useModel, useAccess } from '@umijs/max';
 import {
   Avatar,
   Tag,
@@ -43,6 +43,7 @@ import './index.less';
 
 const ProfileListPage: React.FC = () => {
   const { initialState } = useModel('@@initialState');
+  const access = useAccess();
   const currentUser = initialState?.currentUser;
   const actionRef = useRef<ActionType>();
 
@@ -51,7 +52,7 @@ const ProfileListPage: React.FC = () => {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyForm] = Form.useForm();
 
-  const canVerify = currentUser?.role === 'PHONG_KH' || currentUser?.role === 'ADMIN';
+  const canVerify = access.canVerifyProfile;
 
   // Handle verify
   const handleOpenVerify = (profile: ScientificProfile, action: 'verify' | 'request') => {

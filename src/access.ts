@@ -1,6 +1,5 @@
 /**
- * Access Control - Quản lý quyền truy cập
- * Kết hợp permission-based (IAM) và role-based (legacy)
+ * Access Control - CHỈ dùng IAM permission, không dùng role
  */
 import { hasPermission, hasAnyPermission as hasAnyPerm, PERM } from '@/utils/permission';
 
@@ -9,6 +8,7 @@ export type UserRole =
   | 'CNDT'
   | 'TRUONG_DON_VI'
   | 'PHONG_KH'
+  | 'QUANLY_KH_CNTT_HTQT'
   | 'HOI_DONG'
   | 'LANH_DAO'
   | 'ADMIN'
@@ -26,45 +26,14 @@ export interface AccessInitialState {
   loading?: boolean;
 }
 
-function normalizeRole(role: string | undefined): string {
-  if (!role || typeof role !== 'string') return '';
-  return role.toString().toUpperCase().replace(/-/g, '_');
-}
-
 export default function access(initialState: AccessInitialState | undefined) {
   const permissions = initialState?.permissions ?? initialState?.currentUser?.permissions ?? [];
-  const rawRole = initialState?.currentUser?.role ?? 'NCV';
-  const role = normalizeRole(rawRole) || 'NCV';
+  const hasWildcard = permissions.includes('*');
 
-  const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
-  const isNCV = role === 'NCV';
-  const isCNDT = role === 'CNDT';
-  const isTruongDonVi = role === 'TRUONG_DON_VI';
-  const isPhongKH = role === 'PHONG_KH';
-  const isLanhDao = role === 'LANH_DAO';
-  const isHoiDong = role === 'HOI_DONG';
-  const isResearcher = isNCV || isCNDT;
+  const has = (code: string) => hasPermission(permissions, code) || hasWildcard;
+  const hasAny = (codes: string[]) => hasAnyPerm(permissions, codes) || hasWildcard;
 
-  // Permission-based checks cho IAM Admin
-  const canViewDepartments = hasPermission(permissions, PERM.department.view);
-  const canCreateDepartment = hasPermission(permissions, PERM.department.create);
-  const canEditDepartment = hasPermission(permissions, PERM.department.update);
-  const canViewUsers = hasPermission(permissions, PERM.user.view);
-  const canCreateUser = hasPermission(permissions, PERM.user.create);
-  const canEditUser = hasPermission(permissions, PERM.user.update);
-  const canAssignUserRole = hasPermission(permissions, PERM.user.assign_role);
-  const canResetUserPassword = hasPermission(permissions, PERM.user.reset_password);
-  const canViewRoles = hasPermission(permissions, PERM.role.view);
-  const canCreateRole = hasPermission(permissions, PERM.role.create);
-  const canEditRole = hasPermission(permissions, PERM.role.update);
-  const canAssignRolePermission = hasPermission(permissions, PERM.role.assign_permission);
-  const canViewPermissions = hasPermission(permissions, PERM.permission.view);
-  const canViewPersonalProfiles = hasPermission(permissions, PERM.personal_profile.view);
-  const canCreatePersonalProfile = hasPermission(permissions, PERM.personal_profile.create);
-  const canEditPersonalProfile = hasPermission(permissions, PERM.personal_profile.update);
-  const canChangePersonalProfileStatus = hasPermission(permissions, PERM.personal_profile.change_status);
-
-  const hasAdminPermission = hasAnyPerm(permissions, [
+  const hasAdminPermission = hasAny([
     PERM.department.view,
     PERM.user.view,
     PERM.role.view,
@@ -72,58 +41,53 @@ export default function access(initialState: AccessInitialState | undefined) {
     PERM.personal_profile.view,
   ]);
 
-  const canViewAdmin = isAdmin || hasAdminPermission;
-
-  // Fallback: ADMIN/SUPER_ADMIN hoặc permission "*" = có tất cả quyền IAM
-  const hasPermsFromBackend = permissions.length > 0;
-  const hasWildcard = permissions.includes('*');
-  const adminHasAll = (isAdmin && !hasPermsFromBackend) || hasWildcard;
-
   return {
     isLogin: !!initialState?.currentUser,
 
-    hasPermission: (code: string) => hasPermission(permissions, code),
-    hasAnyPermission: (codes: string[]) => hasAnyPerm(permissions, codes),
+    hasPermission: (code: string) => has(code),
+    hasAnyPermission: (codes: string[]) => hasAny(codes),
 
-    canViewAdmin,
-    canViewDepartments: canViewDepartments || adminHasAll,
-    canCreateDepartment: canCreateDepartment || adminHasAll,
-    canEditDepartment: canEditDepartment || adminHasAll,
-    canViewUsers: canViewUsers || adminHasAll,
-    canCreateUser: canCreateUser || adminHasAll,
-    canEditUser: canEditUser || adminHasAll,
-    canAssignUserRole: canAssignUserRole || adminHasAll,
-    canResetUserPassword: canResetUserPassword || adminHasAll,
-    canViewRoles: canViewRoles || adminHasAll,
-    canCreateRole: canCreateRole || adminHasAll,
-    canEditRole: canEditRole || adminHasAll,
-    canAssignRolePermission: canAssignRolePermission || adminHasAll,
-    canViewPermissions: canViewPermissions || adminHasAll,
-    canViewPersonalProfiles: canViewPersonalProfiles || adminHasAll,
-    canCreatePersonalProfile: canCreatePersonalProfile || adminHasAll,
-    canEditPersonalProfile: canEditPersonalProfile || adminHasAll,
-    canChangePersonalProfileStatus: canChangePersonalProfileStatus || adminHasAll,
+    canViewAdmin: hasAdminPermission || hasWildcard,
+    canViewDepartments: has(PERM.department.view),
+    canCreateDepartment: has(PERM.department.create),
+    canEditDepartment: has(PERM.department.update),
+    canViewUsers: has(PERM.user.view),
+    canCreateUser: has(PERM.user.create),
+    canEditUser: has(PERM.user.update),
+    canAssignUserRole: has(PERM.user.assign_role),
+    canResetUserPassword: has(PERM.user.reset_password),
+    canViewRoles: has(PERM.role.view),
+    canCreateRole: has(PERM.role.create),
+    canEditRole: has(PERM.role.update),
+    canAssignRolePermission: has(PERM.role.assign_permission),
+    canViewPermissions: has(PERM.permission.view),
+    canViewPersonalProfiles: has(PERM.personal_profile.view),
+    canCreatePersonalProfile: has(PERM.personal_profile.create),
+    canEditPersonalProfile: has(PERM.personal_profile.update),
+    canChangePersonalProfileStatus: has(PERM.personal_profile.change_status),
 
     canViewHome: true,
-    canViewProfile: isResearcher || isTruongDonVi || isPhongKH || isHoiDong || isLanhDao || isAdmin,
-    canViewProfileSelf: isResearcher || isTruongDonVi || isPhongKH || isLanhDao || isAdmin,
-    canEditProfileSelf: isResearcher || isTruongDonVi || isPhongKH || isLanhDao || isAdmin,
-    canViewProfileAll: isPhongKH || isHoiDong || isLanhDao || isAdmin,
-    canVerifyProfile: isPhongKH || isAdmin,
-    canExportProfile: isResearcher || isPhongKH || isLanhDao || isAdmin,
-    canViewIdeaBank: isResearcher || isPhongKH || isLanhDao || isHoiDong || isAdmin,
-    canManageIdeaBank: isPhongKH || isHoiDong || isLanhDao || isAdmin,
-    canReviewIdea: isPhongKH || isAdmin,
-    canScoreIdea: isHoiDong || isAdmin,
-    /** Tạo phiên, quản lý hội đồng, chấm điểm - PHONG_KH + HOI_DONG + ADMIN/SUPER_ADMIN */
-    canAccessCouncil: isPhongKH || isHoiDong || isAdmin,
-    canProposeOrder: isHoiDong || isAdmin,
-    canApproveOrder: isLanhDao || isAdmin,
-    canViewProjectRegister: isResearcher || isTruongDonVi || isPhongKH || isAdmin,
-    canViewProjectManage: isCNDT || isPhongKH || isLanhDao || isAdmin,
-    canViewProjectCouncil: isHoiDong || isPhongKH || isLanhDao || isAdmin,
-    canViewAcceptance: isCNDT || isPhongKH || isHoiDong || isLanhDao || isAdmin,
-    canViewFinance: isCNDT || isPhongKH || isLanhDao || isAdmin,
-    canViewReports: isPhongKH || isLanhDao || isAdmin,
+    canViewProfile: hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
+    canViewProfileSelf: hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
+    canEditProfileSelf: has(PERM.profile.update_own),
+    canViewProfileAll: has(PERM.profile.view_all),
+    canVerifyProfile: has(PERM.profile.verify),
+    canExportProfile: has(PERM.profile.export),
+    canViewIdeaBank: has(PERM.idea.view),
+    canManageIdeaBank: has(PERM.idea.manage),
+    canReviewIdea: has(PERM.idea.review),
+    canScoreIdea: has(PERM.council.score),
+    canAccessCouncil: has(PERM.council.view),
+    canProposeOrder: has(PERM.council.propose_order),
+    canApproveOrder: has(PERM.council.approve_order),
+    canViewProjectRegister: hasAny([PERM.project.create, PERM.project.submit]),
+    canCreateProjectProposal: hasAny([PERM.project.create, PERM.project.submit]),
+    canUnitReviewProjectProposal: has(PERM.project.unit_review),
+    canReviewProjectProposal: has(PERM.project.review),
+    canViewProjectManage: has(PERM.project.view),
+    canViewProjectCouncil: has(PERM.council.view),
+    canViewAcceptance: has(PERM.project.acceptance),
+    canViewFinance: has(PERM.finance.view),
+    canViewReports: hasAny([PERM.report.view, PERM.report.view_department, PERM.report.view_all, PERM.report.export]),
   };
 }

@@ -1,7 +1,7 @@
 /**
  * Permissions API Service (Quản lý quyền)
  */
-import { get, ApiResponse, PaginatedResponse } from '../request';
+import { get, post, ApiResponse, PaginatedResponse } from '../request';
 
 // Types
 export type PermissionStatus = 'ACTIVE' | 'INACTIVE';
@@ -90,4 +90,16 @@ export async function getAllPermissions(): Promise<ApiResponse<PermissionItem[]>
  */
 export async function getPermissionModules(): Promise<ApiResponse<string[]>> {
   return get<ApiResponse<string[]>>('/api/admin/permissions/modules');
+}
+
+/**
+ * Bổ sung các quyền chuẩn còn thiếu (profile.view_own, idea.view, ...) vào DB.
+ * Admin có thể gọi để các quyền mới hiện trên trang phân quyền.
+ */
+export async function syncMissingPermissions(): Promise<
+  ApiResponse<{ added: number; permissions: PermissionItem[] }>
+> {
+  return post<ApiResponse<{ added: number; permissions: PermissionItem[] }>>(
+    '/api/admin/permissions/sync-missing',
+  );
 }

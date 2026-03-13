@@ -287,7 +287,7 @@ const UsersPage: React.FC = () => {
             : []
         }
         request={async (params, sort) => {
-          const { current, pageSize, full_name, email, department_id, role_id, status } = params;
+          const { current, pageSize, full_name, email, keyword, department_id, departmentId, role_id, roleId, status } = params;
 
           let sortBy: string | undefined;
           let order: 'asc' | 'desc' | undefined;
@@ -302,10 +302,9 @@ const UsersPage: React.FC = () => {
           const result = await queryIAMUsers({
             page: current,
             perPage: pageSize,
-            full_name,
-            email,
-            department_id,
-            role_id,
+            keyword: keyword || full_name || email,
+            departmentId: departmentId ?? department_id,
+            roleId: roleId ?? role_id,
             status: status as UserStatus,
             sortBy,
             order,

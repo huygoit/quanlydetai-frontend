@@ -12,6 +12,7 @@ export interface RoleItem {
   name: string;
   description?: string;
   status: RoleStatus;
+  isSystem?: boolean;
   created_at?: string;
   updated_at?: string;
 }

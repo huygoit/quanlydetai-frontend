@@ -32,7 +32,8 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
 
     try {
       const result = await resetIAMUserPassword(user.id, {
-        new_password: values.new_password,
+        password: values.password,
+        confirmPassword: values.confirmPassword,
       });
       if (result?.data || result) {
         message.success('Đặt lại mật khẩu thành công');
@@ -86,7 +87,7 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
       )}
 
       <ProFormText.Password
-        name="new_password"
+        name="password"
         label="Mật khẩu mới"
         placeholder="Nhập mật khẩu mới"
         rules={[
@@ -96,15 +97,15 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
       />
 
       <ProFormText.Password
-        name="confirm_password"
+        name="confirmPassword"
         label="Xác nhận mật khẩu"
         placeholder="Nhập lại mật khẩu mới"
-        dependencies={['new_password']}
+        dependencies={['password']}
         rules={[
           { required: true, message: 'Vui lòng xác nhận mật khẩu' },
           ({ getFieldValue }) => ({
             validator(_, value) {
-              if (!value || getFieldValue('new_password') === value) {
+              if (!value || getFieldValue('password') === value) {
                 return Promise.resolve();
               }
               return Promise.reject(new Error('Mật khẩu xác nhận không khớp'));

@@ -16,7 +16,7 @@ import {
   Typography,
   Empty,
 } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, CheckSquareOutlined, MinusSquareOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, SaveOutlined, CheckSquareOutlined, MinusSquareOutlined, PlusOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { history, useParams } from '@umijs/max';
 import {
@@ -28,6 +28,7 @@ import {
 } from '@/services/api/roles';
 import {
   queryPermissions,
+  syncMissingPermissions,
   PERMISSION_MODULE_MAP,
   type PermissionItem,
 } from '@/services/api/permissions';
@@ -48,6 +49,7 @@ const RolePermissionsPage: React.FC = () => {
   const [groupedPermissions, setGroupedPermissions] = useState<GroupedPermissions>({});
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [initialSelectedIds, setInitialSelectedIds] = useState<number[]>([]);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     if (roleId) {
@@ -92,7 +94,8 @@ const RolePermissionsPage: React.FC = () => {
       }
 
       if (rolePermissionsRes?.data) {
-        const ids = (rolePermissionsRes.data || []).map((p: any) => Number(typeof p === 'object' ? p.id : p));
+        const raw = rolePermissionsRes.data || [];
+        const ids = raw.map((p: any) => Number(typeof p === 'object' ? p.id : p)).filter((n) => !isNaN(n));
         setSelectedIds(ids);
         setInitialSelectedIds(ids);
       }
@@ -125,9 +128,31 @@ const RolePermissionsPage: React.FC = () => {
     history.push('/admin/iam/roles');
   };
 
+  const handleSyncMissing = async () => {
+    setSyncing(true);
+    try {
+      const result = await syncMissingPermissions();
+      const added = result?.data?.added ?? 0;
+      if (added > 0) {
+        message.success(`Đã bổ sung ${added} quyền chuẩn. Đang tải lại danh sách...`);
+        loadData();
+      } else {
+        message.info('Không có quyền nào cần bổ sung.');
+      }
+    } catch {
+      message.error('Không thể bổ sung quyền.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const toNum = (id: any) => Number(id);
+
+  const isSelected = (id: any) => selectedIds.includes(toNum(id));
+
   const handleModuleCheckAll = (module: string, checked: boolean) => {
     const permissions = groupedPermissions[module] || [];
-    const moduleIds = permissions.map((p) => p.id);
+    const moduleIds = permissions.map((p) => toNum(p.id));
 
     if (checked) {
       setSelectedIds((prev) => [...new Set([...prev, ...moduleIds])]);
@@ -136,18 +161,19 @@ const RolePermissionsPage: React.FC = () => {
     }
   };
 
-  const handlePermissionChange = (permissionId: number, checked: boolean) => {
+  const handlePermissionChange = (permissionId: any, checked: boolean) => {
+    const numId = toNum(permissionId);
     if (checked) {
-      setSelectedIds((prev) => [...prev, permissionId]);
+      setSelectedIds((prev) => [...prev, numId]);
     } else {
-      setSelectedIds((prev) => prev.filter((id) => id !== permissionId));
+      setSelectedIds((prev) => prev.filter((id) => id !== numId));
     }
   };
 
   const handleSelectAll = () => {
     const allIds = Object.values(groupedPermissions)
       .flat()
-      .map((p) => p.id);
+      .map((p) => toNum(p.id));
     setSelectedIds(allIds);
   };
 
@@ -157,12 +183,12 @@ const RolePermissionsPage: React.FC = () => {
 
   const isModuleAllChecked = (module: string) => {
     const permissions = groupedPermissions[module] || [];
-    return permissions.length > 0 && permissions.every((p) => selectedIds.includes(p.id));
+    return permissions.length > 0 && permissions.every((p) => isSelected(p.id));
   };
 
   const isModuleIndeterminate = (module: string) => {
     const permissions = groupedPermissions[module] || [];
-    const checkedCount = permissions.filter((p) => selectedIds.includes(p.id)).length;
+    const checkedCount = permissions.filter((p) => isSelected(p.id)).length;
     return checkedCount > 0 && checkedCount < permissions.length;
   };
 
@@ -194,7 +220,7 @@ const RolePermissionsPage: React.FC = () => {
   );
 
   const totalPermissions = Object.values(groupedPermissions).flat().length;
-  const hasChanges = JSON.stringify(selectedIds.sort()) !== JSON.stringify(initialSelectedIds.sort());
+  const hasChanges = JSON.stringify([...selectedIds].sort()) !== JSON.stringify([...initialSelectedIds].sort());
 
   return (
     <PageContainer
@@ -251,6 +277,15 @@ const RolePermissionsPage: React.FC = () => {
             </Col>
             <Col>
               <Space>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleSyncMissing}
+                  loading={syncing}
+                  size="small"
+                >
+                  Bổ sung quyền chuẩn
+                </Button>
                 <Button 
                   icon={<CheckSquareOutlined />} 
                   onClick={handleSelectAll}
@@ -275,7 +310,7 @@ const RolePermissionsPage: React.FC = () => {
           <Row gutter={[16, 16]}>
             {modules.map((module) => {
               const permissions = groupedPermissions[module] || [];
-              const checkedCount = permissions.filter((p) => selectedIds.includes(p.id)).length;
+              const checkedCount = permissions.filter((p) => isSelected(p.id)).length;
               const moduleColor = getModuleColor(module);
 
               return (
@@ -316,12 +351,12 @@ const RolePermissionsPage: React.FC = () => {
                           style={{
                             padding: '6px 8px',
                             borderRadius: 4,
-                            background: selectedIds.includes(permission.id) ? '#e6f7ff' : 'transparent',
+                            background: isSelected(permission.id) ? '#e6f7ff' : 'transparent',
                             transition: 'background 0.2s',
                           }}
                         >
                           <Checkbox
-                            checked={selectedIds.includes(permission.id)}
+                            checked={isSelected(permission.id)}
                             onChange={(e) => handlePermissionChange(permission.id, e.target.checked)}
                             style={{ width: '100%' }}
                           >

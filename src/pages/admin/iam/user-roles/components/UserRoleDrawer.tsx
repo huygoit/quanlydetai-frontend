@@ -28,9 +28,9 @@ import {
   assignRoleToUser,
   updateAssignmentStatus,
   removeUserRole,
-  type UserItem,
   type UserRoleAssignment,
 } from '@/services/api/userRoles';
+import type { IAMUserItem } from '@/services/api/iamUsers';
 import { queryRoles, type RoleItem } from '@/services/api/roles';
 import dayjs from 'dayjs';
 
@@ -38,7 +38,7 @@ const { Text, Title } = Typography;
 
 interface UserRoleDrawerProps {
   visible: boolean;
-  user: UserItem | null;
+  user: IAMUserItem | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -176,7 +176,7 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
       title={
         <Space>
           <Avatar icon={<UserOutlined />} />
-          <span>Quản lý vai trò: {user?.full_name}</span>
+          <span>Quản lý vai trò: {user?.full_name ?? user?.fullName ?? '-'}</span>
         </Space>
       }
       placement="right"

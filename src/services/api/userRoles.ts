@@ -84,10 +84,21 @@ export const USER_STATUS_OPTIONS = Object.entries(USER_STATUS_MAP).map(([value, 
 // API Functions
 
 /**
- * Lấy danh sách user (có phân trang)
+ * Lấy danh sách user (có phân trang, tìm kiếm)
  */
-export async function queryUsers(params?: QueryUsersParams): Promise<PaginatedResponse<UserItem>> {
-  return get<PaginatedResponse<UserItem>>('/api/admin/users', params);
+export async function queryUsers(params?: QueryUsersParams): Promise<any> {
+  const q: Record<string, any> = {};
+  if (params?.page != null) q.page = params.page;
+  if (params?.perPage != null) q.per_page = params.perPage;
+  if (params?.keyword) q.keyword = params.keyword;
+  if (params?.full_name) q.full_name = params.full_name;
+  if (params?.username) q.username = params.username;
+  if (params?.email) q.email = params.email;
+  if (params?.department_id != null) q.department_id = params.department_id;
+  if (params?.status) q.status = params.status;
+  if (params?.sortBy) q.sortBy = params.sortBy;
+  if (params?.order) q.order = params.order;
+  return get<any>('/api/admin/users', q);
 }
 
 /**

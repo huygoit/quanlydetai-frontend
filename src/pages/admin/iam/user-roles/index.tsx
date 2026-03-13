@@ -7,10 +7,10 @@ import { Badge, Button, Space, Tag, Typography } from 'antd';
 import { TeamOutlined } from '@ant-design/icons';
 import { useRef, useState } from 'react';
 import {
-  queryUsers,
+  queryIAMUsers,
   USER_STATUS_MAP,
-  type UserItem,
-} from '@/services/api/userRoles';
+  type IAMUserItem,
+} from '@/services/api/iamUsers';
 import UserRoleDrawer from './components/UserRoleDrawer';
 
 const { Text } = Typography;
@@ -18,9 +18,9 @@ const { Text } = Typography;
 const UserRolesPage: React.FC = () => {
   const actionRef = useRef<ActionType>();
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+  const [selectedUser, setSelectedUser] = useState<IAMUserItem | null>(null);
 
-  const handleManageRoles = (record: UserItem) => {
+  const handleManageRoles = (record: IAMUserItem) => {
     setSelectedUser(record);
     setDrawerVisible(true);
   };
@@ -34,7 +34,7 @@ const UserRolesPage: React.FC = () => {
     actionRef.current?.reload();
   };
 
-  const columns: ProColumns<UserItem>[] = [
+  const columns: ProColumns<IAMUserItem>[] = [
     {
       title: 'STT',
       dataIndex: 'index',
@@ -44,16 +44,26 @@ const UserRolesPage: React.FC = () => {
     },
     {
       title: 'Họ tên',
-      dataIndex: 'full_name',
+      dataIndex: ['full_name', 'fullName'],
       width: 200,
       ellipsis: true,
-      fieldProps: { placeholder: 'Tìm theo tên' },
+      hideInSearch: true,
+      render: (_, r) => r.full_name || r.fullName || '-',
+    },
+    {
+      title: 'Tìm kiếm nhanh',
+      dataIndex: 'keyword',
+      hideInTable: true,
+      fieldProps: {
+        placeholder: 'Tìm theo tên, username, email...',
+        style: { width: 380 },
+      },
     },
     {
       title: 'Username',
       dataIndex: 'username',
       width: 150,
-      fieldProps: { placeholder: 'Tìm theo username' },
+      hideInSearch: true,
       render: (_, record) => (
         <Text code style={{ fontSize: 12 }}>
           {record.username}
@@ -65,7 +75,7 @@ const UserRolesPage: React.FC = () => {
       dataIndex: 'email',
       width: 220,
       ellipsis: true,
-      fieldProps: { placeholder: 'Tìm theo email' },
+      hideInSearch: true,
     },
     {
       title: 'Đơn vị',
@@ -103,6 +113,7 @@ const UserRolesPage: React.FC = () => {
       title: 'Trạng thái',
       dataIndex: 'status',
       width: 140,
+      hideInSearch: true,
       valueType: 'select',
       valueEnum: Object.entries(USER_STATUS_MAP).reduce((acc, [key, val]) => {
         acc[key] = { text: val.text, status: val.status as any };
@@ -134,45 +145,51 @@ const UserRolesPage: React.FC = () => {
 
   return (
     <PageContainer>
-      <ProTable<UserItem>
+      <ProTable<IAMUserItem>
         headerTitle="Danh sách người dùng"
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
         request={async (params, sort) => {
-          const { current, pageSize, full_name, username, email, status } = params;
+          try {
+            const { current, pageSize, keyword, status } = params;
 
-          let sortBy: string | undefined;
-          let order: 'asc' | 'desc' | undefined;
-          if (sort) {
-            const sortKey = Object.keys(sort)[0];
-            if (sortKey) {
-              sortBy = sortKey;
-              order = sort[sortKey] === 'ascend' ? 'asc' : 'desc';
+            let sortBy: string | undefined;
+            let order: 'asc' | 'desc' | undefined;
+            if (sort && typeof sort === 'object') {
+              const sortKey = Object.keys(sort)[0];
+              if (sortKey) {
+                sortBy = sortKey;
+                order = sort[sortKey] === 'ascend' ? 'asc' : 'desc';
+              }
             }
+
+            const result = await queryIAMUsers({
+              page: current,
+              perPage: pageSize,
+              keyword: keyword?.trim() || undefined,
+              status: status || undefined,
+              sortBy,
+              order,
+            });
+
+            const data = Array.isArray(result?.data) ? result.data : result?.data?.data ?? [];
+            const total = result?.meta?.total ?? result?.data?.meta?.total ?? result?.pagination?.total ?? data.length;
+
+            return {
+              data,
+              total,
+              success: true,
+            };
+          } catch (error) {
+            console.error('[user-roles request]', error);
+            return { data: [], total: 0, success: false };
           }
-
-          const result = await queryUsers({
-            page: current,
-            perPage: pageSize,
-            full_name,
-            username,
-            email,
-            status,
-            sortBy,
-            order,
-          });
-
-          return {
-            data: result.data,
-            total: result.meta?.total || 0,
-            success: true,
-          };
         }}
         search={{
           labelWidth: 'auto',
-          defaultCollapsed: true,
-          span: { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 },
+          defaultCollapsed: false,
+          span: { xs: 24, sm: 24, md: 24 },
         }}
         pagination={{
           defaultPageSize: 10,

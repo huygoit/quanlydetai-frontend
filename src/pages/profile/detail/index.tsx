@@ -3,7 +3,7 @@
  * Theo specs/scientific-profile.md.md Section 5.4
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useModel, history } from '@umijs/max';
+import { useParams, useModel, useAccess, history } from '@umijs/max';
 import {
   Row,
   Col,
@@ -79,6 +79,7 @@ const { Title, Text, Paragraph } = Typography;
 const ProfileDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { initialState } = useModel('@@initialState');
+  const access = useAccess();
   const currentUser = initialState?.currentUser;
 
   const [loading, setLoading] = useState(true);
@@ -96,8 +97,8 @@ const ProfileDetailPage: React.FC = () => {
   const [previewPubId, setPreviewPubId] = useState<number | null>(null);
   const [previewPubTitle, setPreviewPubTitle] = useState<string>('');
 
-  const canVerify = currentUser?.role === 'PHONG_KH' || currentUser?.role === 'ADMIN';
-  const canViewHoursConversion = currentUser?.role === 'PHONG_KH' || currentUser?.role === 'ADMIN';
+  const canVerify = access.canVerifyProfile;
+  const canViewHoursConversion = access.canVerifyProfile;
 
   // Handle preview hours
   const handlePreviewHours = (pub: PublicationItem) => {

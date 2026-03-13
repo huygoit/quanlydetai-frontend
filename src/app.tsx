@@ -187,6 +187,7 @@ function getRoleLabel(role: UserRole | string | undefined): string {
     CNDT: 'Chủ nhiệm đề tài',
     TRUONG_DON_VI: 'Trưởng đơn vị',
     PHONG_KH: 'Phòng KH',
+    QUANLY_KH_CNTT_HTQT: 'Phòng KH CNTT & HTQT',
     HOI_DONG: 'Thành viên hội đồng',
     LANH_DAO: 'Lãnh đạo',
     ADMIN: 'Quản trị viên',

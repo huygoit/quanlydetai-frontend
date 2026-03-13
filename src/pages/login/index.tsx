@@ -71,9 +71,9 @@ const LoginPage: React.FC = () => {
       } else {
         message.error(response.message || 'Đăng nhập thất bại');
       }
-    } catch (error: any) {
-      const errorMsg = error?.data?.message || 'Đăng nhập thất bại, vui lòng thử lại';
-      message.error(errorMsg);
+    } catch {
+      // request.ts đã hiển thị message từ backend (vd: "Email hoặc mật khẩu không đúng.")
+      // không hiển thị thêm fallback tránh trùng
     } finally {
       setLoading(false);
     }
