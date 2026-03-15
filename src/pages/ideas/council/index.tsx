@@ -10,16 +10,19 @@ import { PageContainer, ProTable, ProForm, ProFormText, ProFormDigit, ProFormTex
 import type { ProColumns, ActionType } from '@ant-design/pro-components';
 import { 
   Alert, 
+  AutoComplete,
   Badge, 
   Button, 
   Card, 
   Col, 
   Drawer, 
+  Form,
   message, 
   Modal, 
   Popconfirm,
   Progress, 
   Row, 
+  Select,
   Space, 
   Statistic, 
   Table, 
@@ -54,9 +57,11 @@ import {
   openSession,
   closeSession,
   getSessionMembers,
+  getAvailableMembers,
   addSessionMember,
   removeSessionMember,
   getSessionIdeas,
+  getAvailableIdeas,
   addSessionIdeas,
   removeSessionIdea,
   getScoreSheet,
@@ -77,8 +82,9 @@ import {
   type SessionIdea,
   type IdeaCouncilScore,
   type IdeaCouncilResult,
+  type AvailableIdea,
+  type AvailableMember,
 } from '@/services/api/ideaCouncil';
-import { queryIdeas, type Idea } from '@/services/api/ideas';
 
 const { Text, Title } = Typography;
 
@@ -101,7 +107,13 @@ const CouncilPage: React.FC = () => {
   const [sessionIdeas, setSessionIdeas] = useState<SessionIdea[]>([]);
   const [addMemberModalVisible, setAddMemberModalVisible] = useState(false);
   const [addIdeaModalVisible, setAddIdeaModalVisible] = useState(false);
-  const [availableIdeas, setAvailableIdeas] = useState<Idea[]>([]);
+  const [availableIdeas, setAvailableIdeas] = useState<AvailableIdea[]>([]);
+  const [selectedIdeaIds, setSelectedIdeaIds] = useState<number[]>([]);
+  const [loadingAvailableIdeas, setLoadingAvailableIdeas] = useState(false);
+  const [availableMembers, setAvailableMembers] = useState<AvailableMember[]>([]);
+  const [selectedMember, setSelectedMember] = useState<AvailableMember | null>(null);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [memberRole, setMemberRole] = useState<SessionMemberRole>('UY_VIEN');
   
   // Scoring
   const [scoreModalVisible, setScoreModalVisible] = useState(false);
@@ -236,24 +248,45 @@ const CouncilPage: React.FC = () => {
     }
   };
 
+  // Load available members for council
+  const loadAvailableMembers = async (keyword?: string) => {
+    if (!currentSession) return;
+    setLoadingMembers(true);
+    try {
+      const res = await getAvailableMembers(currentSession.id, keyword);
+      if (res?.data) setAvailableMembers(res.data);
+      else setAvailableMembers([]);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
   // Add member
-  const handleAddMember = async (values: any) => {
-    if (!currentSession) return false;
-    const res = await addSessionMember(currentSession.id, values);
+  const handleAddMember = async () => {
+    if (!currentSession || !selectedMember) {
+      message.warning('Vui lòng chọn thành viên từ danh sách');
+      return;
+    }
+    const unit = selectedMember.unit || selectedMember.department || selectedMember.faculty || selectedMember.organization || undefined;
+    const res = await addSessionMember(currentSession.id, {
+      memberId: selectedMember.userId,
+      memberName: selectedMember.fullName,
+      memberEmail: selectedMember.workEmail,
+      roleInCouncil: memberRole,
+      unit,
+    });
     if (res.success) {
       message.success('Đã thêm thành viên');
       const membersRes = await getSessionMembers(currentSession.id);
       if (membersRes.success) setMembers(membersRes.data);
-      
-      // Update session
       const sessionRes = await getSession(currentSession.id);
       if (sessionRes.data) setCurrentSession(sessionRes.data);
-      
       setAddMemberModalVisible(false);
-      return true;
+      setSelectedMember(null);
+      setMemberRole('UY_VIEN');
+    } else {
+      message.error('Không thể thêm thành viên');
     }
-    message.error('Không thể thêm thành viên');
-    return false;
   };
 
   // Remove member
@@ -270,34 +303,37 @@ const CouncilPage: React.FC = () => {
     }
   };
 
-  // Load available ideas (APPROVED_INTERNAL)
+  // Load available ideas (APPROVED_INTERNAL, chưa có trong phiên) - API chuyên dụng
   const loadAvailableIdeas = async () => {
-    const res = await queryIdeas({ status: 'APPROVED_INTERNAL' });
-    if (res.success) {
-      // Filter out ideas already in session
-      const existingIds = sessionIdeas.map(i => i.ideaId);
-      setAvailableIdeas(res.data.filter(i => !existingIds.includes(i.id)));
+    if (!currentSession) return;
+    setLoadingAvailableIdeas(true);
+    try {
+      const res = await getAvailableIdeas(currentSession.id);
+      if (res?.data) {
+        setAvailableIdeas(res.data);
+        setSelectedIdeaIds([]);
+      } else {
+        setAvailableIdeas([]);
+        setSelectedIdeaIds([]);
+      }
+    } finally {
+      setLoadingAvailableIdeas(false);
     }
   };
 
-  // Add ideas to session
-  const handleAddIdeas = async (selectedIds: string[]) => {
+  // Add ideas to session (chỉ thêm được APPROVED_INTERNAL)
+  const handleAddIdeas = async (selectedIds: (string | number)[]) => {
     if (!currentSession) return;
-    
-    const ideas = availableIdeas
-      .filter(i => selectedIds.includes(i.id))
-      .map(i => ({
-        ideaId: i.id,
-        ideaCode: i.code,
-        ideaTitle: i.title,
-        ownerName: i.ownerName,
-        ownerUnit: i.ownerUnit,
-        field: i.field,
-      }));
-    
-    const res = await addSessionIdeas(currentSession.id, ideas);
+    const ids = availableIdeas
+      .filter(i => selectedIds.includes(i.id) && i.status === 'APPROVED_INTERNAL')
+      .map(i => i.id);
+    if (ids.length === 0) {
+      message.warning('Vui lòng chọn ít nhất 1 ý tưởng đã sơ loại (APPROVED_INTERNAL)');
+      return;
+    }
+    const res = await addSessionIdeas(currentSession.id, ids);
     if (res.success) {
-      message.success(`Đã thêm ${ideas.length} ý tưởng`);
+      message.success(`Đã thêm ${ids.length} ý tưởng`);
       const ideasRes = await getSessionIdeas(currentSession.id);
       if (ideasRes.success) setSessionIdeas(ideasRes.data);
       
@@ -826,9 +862,9 @@ const CouncilPage: React.FC = () => {
                         key="add"
                         type="primary"
                         icon={<PlusOutlined />}
-                        onClick={() => {
-                          loadAvailableIdeas();
+                        onClick={async () => {
                           setAddIdeaModalVisible(true);
+                          await loadAvailableIdeas();
                         }}
                       >
                         Thêm ý tưởng
@@ -852,7 +888,11 @@ const CouncilPage: React.FC = () => {
                         key="add"
                         type="primary"
                         icon={<UserAddOutlined />}
-                        onClick={() => setAddMemberModalVisible(true)}
+                        onClick={() => {
+                          setAddMemberModalVisible(true);
+                          setSelectedMember(null);
+                          loadAvailableMembers();
+                        }}
                       >
                         Thêm thành viên
                       </Button>,
@@ -888,36 +928,159 @@ const CouncilPage: React.FC = () => {
         )}
       </Drawer>
 
-      {/* Add Member Modal */}
-      <ModalForm
+      {/* Add Member Modal - Chọn từ danh sách hồ sơ khoa học */}
+      <Modal
         title="Thêm thành viên hội đồng"
         open={addMemberModalVisible}
-        onOpenChange={setAddMemberModalVisible}
-        onFinish={handleAddMember}
-        modalProps={{ destroyOnClose: true }}
-        width={500}
+        onCancel={() => {
+          setAddMemberModalVisible(false);
+          setSelectedMember(null);
+          setMemberRole('UY_VIEN');
+        }}
+        onOk={handleAddMember}
+        okText="Thêm thành viên"
+        cancelText="Hủy"
+        destroyOnClose
+        width={560}
+        okButtonProps={{ disabled: !selectedMember }}
       >
-        <ProFormText name="memberName" label="Họ tên" rules={[{ required: true }]} />
-        <ProFormText name="memberEmail" label="Email" />
-        <ProFormText name="unit" label="Đơn vị" />
-        <ProFormSelect
-          name="roleInCouncil"
-          label="Vai trò"
-          rules={[{ required: true }]}
-          options={[
-            { label: 'Chủ tịch HĐ', value: 'CHU_TICH' },
-            { label: 'Thư ký', value: 'THU_KY' },
-            { label: 'Phản biện', value: 'PHAN_BIEN' },
-            { label: 'Ủy viên', value: 'UY_VIEN' },
-          ]}
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Tìm và chọn từ danh sách hồ sơ khoa học (đã có trong hệ thống)
+          </Text>
+        </div>
+
+        <AutoComplete
+          style={{ width: '100%', marginBottom: 16 }}
+          placeholder="Gõ tên, email hoặc đơn vị để tìm kiếm..."
+          options={availableMembers.map((m) => ({
+            value: String(m.userId),
+            label: (
+              <div style={{ padding: '4px 0' }}>
+                <div style={{ fontWeight: 500 }}>
+                  {m.academicTitle && `${m.academicTitle}. `}
+                  {m.degree && `${m.degree} `}
+                  {m.fullName}
+                </div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+                  {[m.department, m.faculty, m.organization].filter(Boolean).join(' · ') || m.workEmail}
+                </div>
+              </div>
+            ),
+          }))}
+          onSelect={(val) => {
+            const m = availableMembers.find((x) => String(x.userId) === val);
+            if (m) setSelectedMember(m);
+          }}
+          onSearch={(v) => {
+            if (!v.trim()) loadAvailableMembers();
+            else loadAvailableMembers(v);
+          }}
+          onFocus={() => !availableMembers.length && loadAvailableMembers()}
+          loading={loadingMembers}
+          notFoundContent={loadingMembers ? 'Đang tải...' : 'Không tìm thấy. Thử từ khóa khác.'}
+          filterOption={false}
         />
-      </ModalForm>
+
+        {selectedMember && (
+          <Card
+            size="small"
+            style={{
+              marginBottom: 16,
+              background: 'linear-gradient(135deg, #f8f9fc 0%, #eef1f7 100%)',
+              border: '1px solid #e8ecf4',
+              borderRadius: 8,
+            }}
+            bodyStyle={{ padding: '16px 20px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: 18,
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                {selectedMember.fullName?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: '#1a1a1a' }}>
+                  {selectedMember.academicTitle && (
+                    <Tag color="blue" style={{ marginRight: 6 }}>
+                      {selectedMember.academicTitle}
+                    </Tag>
+                  )}
+                  {selectedMember.degree && (
+                    <Tag color="cyan" style={{ marginRight: 6 }}>
+                      {selectedMember.degree}
+                    </Tag>
+                  )}
+                  {selectedMember.fullName}
+                </div>
+                {selectedMember.currentTitle && (
+                  <div style={{ fontSize: 13, color: '#595959', marginBottom: 2 }}>{selectedMember.currentTitle}</div>
+                )}
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+                  {[selectedMember.department, selectedMember.faculty, selectedMember.organization]
+                    .filter(Boolean)
+                    .join(' · ') || '—'}
+                </div>
+                {selectedMember.workEmail && (
+                  <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 2 }}>📧 {selectedMember.workEmail}</div>
+                )}
+                {selectedMember.mainResearchArea && (
+                  <div style={{ fontSize: 11, color: '#bfbfbf', marginTop: 4, fontStyle: 'italic' }}>
+                    {selectedMember.mainResearchArea}
+                  </div>
+                )}
+                <Button
+                  type="link"
+                  size="small"
+                  style={{ padding: 0, marginTop: 4, fontSize: 12 }}
+                  onClick={() => setSelectedMember(null)}
+                >
+                  Chọn lại
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {selectedMember && (
+          <Form layout="vertical" style={{ marginTop: 16 }}>
+            <Form.Item label="Vai trò trong hội đồng" required>
+              <Select
+                value={memberRole}
+                onChange={setMemberRole}
+                options={[
+                  { label: 'Chủ tịch HĐ', value: 'CHU_TICH' },
+                  { label: 'Thư ký', value: 'THU_KY' },
+                  { label: 'Phản biện', value: 'PHAN_BIEN' },
+                  { label: 'Ủy viên', value: 'UY_VIEN' },
+                ]}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
 
       {/* Add Ideas Modal */}
       <Modal
         title="Thêm ý tưởng vào phiên"
         open={addIdeaModalVisible}
-        onCancel={() => setAddIdeaModalVisible(false)}
+        onCancel={() => {
+          setAddIdeaModalVisible(false);
+          setSelectedIdeaIds([]);
+        }}
         footer={null}
         width={700}
       >
@@ -925,39 +1088,63 @@ const CouncilPage: React.FC = () => {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Chỉ các ý tưởng đã được sơ loại (APPROVED_INTERNAL) mới có thể thêm vào hội đồng."
+          message="Chỉ ý tưởng đã sơ loại (Đã sơ loại) mới thêm được. Ý tưởng đang sơ loại cần duyệt xong tại trang Sơ loại ý tưởng."
         />
-        {availableIdeas.length > 0 ? (
-          <Table
+        {loadingAvailableIdeas ? (
+          <div style={{ padding: 24, textAlign: 'center' }}>Đang tải danh sách ý tưởng...</div>
+        ) : availableIdeas.length > 0 ? (
+          <Table<AvailableIdea>
             rowKey="id"
             dataSource={availableIdeas}
             pagination={false}
             size="small"
             rowSelection={{
               type: 'checkbox',
-              onChange: (selectedRowKeys) => {
-                // Store selected
-              },
+              selectedRowKeys: selectedIdeaIds,
+              onChange: (keys) => setSelectedIdeaIds(keys as number[]),
+              getCheckboxProps: (record) => ({
+                disabled: record.status !== 'APPROVED_INTERNAL',
+              }),
             }}
             columns={[
-              { title: 'Mã', dataIndex: 'code', width: 120 },
+              { title: 'Mã', dataIndex: 'code', width: 110 },
               { title: 'Tiêu đề', dataIndex: 'title', ellipsis: true },
-              { title: 'Tác giả', dataIndex: 'ownerName', width: 150 },
+              { title: 'Tác giả', dataIndex: 'ownerName', width: 130 },
+              {
+                title: 'Trạng thái',
+                dataIndex: 'status',
+                width: 120,
+                render: (s: string) =>
+                  s === 'APPROVED_INTERNAL' ? (
+                    <Tag color="success">Đã sơ loại</Tag>
+                  ) : (
+                    <Tag color="warning">Đang sơ loại</Tag>
+                  ),
+              },
             ]}
-            footer={() => (
-              <Button
-                type="primary"
-                onClick={() => {
-                  const selected = availableIdeas.map(i => i.id);
-                  handleAddIdeas(selected);
-                }}
-              >
-                Thêm tất cả
-              </Button>
-            )}
+            footer={() => {
+              const addableCount = availableIdeas.filter(i => i.status === 'APPROVED_INTERNAL').length;
+              return (
+                <Space>
+                  <Button
+                    type="primary"
+                    disabled={selectedIdeaIds.length === 0}
+                    onClick={() => handleAddIdeas(selectedIdeaIds)}
+                  >
+                    Thêm đã chọn ({selectedIdeaIds.filter(id => availableIdeas.find(i => i.id === id)?.status === 'APPROVED_INTERNAL').length})
+                  </Button>
+                  <Button
+                    disabled={addableCount === 0}
+                    onClick={() => handleAddIdeas(availableIdeas.filter(i => i.status === 'APPROVED_INTERNAL').map(i => i.id))}
+                  >
+                    Thêm tất cả đã sơ loại ({addableCount})
+                  </Button>
+                </Space>
+              );
+            }}
           />
         ) : (
-          <Empty description="Không có ý tưởng nào đủ điều kiện" />
+          <Empty description="Không có ý tưởng nào (đã sơ loại hoặc đang sơ loại). Tạo ý tưởng và duyệt tại trang Sơ loại ý tưởng." />
         )}
       </Modal>
 

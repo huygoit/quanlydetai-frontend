@@ -167,6 +167,29 @@ export async function getSessionMembers(sessionId: number): Promise<ApiResponse<
   return get<ApiResponse<SessionMember[]>>(`/api/council-sessions/${sessionId}/members`);
 }
 
+/** Thông tin hồ sơ khoa học có thể chọn làm thành viên hội đồng */
+export interface AvailableMember {
+  userId: number;
+  fullName: string;
+  workEmail: string;
+  degree?: string | null;
+  academicTitle?: string | null;
+  organization?: string | null;
+  faculty?: string | null;
+  department?: string | null;
+  unit?: string | null;
+  currentTitle?: string | null;
+  mainResearchArea?: string | null;
+  phone?: string | null;
+}
+
+/**
+ * Lấy danh sách hồ sơ khoa học chưa có trong phiên - để chọn thêm thành viên
+ */
+export async function getAvailableMembers(sessionId: number, keyword?: string): Promise<ApiResponse<AvailableMember[]>> {
+  return get<ApiResponse<AvailableMember[]>>(`/api/council-sessions/${sessionId}/available-members`, { keyword });
+}
+
 /**
  * Thêm thành viên hội đồng
  */
@@ -188,6 +211,25 @@ export async function removeSessionMember(sessionId: number, memberId: number): 
 }
 
 // API Functions - Session Ideas
+
+/** Ý tưởng có thể thêm vào phiên (APPROVED_INTERNAL, chưa có trong phiên) */
+export interface AvailableIdea {
+  id: number;
+  code: string;
+  title: string;
+  summary?: string;
+  field: string;
+  ownerName: string;
+  ownerUnit: string;
+  status: string;
+}
+
+/**
+ * Lấy danh sách ý tưởng đã sơ loại (APPROVED_INTERNAL) chưa có trong phiên - để chọn thêm vào hội đồng
+ */
+export async function getAvailableIdeas(sessionId: number): Promise<ApiResponse<AvailableIdea[]>> {
+  return get<ApiResponse<AvailableIdea[]>>(`/api/council-sessions/${sessionId}/available-ideas`);
+}
 
 /**
  * Lấy danh sách ý tưởng trong phiên
@@ -222,14 +264,14 @@ export async function getMyScoreSheets(sessionId: number): Promise<ApiResponse<I
 }
 
 /**
- * Lấy phiếu chấm điểm cho 1 ý tưởng
+ * Lấy phiếu chấm điểm của tôi cho 1 ý tưởng (GET .../ideas/:ideaId/my-score)
  */
 export async function getScoreSheet(sessionId: number, ideaId: number): Promise<ApiResponse<IdeaCouncilScore | null>> {
-  return get<ApiResponse<IdeaCouncilScore | null>>(`/api/council-sessions/${sessionId}/scores/${ideaId}`);
+  return get<ApiResponse<IdeaCouncilScore | null>>(`/api/council-sessions/${sessionId}/ideas/${ideaId}/my-score`);
 }
 
 /**
- * Lưu phiếu chấm điểm (draft)
+ * Lưu phiếu chấm điểm (draft) - POST .../ideas/:ideaId/score
  */
 export async function saveScoreSheet(sessionId: number, ideaId: number, data: {
   noveltyScore: number;
@@ -242,14 +284,14 @@ export async function saveScoreSheet(sessionId: number, ideaId: number, data: {
   authorCapacityComment: string;
   generalComment?: string;
 }): Promise<ApiResponse<IdeaCouncilScore>> {
-  return put<ApiResponse<IdeaCouncilScore>>(`/api/council-sessions/${sessionId}/scores/${ideaId}`, data);
+  return post<ApiResponse<IdeaCouncilScore>>(`/api/council-sessions/${sessionId}/ideas/${ideaId}/score`, data);
 }
 
 /**
- * Nộp phiếu chấm điểm
+ * Nộp phiếu chấm điểm - POST .../ideas/:ideaId/submit (backend tìm phiếu của user và submit)
  */
 export async function submitScoreSheet(sessionId: number, ideaId: number): Promise<ApiResponse<IdeaCouncilScore>> {
-  return post<ApiResponse<IdeaCouncilScore>>(`/api/council-sessions/${sessionId}/scores/${ideaId}/submit`);
+  return post<ApiResponse<IdeaCouncilScore>>(`/api/council-sessions/${sessionId}/ideas/${ideaId}/submit`);
 }
 
 // API Functions - Results
