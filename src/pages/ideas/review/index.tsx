@@ -216,6 +216,9 @@ const IdeaReviewPage: React.FC = () => {
           return ['SUBMITTED', 'REVIEWING', 'APPROVED_INTERNAL'];
         }
         return ['SUBMITTED', 'REVIEWING'];
+      case 'approved_internal':
+        // Đã sơ loại (APPROVED_INTERNAL)
+        return ['APPROVED_INTERNAL'];
       case 'approved':
         return ['APPROVED_FOR_ORDER'];
       case 'rejected':
@@ -469,6 +472,7 @@ const IdeaReviewPage: React.FC = () => {
         }}
         items={[
           { key: 'pending', label: 'Chờ xử lý' },
+          { key: 'approved_internal', label: 'Đã sơ loại' },
           { key: 'approved', label: 'Đã phê duyệt' },
           { key: 'rejected', label: 'Đã từ chối' },
         ]}
@@ -481,6 +485,7 @@ const IdeaReviewPage: React.FC = () => {
               `Ý tưởng chờ xử lý (mặc định: ${IDEA_STATUS_MAP[defaultStatus].text})` : 
               'Ý tưởng chờ xử lý'
           ) :
+          activeTab === 'approved_internal' ? 'Ý tưởng đã sơ loại (APPROVED_INTERNAL)' :
           activeTab === 'approved' ? 'Ý tưởng đã phê duyệt đặt hàng' :
           'Ý tưởng đã từ chối'
         }
@@ -503,6 +508,9 @@ const IdeaReviewPage: React.FC = () => {
           } else if (tab === 'pending' && defaultStatus) {
             // Tab pending + có defaultStatus theo role -> query với defaultStatus
             apiStatus = defaultStatus;
+          } else if (tab === 'approved_internal') {
+            // Tab Đã sơ loại -> query với APPROVED_INTERNAL
+            apiStatus = 'APPROVED_INTERNAL';
           } else if (tab === 'approved') {
             // Tab approved -> query với APPROVED_FOR_ORDER
             apiStatus = 'APPROVED_FOR_ORDER';

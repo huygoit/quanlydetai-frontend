@@ -77,7 +77,8 @@ export default function access(initialState: AccessInitialState | undefined) {
     canManageIdeaBank: has(PERM.idea.manage),
     canReviewIdea: has(PERM.idea.review),
     canScoreIdea: has(PERM.council.score),
-    canAccessCouncil: has(PERM.council.view),
+    // Menu Hội đồng chấm điểm: ai có council.view hoặc council.score (từ IAM) đều vào được
+    canAccessCouncil: hasAny([PERM.council.view, PERM.council.score]),
     canProposeOrder: has(PERM.council.propose_order),
     canApproveOrder: has(PERM.council.approve_order),
     canViewProjectRegister: hasAny([PERM.project.create, PERM.project.submit]),
@@ -88,6 +89,13 @@ export default function access(initialState: AccessInitialState | undefined) {
     canViewProjectCouncil: has(PERM.council.view),
     canViewAcceptance: has(PERM.project.acceptance),
     canViewFinance: has(PERM.finance.view),
-    canViewReports: hasAny([PERM.report.view, PERM.report.view_department, PERM.report.view_all, PERM.report.export]),
+    canViewReports: hasAny([
+      PERM.report.view,
+      PERM.report.view_department,
+      PERM.report.view_all,
+      PERM.report.export,
+      PERM.dashboard.view_department,
+      PERM.dashboard.view_all,
+    ]),
   };
 }

@@ -294,6 +294,27 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
               },
               { type: 'divider' },
               {
+                key: 'personalProfile',
+                label: 'Hồ sơ cán bộ của tôi',
+                onClick: () => history.push('/admin/personal-profiles'),
+              },
+              {
+                key: 'scientificProfile',
+                label: 'Hồ sơ khoa học của tôi',
+                onClick: () => history.push('/profile/me'),
+              },
+              {
+                key: 'myIdeas',
+                label: 'Ý tưởng của tôi',
+                onClick: () => history.push('/ideas/my'),
+              },
+              {
+                key: 'myProjects',
+                label: 'Đề tài của tôi',
+                onClick: () => history.push('/projects/my'),
+              },
+              { type: 'divider' },
+              {
                 key: 'logout',
                 icon: <LogoutOutlined />,
                 label: 'Đăng xuất',

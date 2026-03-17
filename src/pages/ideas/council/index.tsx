@@ -53,6 +53,7 @@ import { useAccess } from '@umijs/max';
 import {
   querySessions,
   getSession,
+  getSessionStats,
   createSession,
   openSession,
   closeSession,
@@ -152,14 +153,14 @@ const CouncilPage: React.FC = () => {
     loadSessions();
   }, []);
 
-  // Recalculate weighted score
+  // Recalculate weighted score khi đổi điểm thành phần (binding với form bên trái)
   useEffect(() => {
-    const weighted = calculateWeightedScore(
-      formValues.noveltyScore || 0,
-      formValues.feasibilityScore || 0,
-      formValues.alignmentScore || 0,
-      formValues.authorCapacityScore || 0
-    );
+    const weighted = calculateWeightedScore({
+      novelty: Number(formValues.noveltyScore) || 0,
+      feasibility: Number(formValues.feasibilityScore) || 0,
+      alignment: Number(formValues.alignmentScore) || 0,
+      authorCapacity: Number(formValues.authorCapacityScore) || 0,
+    });
     setCalculatedWeightedScore(weighted);
   }, [formValues.noveltyScore, formValues.feasibilityScore, formValues.alignmentScore, formValues.authorCapacityScore]);
 
@@ -182,13 +183,13 @@ const CouncilPage: React.FC = () => {
       if (resultsRes.success) setResults(resultsRes.data);
     }
     
-    // Load stats from session detail
-    const sessionRes = await getSession(session.id);
-    if (sessionRes.success && sessionRes.data) {
+    // Load stats từ API stats (tính theo số phiếu chấm đã submit)
+    const statsRes = await getSessionStats(session.id);
+    if (statsRes.success && statsRes.data) {
       setScoringStats({
-        totalIdeas: sessionRes.data.ideaCount,
-        memberCount: sessionRes.data.memberCount,
-        completionRate: Math.round((sessionRes.data.scoredIdeas || 0) / Math.max(1, sessionRes.data.ideaCount) * 100),
+        totalIdeas: statsRes.data.totalIdeas,
+        memberCount: statsRes.data.totalMembers,
+        completionRate: statsRes.data.completionRate,
       });
     }
   };
@@ -450,13 +451,13 @@ const CouncilPage: React.FC = () => {
       message.success('Đã gửi phiếu chấm điểm');
       setScoreModalVisible(false);
       
-      // Refresh stats from session detail
-      const sessionRes = await getSession(currentSession.id);
-      if (sessionRes.success && sessionRes.data) {
+      // Refresh stats từ API stats
+      const statsRes = await getSessionStats(currentSession.id);
+      if (statsRes.success && statsRes.data) {
         setScoringStats({
-          totalIdeas: sessionRes.data.ideaCount,
-          memberCount: sessionRes.data.memberCount,
-          completionRate: Math.round((sessionRes.data.scoredIdeas || 0) / Math.max(1, sessionRes.data.ideaCount) * 100),
+          totalIdeas: statsRes.data.totalIdeas,
+          memberCount: statsRes.data.totalMembers,
+          completionRate: statsRes.data.completionRate,
         });
       }
     } else {

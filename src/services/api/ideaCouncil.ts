@@ -112,6 +112,27 @@ export async function getSession(id: number): Promise<ApiResponse<CouncilSession
 }
 
 /**
+ * Lấy thống kê tiến độ chấm điểm của phiên
+ */
+export async function getSessionStats(sessionId: number): Promise<ApiResponse<{
+  totalIdeas: number;
+  totalMembers: number;
+  totalExpectedScores: number;
+  submittedScores: number;
+  pendingScores: number;
+  completionRate: number;
+}>> {
+  return get<ApiResponse<{
+    totalIdeas: number;
+    totalMembers: number;
+    totalExpectedScores: number;
+    submittedScores: number;
+    pendingScores: number;
+    completionRate: number;
+  }>>(`/api/council-sessions/${sessionId}/stats`);
+}
+
+/**
  * Tạo phiên hội đồng mới
  */
 export async function createSession(data: {
@@ -307,7 +328,7 @@ export async function getSessionResults(sessionId: number): Promise<ApiResponse<
  * Lấy tất cả phiếu chấm của 1 ý tưởng (cho admin xem)
  */
 export async function getIdeaAllScores(sessionId: number, ideaId: number): Promise<ApiResponse<IdeaCouncilScore[]>> {
-  return get<ApiResponse<IdeaCouncilScore[]>>(`/api/council-sessions/${sessionId}/ideas/${ideaId}/all-scores`);
+  return get<ApiResponse<IdeaCouncilScore[]>>(`/api/council-sessions/${sessionId}/ideas/${ideaId}/scores`);
 }
 
 // Constants

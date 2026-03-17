@@ -114,6 +114,65 @@ export interface WarningItem {
   link?: string;
 }
 
+export interface OverviewKpis {
+  totalLecturers: number;
+  totalStudents: number;
+  verifiedProfiles: number;
+  researchProjects: number;
+  studentResearchProjects: number;
+  startupProjects: number;
+  activeUnits: number;
+  activeFields: number;
+}
+
+export interface OverviewTrendPoint {
+  year: number;
+  researchProject: number;
+  studentResearch: number;
+  startup: number;
+}
+
+export interface OverviewUnitStat {
+  unit: string;
+  researchProject: number;
+  studentResearch: number;
+  startup: number;
+  total: number;
+}
+
+export interface OverviewFieldStat {
+  field: string;
+  researchProject: number;
+  studentResearch: number;
+  startup: number;
+  total: number;
+}
+
+export interface OverviewAlert {
+  key: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+  title: string;
+  description: string;
+}
+
+export interface HomeOverviewData {
+  filters: {
+    year: number | null;
+    departmentId: number | null;
+    field: string | null;
+    yearOptions: number[];
+    departments: Array<{ id: number; name: string }>;
+    fields: string[];
+  };
+  kpis: OverviewKpis;
+  trend: OverviewTrendPoint[];
+  unitStats: OverviewUnitStat[];
+  fieldStats: OverviewFieldStat[];
+  topUnits: OverviewUnitStat[];
+  topFields: OverviewFieldStat[];
+  alerts: OverviewAlert[];
+}
+
 // API Functions
 
 /**
@@ -198,4 +257,15 @@ export async function fetchTopResearchers(): Promise<ApiResponse<TopResearcherIt
  */
 export async function fetchWarnings(): Promise<ApiResponse<WarningItem[]>> {
   return get<ApiResponse<WarningItem[]>>('/api/home/warnings');
+}
+
+/**
+ * Dashboard tổng quát theo dữ liệu thực tế (giảng viên, sinh viên, đề tài, startup)
+ */
+export async function fetchHomeOverview(params?: {
+  year?: number;
+  departmentId?: number;
+  field?: string;
+}): Promise<ApiResponse<HomeOverviewData>> {
+  return get<ApiResponse<HomeOverviewData>>('/api/home/overview', params);
 }
