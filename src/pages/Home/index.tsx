@@ -1,9 +1,9 @@
 /**
- * Home Page - Entry point
- * Mapping theo IAM permissions, fallback theo role legacy
+ * Home / Dashboard: có quyền báo cáo → charts; không → trang chủ theo vai trò
  */
 import { Spin } from 'antd';
 import { useModel, useAccess } from '@umijs/max';
+import ReportsDashboard from '@/pages/reports/dashboard';
 import { HomeForCNDT, HomeForPhongKH, HomeForLanhDao } from './components';
 import styles from './index.less';
 
@@ -17,6 +17,10 @@ const HomePage: React.FC = () => {
         <Spin size="large" tip="Đang tải..." />
       </div>
     );
+  }
+
+  if (access.canViewReports) {
+    return <ReportsDashboard />;
   }
 
   // Ưu tiên permission: Lãnh đạo (approve order) → PhongKH (manage idea/council) → CNDT

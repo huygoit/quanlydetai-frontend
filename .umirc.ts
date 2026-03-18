@@ -38,11 +38,10 @@ export default defineConfig({
       layout: false,
     },
 
-    // Dashboard
     {
       path: '/home',
       name: 'Dashboard',
-      icon: 'DashboardOutlined',
+      icon: 'AreaChartOutlined',
       component: '@/pages/Home',
       access: 'canViewHome',
     },
@@ -194,13 +193,6 @@ export default defineConfig({
       access: 'canViewReports',
       routes: [
         {
-          path: '/reports/dashboard',
-          name: 'Dashboard tổng quan',
-          icon: 'AreaChartOutlined',
-          component: '@/pages/reports/dashboard',
-          access: 'canViewReports',
-        },
-        {
           path: '/reports/by-unit',
           name: 'Theo đơn vị',
           icon: 'ClusterOutlined',
@@ -215,6 +207,11 @@ export default defineConfig({
           access: 'canViewReports',
         },
       ],
+    },
+    {
+      path: '/reports/dashboard',
+      redirect: '/home',
+      hideInMenu: true,
     },
 
     // Hệ thống - Quản trị hệ thống
