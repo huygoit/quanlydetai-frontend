@@ -9,6 +9,7 @@ export default defineConfig({
     antd: true,
     baseNavigator: false,
   },
+  // Proxy /api sang backend (dev). Đổi target nếu chạy API cổng khác.
   proxy: {
     '/api': {
       target: 'http://localhost:3333',

@@ -1,13 +1,15 @@
 /**
  * API Request Configuration
- * Cấu hình request cho toàn bộ API calls
+ *
+ * - Mặc định API_BASE_URL = '' → gọi relative /api/... (dev: proxy Umi; prod: Nginx/proxy cùng domain).
+ * - Chỉ khi set UMI_APP_API_URL (hoặc API_URL) có giá trị thật mới gọi thẳng URL đó (vd backend khác domain).
+ * Lý do: .env với UMI_APP_API_URL rỗng Umi thường không inject → trước đây prod rơi vào localhost:3333.
  */
 import { request as umiRequest, history } from '@umijs/max';
 import { message } from 'antd';
 
-// API Base URL - dev dùng '' để qua proxy, prod dùng env hoặc full URL
-const isDev = process.env.NODE_ENV === 'development';
-export const API_BASE_URL = process.env.API_URL || (isDev ? '' : 'http://localhost:3333');
+const fromEnv = process.env.UMI_APP_API_URL || process.env.API_URL;
+export const API_BASE_URL = fromEnv && String(fromEnv).trim() !== '' ? String(fromEnv).trim() : '';
 
 // Token storage key
 const TOKEN_KEY = 'khcn-access-token';
