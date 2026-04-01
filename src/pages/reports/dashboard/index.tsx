@@ -362,7 +362,10 @@ const TopTable: React.FC<{
 const ReportsDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [overview, setOverview] = useState<HomeOverviewData | null>(null);
-  const [filters, setFilters] = useState<{ year?: number; departmentId?: number; field?: string }>({});
+  const defaultYear = useMemo(() => new Date().getFullYear(), []);
+  const [filters, setFilters] = useState<{ year?: number; departmentId?: number; field?: string }>(() => ({
+    year: defaultYear,
+  }));
 
   const loadData = async (nextFilters: { year?: number; departmentId?: number; field?: string } = filters) => {
     setLoading(true);
@@ -377,13 +380,13 @@ const ReportsDashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData({});
+    loadData({ year: defaultYear });
   }, []);
 
   const kpiCards = useMemo(() => {
     if (!overview) return [];
     return [
-      { title: 'Giảng viên', value: overview.kpis.totalLecturers, icon: <UserOutlined />, color: '#1677ff' },
+      { title: 'Chuyên viên', value: overview.kpis.totalLecturers, icon: <UserOutlined />, color: '#1677ff' },
       { title: 'Sinh viên', value: overview.kpis.totalStudents, icon: <TeamOutlined />, color: '#13c2c2' },
       { title: 'Hồ sơ khoa học đã xác thực', value: overview.kpis.verifiedProfiles, icon: <TrophyOutlined />, color: '#722ed1' },
       { title: 'Đề tài nghiên cứu', value: overview.kpis.researchProjects, icon: <FundProjectionScreenOutlined />, color: colorSet.research },
@@ -510,7 +513,7 @@ const ReportsDashboardPage: React.FC = () => {
               </Col>
               <Col xs={24} lg={12}>
                 <TrendColumnChart
-                  title="Đề tài theo năm"
+                  title="Nghiên cứu khoa học, dự án khởi nghiệp theo năm"
                   icon={<BarChartOutlined style={{ color: '#722ed1' }} />}
                   data={overview.trend}
                 />
