@@ -54,7 +54,7 @@ export const PERMISSION_MODULE_MAP: Record<string, string> = {
   project: 'Đề tài',
   idea: 'Ý tưởng',
   council: 'Hội đồng',
-  publication: 'Công bố khoa học',
+  publication: 'Kết quả NCKH',
   report: 'Báo cáo',
   finance: 'Tài chính',
   profile: 'Hồ sơ',

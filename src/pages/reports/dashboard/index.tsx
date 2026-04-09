@@ -33,6 +33,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Column, Pie } from '@ant-design/plots';
+import { history, useAccess } from '@umijs/max';
 import {
   fetchHomeOverview,
   type HomeOverviewData,
@@ -359,7 +360,17 @@ const TopTable: React.FC<{
   );
 };
 
+type DashboardKpiCard = {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  color: string;
+  /** Có thì click sẽ chuyển trang (vd danh sách staffs) */
+  path?: string;
+};
+
 const ReportsDashboardPage: React.FC = () => {
+  const access = useAccess();
   const [loading, setLoading] = useState(false);
   const [overview, setOverview] = useState<HomeOverviewData | null>(null);
   const defaultYear = useMemo(() => new Date().getFullYear(), []);
@@ -383,10 +394,16 @@ const ReportsDashboardPage: React.FC = () => {
     loadData({ year: defaultYear });
   }, []);
 
-  const kpiCards = useMemo(() => {
+  const kpiCards = useMemo((): DashboardKpiCard[] => {
     if (!overview) return [];
     return [
-      { title: 'Chuyên viên', value: overview.kpis.totalLecturers, icon: <UserOutlined />, color: '#1677ff' },
+      {
+        title: 'Chuyên viên',
+        value: overview.kpis.totalLecturers,
+        icon: <UserOutlined />,
+        color: '#1677ff',
+        path: '/admin/staffs',
+      },
       { title: 'Sinh viên', value: overview.kpis.totalStudents, icon: <TeamOutlined />, color: '#13c2c2' },
       { title: 'Hồ sơ khoa học đã xác thực', value: overview.kpis.verifiedProfiles, icon: <TrophyOutlined />, color: '#722ed1' },
       { title: 'Đề tài nghiên cứu', value: overview.kpis.researchProjects, icon: <FundProjectionScreenOutlined />, color: colorSet.research },
@@ -472,9 +489,16 @@ const ReportsDashboardPage: React.FC = () => {
         ) : (
           <>
             <Row gutter={[16, 16]}>
-              {kpiCards.map((kpi) => (
-                <Col key={kpi.title} xs={24} sm={12} md={8} lg={6}>
-                  <Card bordered={false} bodyStyle={{ padding: 16 }}>
+              {kpiCards.map((kpi) => {
+                const goStaffs = kpi.path === '/admin/staffs' && access.canViewDepartments;
+                const card = (
+                  <Card
+                    bordered={false}
+                    bodyStyle={{ padding: 16 }}
+                    hoverable={goStaffs}
+                    onClick={goStaffs ? () => history.push('/admin/staffs') : undefined}
+                    style={goStaffs ? { cursor: 'pointer' } : undefined}
+                  >
                     <Statistic
                       title={<Text type="secondary">{kpi.title}</Text>}
                       value={kpi.value}
@@ -482,8 +506,13 @@ const ReportsDashboardPage: React.FC = () => {
                       valueStyle={{ color: kpi.color, fontWeight: 700, fontSize: 26 }}
                     />
                   </Card>
-                </Col>
-              ))}
+                );
+                return (
+                  <Col key={kpi.title} xs={24} sm={12} md={8} lg={6}>
+                    {goStaffs ? <Tooltip title="Xem danh sách nhân sự">{card}</Tooltip> : card}
+                  </Col>
+                );
+              })}
             </Row>
 
             <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
@@ -496,7 +525,7 @@ const ReportsDashboardPage: React.FC = () => {
               </Col>
               <Col xs={24} lg={12}>
                 <DonutChartCard
-                  title="Dự án sinh viên nghiên cứu khoa học theo lĩnh vực"
+                  title="Đề tài sinh viên thực hiện theo lĩnh vực"
                   icon={<ExperimentOutlined style={{ color: colorSet.studentResearch }} />}
                   data={studentResearchByField}
                 />

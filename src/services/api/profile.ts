@@ -49,6 +49,8 @@ export interface LinkedProject {
 
 export interface PublicationItem {
   id: number;
+  researchOutputTypeId?: number;
+  researchOutputType?: { id: number; code: string; name: string } | null;
   title: string;
   authors: string;
   correspondingAuthor?: string;
@@ -56,11 +58,13 @@ export interface PublicationItem {
   publicationType: PublicationType;
   journalOrConference: string;
   year?: number;
+  academicYear?: string;
   volume?: string;
   issue?: string;
   pages?: string;
   rank?: PublicationRank;
-  quartile?: 'Q1' | 'Q2' | 'Q3' | 'Q4';
+  quartile?: 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'NO_Q';
+  hdgsnnScore?: number | null;
   doi?: string;
   issn?: string;
   isbn?: string;

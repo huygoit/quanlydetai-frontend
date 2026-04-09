@@ -2,14 +2,15 @@
  * Đăng ký đề xuất đề tài - Giai đoạn 1
  * specs/projects-register.md
  */
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { PageContainer, ProTable, StepsForm, ProFormText, ProFormSelect, ProFormTextArea, ProFormDigit } from '@ant-design/pro-components';
 import type { ProColumns, ActionType, ProFormInstance } from '@ant-design/pro-components';
-import { Button, Drawer, Tag, Space, Descriptions, Divider, Modal, message, Card, Typography, Form, Input, Radio, Badge } from 'antd';
+import { Button, Drawer, Tag, Space, Descriptions, Divider, Modal, message, Card, Typography, Form, Input, Radio, Badge, Cascader } from 'antd';
 import { PlusOutlined, EyeOutlined, EditOutlined, SendOutlined, DeleteOutlined, UndoOutlined, CheckCircleOutlined, CloseCircleOutlined, CommentOutlined } from '@ant-design/icons';
 import { useModel, useAccess } from '@umijs/max';
 import {
   queryProposals,
+  getProposal,
   createProposal,
   updateProposal,
   submitProposal,
@@ -25,6 +26,12 @@ import {
   type ProjectProposal,
   type ProposalStatus,
 } from '@/services/api/projectProposals';
+import {
+  getResearchOutputTypesTree,
+  buildResearchOutputCascaderOptions,
+  findResearchOutputPathById,
+  type ResearchOutputTypeTreeNode,
+} from '@/services/api/profilePublications';
 
 const PROPOSAL_STATUS_CONFIG = Object.fromEntries(
   Object.entries(PROPOSAL_STATUS_MAP).map(([k, v]) => [k, { label: v.label, color: v.color }])
@@ -51,6 +58,8 @@ const ProjectRegisterPage: React.FC = () => {
   const [unitReviewVisible, setUnitReviewVisible] = useState(false);
   const [sciDeptReviewVisible, setSciDeptReviewVisible] = useState(false);
   const [reviewProposal, setReviewProposal] = useState<ProjectProposal | null>(null);
+  const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
+  const [researchTreeLoading, setResearchTreeLoading] = useState(false);
 
   const canCreate = access.canCreateProjectProposal;
   const canUnitReview = access.canUnitReviewProjectProposal;
@@ -60,6 +69,28 @@ const ProjectRegisterPage: React.FC = () => {
   // Current user info for filtering
   const currentUserId = 'user-001'; // Mock: thay bằng currentUser?.id
   const currentUserUnit = currentUser?.roleLabel === 'Trưởng khoa' ? 'Khoa Công nghệ thông tin' : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setResearchTreeLoading(true);
+      try {
+        const res = await getResearchOutputTypesTree();
+        if (!cancelled && res.success && res.data) setResearchOutputTree(res.data);
+      } finally {
+        if (!cancelled) setResearchTreeLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!formVisible || !researchOutputTree.length || !editingProposal?.researchOutputTypeId) return;
+    const p = findResearchOutputPathById(researchOutputTree, editingProposal.researchOutputTypeId);
+    if (p?.length) formRef.current?.setFieldsValue?.({ researchOutputTypePath: p });
+  }, [formVisible, researchOutputTree, editingProposal]);
 
   // ============ TABLE COLUMNS ============
 
@@ -258,8 +289,9 @@ const ProjectRegisterPage: React.FC = () => {
 
   // ============ HANDLERS ============
 
-  const handleView = (record: ProjectProposal) => {
-    setSelectedProposal(record);
+  const handleView = async (record: ProjectProposal) => {
+    const full = await getProposal(record.id);
+    setSelectedProposal(full.success && full.data ? full.data : record);
     setDrawerVisible(true);
   };
 
@@ -342,8 +374,14 @@ const ProjectRegisterPage: React.FC = () => {
   // ============ FORM SUBMIT ============
 
   const handleFormFinish = async (values: any) => {
+    const { researchOutputTypePath, ...rest } = values;
+    const researchOutputTypeId =
+      Array.isArray(researchOutputTypePath) && researchOutputTypePath.length > 0
+        ? researchOutputTypePath[researchOutputTypePath.length - 1]
+        : null;
     const proposalData: Partial<ProjectProposal> = {
-      ...values,
+      ...rest,
+      researchOutputTypeId,
       ownerId: currentUserId,
       ownerName: currentUser?.name || 'Người dùng',
       ownerUnit: values.ownerUnit || 'Khoa Công nghệ thông tin',
@@ -374,8 +412,14 @@ const ProjectRegisterPage: React.FC = () => {
   };
 
   const handleFormFinishAndSubmit = async (values: any) => {
+    const { researchOutputTypePath, ...rest } = values;
+    const researchOutputTypeId =
+      Array.isArray(researchOutputTypePath) && researchOutputTypePath.length > 0
+        ? researchOutputTypePath[researchOutputTypePath.length - 1]
+        : null;
     const proposalData: Partial<ProjectProposal> = {
-      ...values,
+      ...rest,
+      researchOutputTypeId,
       ownerId: currentUserId,
       ownerName: currentUser?.name || 'Người dùng',
       ownerUnit: values.ownerUnit || 'Khoa Công nghệ thông tin',
@@ -553,6 +597,11 @@ const ProjectRegisterPage: React.FC = () => {
               <Descriptions.Item label="Cấp quản lý">
                 {LEVEL_OPTIONS.find((l) => l.value === selectedProposal.level)?.label || selectedProposal.level}
               </Descriptions.Item>
+              {selectedProposal.researchOutputType?.name && (
+                <Descriptions.Item label="Loại kết quả NCKH" span={2}>
+                  {selectedProposal.researchOutputType.name}
+                </Descriptions.Item>
+              )}
               <Descriptions.Item label="Thời gian">{selectedProposal.durationMonths} tháng</Descriptions.Item>
               <Descriptions.Item label="Kinh phí đề nghị">
                 {selectedProposal.requestedBudgetTotal
@@ -710,6 +759,21 @@ const ProjectRegisterPage: React.FC = () => {
               tokenSeparators: [','],
             }}
           />
+          <Form.Item
+            name="researchOutputTypePath"
+            label="Loại kết quả NCKH dự kiến (danh mục — tuỳ chọn)"
+            tooltip="Chọn mục lá nếu đã xác định loại sản phẩm theo danh mục quy đổi giờ NCKH"
+          >
+            <Cascader
+              options={buildResearchOutputCascaderOptions(researchOutputTree)}
+              placeholder="Chọn nhóm → … → mục lá"
+              showSearch
+              changeOnSelect={false}
+              loading={researchTreeLoading}
+              style={{ width: '100%' }}
+              allowClear
+            />
+          </Form.Item>
         </StepsForm.StepForm>
 
         {/* Step 2: Nội dung khoa học */}

@@ -363,7 +363,7 @@ const ProfileListPage: React.FC = () => {
                   <li>Kiểm tra thông tin cá nhân</li>
                   <li>Xác minh học vị / học hàm</li>
                   <li>Kiểm tra bằng cấp đính kèm</li>
-                  <li>Xác minh các công bố khoa học</li>
+                  <li>Xác minh các kết quả NCKH</li>
                 </ul>
               </div>
             )}

@@ -271,6 +271,13 @@ export default defineConfig({
           access: 'canViewPersonalProfiles',
         },
         {
+          path: '/admin/staffs',
+          name: 'Danh mục nhân sự',
+          icon: 'TeamOutlined',
+          component: '@/pages/admin/staffs',
+          access: 'canViewDepartments',
+        },
+        {
           path: '/admin/personal-profiles/new',
           component: '@/pages/admin/personal-profiles/edit',
           access: 'canViewPersonalProfiles',

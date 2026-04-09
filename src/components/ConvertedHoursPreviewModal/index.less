@@ -1,4 +1,19 @@
 .converted-hours-preview-modal {
+  .modal-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .modal-title-main {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .loading-container {
     display: flex;
     justify-content: center;
@@ -7,10 +22,30 @@
   }
 
   .preview-content {
+    .table-header-row {
+      margin: 12px 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .summary-descriptions {
+      border-radius: 10px;
+      overflow: hidden;
+
       .ant-descriptions-item-label {
         background: #fafafa;
         font-weight: 500;
+      }
+    }
+
+    .authors-breakdown-table {
+      margin-top: 4px;
+
+      .viewer-row > td {
+        background: #f9f0ff !important;
       }
     }
   }

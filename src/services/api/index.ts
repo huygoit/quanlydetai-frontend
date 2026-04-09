@@ -49,3 +49,6 @@ export * from './iamUsers';
 
 // Personal Profiles
 export * from './personalProfiles';
+
+// Staffs (danh mục nhân sự)
+export * from './staffs';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Descriptions, Table, Alert, Spin, Typography, Tag, Space } from 'antd';
+import { Modal, Descriptions, Table, Alert, Spin, Typography, Tag, Space, Tooltip, Button } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { FunctionOutlined, BarChartOutlined } from '@ant-design/icons';
 import {
   previewPublicationConvertedHours,
   type ConvertedHoursBreakdown,
@@ -8,6 +9,15 @@ import {
 import './index.less';
 
 const { Text, Title } = Typography;
+
+function dinhDangSo(v: unknown, maxFractionDigits = 2): string {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString('vi-VN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxFractionDigits,
+  });
+}
 
 interface ConvertedHoursPreviewModalProps {
   open: boolean;
@@ -24,6 +34,8 @@ interface AuthorBreakdownRow {
   isCorresponding: boolean;
   coefficient: number;
   convertedHours: number;
+  convertedPoints?: number;
+  isViewerRow?: boolean;
 }
 
 const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
@@ -35,6 +47,8 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ConvertedHoursBreakdown | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [formulaOpen, setFormulaOpen] = useState(false);
+  const [metricsOpen, setMetricsOpen] = useState(false);
 
   useEffect(() => {
     if (open && publicationId) {
@@ -76,10 +90,11 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       title: 'Tác giả',
       dataIndex: 'authorName',
       render: (name, record) => (
-        <Space>
+        <Space wrap>
           <span>{name}</span>
           {record.isMainAuthor && <Tag color="blue">Chính</Tag>}
           {record.isCorresponding && <Tag color="green">Liên hệ</Tag>}
+          {record.isViewerRow && <Tag color="purple">Đang xem</Tag>}
         </Space>
       ),
     },
@@ -88,7 +103,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       dataIndex: 'coefficient',
       width: 100,
       align: 'right',
-      render: (val) => val?.toFixed(3) || '-',
+      render: (val) => dinhDangSo(val, 2),
     },
     {
       title: 'Giờ quy đổi',
@@ -97,7 +112,18 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       align: 'right',
       render: (val) => (
         <Text strong style={{ color: '#1890ff' }}>
-          {val?.toFixed(2) || '0'}
+          {dinhDangSo(val, 2)}
+        </Text>
+      ),
+    },
+    {
+      title: 'Điểm quy đổi',
+      dataIndex: 'convertedPoints',
+      width: 130,
+      align: 'right',
+      render: (val) => (
+        <Text strong style={{ color: '#722ed1' }}>
+          {dinhDangSo(val, 2)}
         </Text>
       ),
     },
@@ -109,17 +135,26 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       ...a,
     })) || [];
 
+  /** B trong QĐ: tổng giờ công trình trước chia tác giả (không phải phần một NCV). */
+  const poolB = data?.poolHoursB ?? data?.totalHours ?? 0;
+  const poolP = data?.poolPointsP ?? data?.totalPoints ?? 0;
+  const tongGioBang = authorData.reduce((s, r) => s + (Number(r.convertedHours) || 0), 0);
+  const tongDiemBang = authorData.reduce((s, r) => s + (Number(r.convertedPoints) || 0), 0);
+
   return (
     <Modal
       title={
-        <span>
-          Xem thử quy đổi giờ NCKH
-          {publicationTitle && (
-            <Text type="secondary" style={{ fontSize: 14, marginLeft: 8 }}>
-              - {publicationTitle}
-            </Text>
-          )}
-        </span>
+        <div className="modal-title-row">
+          <div className="modal-title-main">
+            <span>Điểm và số giờ NCKH quy đổi</span>
+            {publicationTitle && (
+              <Text type="secondary" style={{ fontSize: 14 }}>
+                {' '}
+                - {publicationTitle}
+              </Text>
+            )}
+          </div>
+        </div>
       }
       open={open}
       onCancel={onClose}
@@ -135,49 +170,31 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
         <Alert type="error" message={error} />
       ) : data ? (
         <div className="preview-content">
-          <Descriptions
-            bordered
-            size="small"
-            column={2}
-            className="summary-descriptions"
-          >
-            <Descriptions.Item label="Giờ chuẩn (B0)">
-              <Text strong>{data.baseHours?.toFixed(2) || '0'}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Hệ số đơn vị (a)">
-              <Text strong>{data.unitCoefficient?.toFixed(3) || '1'}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Số tác giả chính (n)">
-              <Text strong>{data.n || 0}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Số tác giả liên hệ (p)">
-              <Text strong>{data.p || 0}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Tổng giờ quy đổi (B)" span={2}>
-              <Title level={4} style={{ margin: 0, color: '#52c41a' }}>
-                {data.totalConvertedHours?.toFixed(2) || '0'} giờ
-              </Title>
-            </Descriptions.Item>
-          </Descriptions>
-
-          {data.warnings && data.warnings.length > 0 && (
-            <Alert
-              type="warning"
-              message="Cảnh báo"
-              description={
-                <ul style={{ margin: 0, paddingLeft: 20 }}>
-                  {data.warnings.map((w, i) => (
-                    <li key={i}>{w}</li>
-                  ))}
-                </ul>
-              }
-              style={{ marginTop: 16 }}
-            />
-          )}
-
-          <Title level={5} style={{ marginTop: 20, marginBottom: 12 }}>
-            Chi tiết giờ theo tác giả
-          </Title>
+          <div className="table-header-row">
+            <Title level={5} style={{ margin: 0 }}>
+              Chi tiết điểm và giờ theo tác giả
+            </Title>
+            <Space size={12}>
+              <Button
+                size="small"
+                type="link"
+                icon={<FunctionOutlined />}
+                onClick={() => setFormulaOpen(true)}
+                style={{ padding: 0 }}
+              >
+                Xem công thức
+              </Button>
+              <Button
+                size="small"
+                type="link"
+                icon={<BarChartOutlined />}
+                onClick={() => setMetricsOpen(true)}
+                style={{ padding: 0 }}
+              >
+                Xem các thông số
+              </Button>
+            </Space>
+          </div>
 
           <Table<AuthorBreakdownRow>
             columns={authorColumns}
@@ -185,6 +202,8 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
             pagination={false}
             size="small"
             bordered
+            className="authors-breakdown-table"
+            rowClassName={(record) => (record.isViewerRow ? 'viewer-row' : '')}
             summary={() => (
               <Table.Summary.Row>
                 <Table.Summary.Cell index={0} colSpan={3} align="right">
@@ -192,30 +211,110 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={1} align="right">
                   <Text strong style={{ color: '#52c41a' }}>
-                    {data.totalConvertedHours?.toFixed(2) || '0'}
+                    {dinhDangSo(tongGioBang, 2)}
+                  </Text>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={2} align="right">
+                  <Text strong style={{ color: '#722ed1' }}>
+                    {dinhDangSo(tongDiemBang, 2)}
                   </Text>
                 </Table.Summary.Cell>
               </Table.Summary.Row>
             )}
           />
 
+        </div>
+      ) : null}
+
+      <Modal
+        title="Công thức quy đổi giờ/điểm"
+        open={formulaOpen}
+        onCancel={() => setFormulaOpen(false)}
+        footer={null}
+        width={760}
+      >
+        <Alert
+          type="info"
+          message="Quy tắc tính cho công bố khoa học"
+          description={
+            <div>
+              <p style={{ margin: '4px 0' }}>
+                <strong>B</strong> = tổng giờ công trình sau hệ số <strong>a</strong> (quy định 1.1), thường{' '}
+                <strong>B = B0 × a</strong>.
+              </p>
+              <p style={{ margin: '4px 0' }}>
+                <strong>Điểm quy đổi</strong> lấy theo cột điểm của loại kết quả (hoặc điểm HĐGSNN với mục
+                tương ứng), không dùng công thức chia n/p của giờ.
+              </p>
+              <p style={{ margin: '4px 0' }}>
+                Tác giả nhóm chính (chính hoặc liên hệ): <strong>B/(3n) + 2B/(3p)</strong>.
+              </p>
+              <p style={{ margin: '4px 0' }}>
+                Đồng tác giả còn lại: <strong>2B/(3p)</strong>.
+              </p>
+              <p style={{ margin: '4px 0' }}>
+                Trong đó: <strong>n</strong> là số người thuộc nhóm chính, <strong>p</strong> là tổng số tác giả.
+              </p>
+              <p style={{ margin: '4px 0' }}>Điều chỉnh giờ: nữ nhân 1.2; kiêm nhiệm ngoài ĐHĐN chia 2.</p>
+            </div>
+          }
+        />
+      </Modal>
+      <Modal
+        title="Thông tin các thông số"
+        open={metricsOpen}
+        onCancel={() => setMetricsOpen(false)}
+        footer={null}
+        width={760}
+      >
+        <Descriptions bordered size="small" column={2} className="summary-descriptions">
+          <Descriptions.Item label="Giờ chuẩn (B0)">
+            <Text strong>{dinhDangSo(data?.baseHours, 2)}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Hệ số a (QĐ — cả nhóm tác giả)">
+            <Text strong>{dinhDangSo(data?.unitCoefficient, 2)}</Text>
+          </Descriptions.Item>
+          {data?.authorUnitFactor != null &&
+            data.authorUnitFactor !== data.unitCoefficient &&
+            Number(data.authorUnitFactor) !== 1 && (
+              <Descriptions.Item label="Hệ số đơn vị dòng NCV (a₁)">
+                <Text strong>{dinhDangSo(data.authorUnitFactor, 2)}</Text>
+              </Descriptions.Item>
+            )}
+          <Descriptions.Item label="Điểm danh mục (P0)">
+            <Text strong>{dinhDangSo(data?.basePoints, 2)}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Tổng điểm công trình (P)">
+            <Text strong>{dinhDangSo(poolP, 2)}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="n (nhóm chia 1/3: chính ∪ liên hệ)">
+            <Text strong>{data?.n || 0}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="p (tổng số tác giả)">
+            <Text strong>{data?.p || 0}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Tổng giờ công trình (B, trước chia)" span={2}>
+            <Title level={4} style={{ margin: 0, color: '#52c41a' }}>
+              {dinhDangSo(poolB, 2)} giờ
+            </Title>
+          </Descriptions.Item>
+        </Descriptions>
+
+        {data?.warnings && data.warnings.length > 0 && (
           <Alert
-            type="info"
-            message="Công thức tính"
+            type="warning"
+            message="Cảnh báo"
             description={
-              <div>
-                <p style={{ margin: '4px 0' }}>
-                  <strong>B = B0 × a</strong> (Tổng giờ = Giờ chuẩn × Hệ số đơn vị)
-                </p>
-                <p style={{ margin: '4px 0' }}>
-                  Giờ của mỗi tác giả được tính dựa trên vai trò (chính/liên hệ) và thứ tự.
-                </p>
-              </div>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {data.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
             }
             style={{ marginTop: 16 }}
           />
-        </div>
-      ) : null}
+        )}
+      </Modal>
     </Modal>
   );
 };

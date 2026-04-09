@@ -11,7 +11,6 @@ import {
   Card,
   Avatar,
   Tag,
-  Progress,
   Button,
   Space,
   Tabs,
@@ -30,6 +29,7 @@ import {
   Input,
   InputNumber,
   Popconfirm,
+  Cascader,
 } from 'antd';
 import {
   UserOutlined,
@@ -45,7 +45,6 @@ import {
   TeamOutlined,
   SafetyCertificateOutlined,
   CloudSyncOutlined,
-  ClockCircleOutlined,
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
@@ -89,9 +88,8 @@ import {
   type LinkedProject,
   type PublicationSuggestion,
   type ProfileAttachment,
-  type PublicationType,
-  type PublicationRank,
 } from '@/services/api/profile';
+import { getTeacherKpi } from '@/services/api/kpis';
 import { downloadBlob, downloadFromUrl } from '@/utils/download';
 import {
   listMyPublications,
@@ -100,16 +98,23 @@ import {
   deleteMyPublication,
   getMyPublicationAuthors,
   saveMyPublicationAuthors,
-  RANK_OPTIONS,
-  QUARTILE_OPTIONS,
-  DOMESTIC_RULE_TYPE_OPTIONS,
+  normalizePublicationAuthor,
+  ensureOwnerAuthorInList,
+  reassignAuthorOrdersSequential,
   generateAcademicYears,
+  getResearchOutputTypesTree,
+  buildResearchOutputCascaderOptions,
+  findResearchOutputPathById,
+  findResearchOutputNodeById,
   type Publication,
   type PublicationAuthor,
-  type PublicationRank as PubRank,
-  type Quartile,
-  type DomesticRuleType,
+  type ResearchOutputTypeTreeNode,
 } from '@/services/api/profilePublications';
+import {
+  layNodeTheoPath,
+  laySchemaTheoMaLa,
+  type LeafFormSchema,
+} from '@/services/researchOutputFormSchema';
 import AuthorsEditor from '@/components/AuthorsEditor';
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import ProfileCompletionBar, { type ChecklistItem } from '@/components/ProfileCompletionBar';
@@ -125,6 +130,7 @@ const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
   CHU_TRI: { text: 'Tác giả chính', color: 'gold' },
   DONG_TAC_GIA: { text: 'Đồng tác giả', color: 'blue' },
 };
+
 import './index.less';
 
 const { Title, Text } = Typography;
@@ -137,6 +143,9 @@ interface PublicationsTabProps {
   onConfirmSuggestion: (id: number) => void;
   onIgnoreSuggestion: (id: number) => void;
   onReloadPublications: () => void;
+  /** Hồ sơ khoa học hiện tại — bắt buộc có ít nhất một dòng tác giả là chính mình */
+  myProfileId: number;
+  myFullName: string;
 }
 
 const PublicationsTab: React.FC<PublicationsTabProps> = ({
@@ -145,11 +154,11 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   onConfirmSuggestion,
   onIgnoreSuggestion,
   onReloadPublications,
+  myProfileId,
+  myFullName,
 }) => {
   const [form] = Form.useForm();
   const [filterYear, setFilterYear] = useState<number | undefined>();
-  const [filterType, setFilterType] = useState<PublicationType | undefined>();
-  const [filterRank, setFilterRank] = useState<PublicationRank | undefined>();
   const [selectedPub, setSelectedPub] = useState<PublicationItem | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   
@@ -162,9 +171,30 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   const [previewPubId, setPreviewPubId] = useState<number | null>(null);
   const [previewPubTitle, setPreviewPubTitle] = useState<string>('');
   const [semanticScholarModalVisible, setSemanticScholarModalVisible] = useState(false);
+  const [showAdvancedPubFields, setShowAdvancedPubFields] = useState(false);
+  const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
+  const [researchTreeLoading, setResearchTreeLoading] = useState(false);
+  const [selectedLeafRuleKind, setSelectedLeafRuleKind] = useState<string | null>(null);
+  const [selectedLeafCode, setSelectedLeafCode] = useState<string | null>(null);
+  const [selectedLeafSchema, setSelectedLeafSchema] = useState<LeafFormSchema>(() =>
+    laySchemaTheoMaLa(null, null)
+  );
 
-  // Watch rank field for conditional rendering
-  const watchRank = Form.useWatch('rank', form);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setResearchTreeLoading(true);
+      try {
+        const res = await getResearchOutputTypesTree();
+        if (!cancelled && res.success && res.data) setResearchOutputTree(res.data);
+      } finally {
+        if (!cancelled) setResearchTreeLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Academic years options
   const academicYearOptions = generateAcademicYears(10).map((y) => ({ label: y, value: y }));
@@ -172,8 +202,6 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   // Filter publications
   const filteredPublications = publications.filter((pub) => {
     if (filterYear && pub.year !== filterYear) return false;
-    if (filterType && pub.publicationType !== filterType) return false;
-    if (filterRank && pub.rank !== filterRank) return false;
     return true;
   });
 
@@ -189,7 +217,11 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   // Open drawer for create
   const handleCreate = () => {
     setEditingPub(null);
-    setAuthors([]);
+    setAuthors(ensureOwnerAuthorInList([], myProfileId, myFullName));
+    setSelectedLeafRuleKind(null);
+    setSelectedLeafCode(null);
+    setSelectedLeafSchema(laySchemaTheoMaLa(null, null));
+    setShowAdvancedPubFields(false);
     form.resetFields();
     setDrawerVisible(true);
   };
@@ -197,32 +229,80 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   // Open drawer for edit
   const handleEdit = async (pub: PublicationItem) => {
     setEditingPub(pub as unknown as Publication);
+    const rotId = pub.researchOutputTypeId;
+    const path =
+      rotId && researchOutputTree.length ? findResearchOutputPathById(researchOutputTree, rotId) : null;
+    const leaf = rotId && researchOutputTree.length ? findResearchOutputNodeById(researchOutputTree, rotId) : null;
+    setSelectedLeafRuleKind(leaf?.ruleKind ?? null);
+    setSelectedLeafCode(leaf?.code ?? null);
+    setSelectedLeafSchema(laySchemaTheoMaLa(leaf?.code ?? null, leaf?.ruleKind ?? null));
+    setShowAdvancedPubFields(
+      Boolean(
+        pub.volume ||
+          pub.issue ||
+          pub.pages ||
+          pub.doi ||
+          pub.issn ||
+          pub.url
+      )
+    );
     form.setFieldsValue({
-      ...pub,
-      academicYear: (pub as any).academicYear,
-      domesticRuleType: (pub as any).domesticRuleType,
-      hdgsnnScore: (pub as any).hdgsnnScore,
+      title: pub.title,
+      academicYear: pub.academicYear,
+      year: pub.year,
+      hdgsnnScore: pub.hdgsnnScore ?? undefined,
+      isbn: pub.isbn,
+      publicationStatus: pub.publicationStatus,
+      volume: pub.volume,
+      issue: pub.issue,
+      pages: pub.pages,
+      doi: pub.doi,
+      issn: pub.issn,
+      url: pub.url,
+      researchOutputTypePath: path ?? undefined,
     });
     
     // Load authors
     try {
       const res = await getMyPublicationAuthors(pub.id);
       if (res.success && res.data) {
-        setAuthors(res.data);
+        setAuthors(
+          ensureOwnerAuthorInList(
+            reassignAuthorOrdersSequential(res.data.map(normalizePublicationAuthor)),
+            myProfileId,
+            myFullName
+          )
+        );
+      } else {
+        setAuthors(ensureOwnerAuthorInList([], myProfileId, myFullName));
       }
     } catch (e) {
-      setAuthors([]);
+      setAuthors(ensureOwnerAuthorInList([], myProfileId, myFullName));
     }
     
     setDrawerVisible(true);
   };
+
+  useEffect(() => {
+    if (!drawerVisible || !editingPub || !researchOutputTree.length) return;
+    const rotId = (editingPub as Publication).researchOutputTypeId;
+    if (!rotId) return;
+    const path = findResearchOutputPathById(researchOutputTree, rotId);
+    if (path?.length) {
+      form.setFieldsValue({ researchOutputTypePath: path });
+      const leaf = findResearchOutputNodeById(researchOutputTree, rotId);
+      setSelectedLeafRuleKind(leaf?.ruleKind ?? null);
+      setSelectedLeafCode(leaf?.code ?? null);
+      setSelectedLeafSchema(laySchemaTheoMaLa(leaf?.code ?? null, leaf?.ruleKind ?? null));
+    }
+  }, [drawerVisible, editingPub, researchOutputTree, form]);
 
   // Delete publication
   const handleDelete = async (id: number) => {
     try {
       const res = await deleteMyPublication(id);
       if (res.success) {
-        message.success('Đã xóa công bố');
+        message.success('Đã xóa kết quả NCKH');
         onReloadPublications();
       }
     } catch (e) {
@@ -241,37 +321,92 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
+      const rotPath = values.researchOutputTypePath as number[] | undefined;
+      if (!rotPath?.length) {
+        message.error('Vui lòng chọn loại kết quả NCKH (danh mục) đến mục lá.');
+        return;
+      }
+      const researchOutputTypeId = rotPath[rotPath.length - 1];
+      const leafNode = layNodeTheoPath(researchOutputTree, rotPath);
+      const schema = laySchemaTheoMaLa(leafNode?.code ?? null, leafNode?.ruleKind ?? null);
+      const batBuocThieu: string[] = [];
+      if (schema.batBuocForm.includes('hdgsnnScore') && !(Number(values.hdgsnnScore) > 0)) {
+        batBuocThieu.push('Điểm HĐGSNN');
+      }
+      if (
+        schema.batBuocForm.includes('isbn') &&
+        !(typeof values.isbn === 'string' && values.isbn.trim().length > 0)
+      ) {
+        batBuocThieu.push('ISBN');
+      }
+      if (batBuocThieu.length) {
+        message.error(`Thiếu trường bắt buộc cho ${schema.tenHienThi}: ${batBuocThieu.join(', ')}`);
+        return;
+      }
+      const publicationStatus = (values.publicationStatus || 'PUBLISHED') as Publication['publicationStatus'];
+      const journalOrConference =
+        editingPub?.journalOrConference?.trim() || '—';
+      /** Chuẩn hoá STT 1..n (tránh trùng / khoảng trống do thêm dòng), rồi đảm bảo dòng chủ hồ sơ. */
+      const finalAuthors = ensureOwnerAuthorInList(
+        reassignAuthorOrdersSequential(authors),
+        myProfileId,
+        myFullName
+      );
+      setAuthors(finalAuthors);
+      /** API bắt buộc chuỗi `authors` (cột DB); nếu chỉ nhập bảng chi tiết thì ghép họ tên. */
+      const authorsFromTable = finalAuthors
+        .slice()
+        .sort((a, b) => a.authorOrder - b.authorOrder)
+        .map((a) => a.fullName.trim())
+        .filter(Boolean)
+        .join(', ');
+      if (!authorsFromTable) {
+        message.error('Vui lòng nhập họ tên đầy đủ trong bảng tác giả chi tiết.');
+        return;
+      }
+      const apiBody = {
+        researchOutputTypeId,
+        title: values.title,
+        authors: authorsFromTable,
+        academicYear: values.academicYear,
+        year: values.year,
+        publicationStatus,
+        hdgsnnScore: values.hdgsnnScore,
+        volume: values.volume,
+        issue: values.issue,
+        pages: values.pages,
+        doi: values.doi,
+        issn: values.issn,
+        isbn: values.isbn,
+        url: values.url,
+        publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
+        journalOrConference,
+        source: 'INTERNAL' as const,
+        verifiedByNcv: false,
+      };
       setSaving(true);
 
       let pubId: number;
       
       if (editingPub) {
         // Update
-        const res = await updateMyPublication(editingPub.id, values);
+        const res = await updateMyPublication(editingPub.id, apiBody);
         if (!res.success) {
           throw new Error('Cập nhật thất bại');
         }
         pubId = editingPub.id;
-        message.success('Đã cập nhật công bố');
+        message.success('Đã cập nhật kết quả NCKH');
       } else {
         // Create
-        const res = await createMyPublication({
-          ...values,
-          source: 'INTERNAL',
-          verifiedByNcv: false,
-          publicationStatus: values.publicationStatus || 'PUBLISHED',
-        });
+        const res = await createMyPublication(apiBody);
         if (!res.success || !res.data) {
           throw new Error('Tạo mới thất bại');
         }
         pubId = res.data.id;
-        message.success('Đã thêm công bố mới');
+        message.success('Đã thêm kết quả NCKH');
       }
 
-      // Save authors if any
-      if (authors.length > 0) {
-        await saveMyPublicationAuthors(pubId, authors);
-      }
+      await saveMyPublicationAuthors(pubId, finalAuthors);
 
       setDrawerVisible(false);
       onReloadPublications();
@@ -289,7 +424,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         <div className="suggestions-section">
           <div className="section-header">
             <Title level={5}>
-              <CloudSyncOutlined /> Gợi ý công bố mới từ nguồn ngoài ({suggestions.length})
+              <CloudSyncOutlined /> Gợi ý kết quả NCKH từ nguồn ngoài ({suggestions.length})
             </Title>
             <Text type="secondary">
               Xác nhận để thêm vào hồ sơ hoặc bỏ qua nếu không phải của bạn
@@ -344,14 +479,14 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       <div className="publications-main-section">
         <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <Title level={5} style={{ margin: 0 }}>
-            <BookOutlined /> Công bố khoa học ({publications.length})
+            <BookOutlined /> Kết quả NCKH ({publications.length})
           </Title>
           <Space wrap>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-              Thêm thủ công
+              Thêm kết quả NCKH
             </Button>
             <Button icon={<ImportOutlined />} onClick={() => setSemanticScholarModalVisible(true)}>
-              Thêm từ Semantic Scholar
+              Thêm kết quả từ Semantic Scholar
             </Button>
           </Space>
         </div>
@@ -367,35 +502,11 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
               onChange={setFilterYear}
               options={years.map((y) => ({ label: y, value: y }))}
             />
-            <Select
-              placeholder="Loại công bố"
-              allowClear
-              style={{ width: 150 }}
-              value={filterType}
-              onChange={setFilterType}
-              options={Object.entries(PUBLICATION_TYPE_MAP).map(([value, { text }]) => ({
-                label: text,
-                value,
-              }))}
-            />
-            <Select
-              placeholder="Phân hạng"
-              allowClear
-              style={{ width: 120 }}
-              value={filterRank}
-              onChange={setFilterRank}
-              options={Object.entries(PUBLICATION_RANK_MAP).map(([value, { text }]) => ({
-                label: text,
-                value,
-              }))}
-            />
-            {(filterYear || filterType || filterRank) && (
+            {filterYear && (
               <Button
                 type="link"
                 onClick={() => {
                   setFilterYear(undefined);
-                  setFilterType(undefined);
-                  setFilterRank(undefined);
                 }}
               >
                 Xóa bộ lọc
@@ -404,7 +515,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           </Space>
           <div className="filter-stats">
             <Text type="secondary">
-              Hiển thị {filteredPublications.length} / {publications.length} bài báo
+              Hiển thị {filteredPublications.length} / {publications.length} kết quả NCKH
             </Text>
           </div>
         </div>
@@ -442,6 +553,9 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                 subTitle: {
                   render: (_, record) => (
                     <Space size={4}>
+                      {record.researchOutputType?.name && (
+                        <Tag color="geekblue">{record.researchOutputType.name}</Tag>
+                      )}
                       {record.publicationType && (
                         <Tag color={PUBLICATION_TYPE_MAP[record.publicationType]?.color}>
                           {PUBLICATION_TYPE_MAP[record.publicationType]?.text}
@@ -486,7 +600,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                     </Button>,
                     <Popconfirm
                       key="delete"
-                      title="Xóa công bố này?"
+                      title="Xóa kết quả NCKH này?"
                       onConfirm={() => handleDelete(record.id)}
                     >
                       <Button type="link" size="small" danger icon={<DeleteOutlined />}>
@@ -511,17 +625,17 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           <Empty
             description={
               publications.length > 0
-                ? 'Không có bài báo nào phù hợp với bộ lọc'
-                : 'Chưa có công bố khoa học nào'
+                ? 'Không có kết quả NCKH nào phù hợp với bộ lọc'
+                : 'Chưa có kết quả NCKH nào'
             }
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           >
             <Space>
               <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-                Thêm thủ công
+                Thêm kết quả NCKH
               </Button>
               <Button icon={<ImportOutlined />} onClick={() => setSemanticScholarModalVisible(true)}>
-                Thêm từ Semantic Scholar
+                Thêm kết quả từ Semantic Scholar
               </Button>
             </Space>
           </Empty>
@@ -530,7 +644,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
       {/* Publication Detail Modal */}
       <Modal
-        title="Chi tiết bài báo khoa học"
+        title="Chi tiết kết quả NCKH"
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={[
@@ -551,6 +665,9 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
             <div className="detail-tags">
               <Space wrap>
+                {selectedPub.researchOutputType?.name && (
+                  <Tag color="geekblue">Loại NCKH: {selectedPub.researchOutputType.name}</Tag>
+                )}
                 {selectedPub.publicationType && (
                   <Tag color={PUBLICATION_TYPE_MAP[selectedPub.publicationType]?.color}>
                     {PUBLICATION_TYPE_MAP[selectedPub.publicationType]?.text}
@@ -601,8 +718,14 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   <Text>{selectedPub.journalOrConference}</Text>
                 </Col>
 
-                <Col span={8}>
-                  <Text strong>Năm:</Text>
+                <Col span={12}>
+                  <Text strong>Năm học:</Text>
+                  <br />
+                  <Text>{selectedPub.academicYear || '-'}</Text>
+                </Col>
+
+                <Col span={12}>
+                  <Text strong>Năm xuất bản:</Text>
                   <br />
                   <Text>{selectedPub.year || '-'}</Text>
                 </Col>
@@ -703,7 +826,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
       {/* Publication Form Drawer */}
       <Drawer
-        title={editingPub ? 'Chỉnh sửa công bố' : 'Thêm công bố mới'}
+        title={editingPub ? 'Chỉnh sửa kết quả NCKH' : 'Thêm kết quả NCKH'}
         open={drawerVisible}
         onClose={() => setDrawerVisible(false)}
         width={800}
@@ -720,21 +843,73 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item
-                name="title"
-                label="Tên bài báo"
-                rules={[{ required: true, message: 'Vui lòng nhập tên bài báo' }]}
+                name="researchOutputTypePath"
+                label="Loại kết quả NCKH (danh mục — chọn đến mục lá)"
+                rules={[{ required: true, message: 'Vui lòng chọn mục lá trong cây danh mục' }]}
               >
-                <Input.TextArea rows={2} placeholder="Nhập tên bài báo đầy đủ" />
+                <Cascader
+                  options={buildResearchOutputCascaderOptions(researchOutputTree)}
+                  placeholder="Chọn nhóm → … → mục lá"
+                  showSearch
+                  changeOnSelect={false}
+                  loading={researchTreeLoading}
+                  style={{ width: '100%' }}
+                  onChange={(_val, selectedOptions) => {
+                    const last = selectedOptions?.[selectedOptions.length - 1] as
+                      | { ruleKind?: string | null; code?: string | null }
+                      | undefined;
+                    const nextRuleKind = last?.ruleKind ?? null;
+                    const nextLeafCode = (last?.code as string | undefined) ?? null;
+                    const nextSchema = laySchemaTheoMaLa(nextLeafCode, nextRuleKind);
+                    setSelectedLeafRuleKind(nextRuleKind);
+                    setSelectedLeafCode(nextLeafCode);
+                    setSelectedLeafSchema(nextSchema);
+                    // Đổi lá xong thì dọn giá trị field ẩn để không gửi nhầm payload.
+                    if (!nextSchema.batBuocForm.includes('isbn')) {
+                      form.setFieldValue('isbn', undefined);
+                    }
+                    if (!nextSchema.batBuocForm.includes('hdgsnnScore')) {
+                      form.setFieldValue('hdgsnnScore', undefined);
+                    }
+                  }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Alert
+                type="info"
+                showIcon
+                message={`Yêu cầu nhập liệu cho lá: ${selectedLeafCode || 'chưa chọn'}`}
+                description={
+                  <div>
+                    <div>
+                      Trường bắt buộc theo API: {selectedLeafSchema.batBuocApiPayload.join(', ')}
+                    </div>
+                    <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                      {selectedLeafSchema.ghiChuTinhToan.map((note, idx) => (
+                        <li key={idx}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+                }
+              />
+            </Col>
+            <Col span={24}>
+              <Form.Item
+                name="title"
+                label="Tiêu đề kết quả NCKH"
+                rules={[{ required: true, message: 'Vui lòng nhập tiêu đề kết quả NCKH' }]}
+              >
+                <Input.TextArea rows={2} placeholder="Nhập tiêu đề đầy đủ" />
               </Form.Item>
             </Col>
 
             <Col span={12}>
               <Form.Item
                 name="academicYear"
-                label="Năm học"
-                rules={[{ required: true, message: 'Vui lòng chọn năm học' }]}
+                label="Năm học (tuỳ chọn, dùng để lọc/thống kê)"
               >
-                <Select options={academicYearOptions} placeholder="Chọn năm học" />
+                <Select allowClear options={academicYearOptions} placeholder="Chọn năm học" />
               </Form.Item>
             </Col>
 
@@ -745,57 +920,6 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
             </Col>
 
             <Col span={12}>
-              <Form.Item
-                name="publicationType"
-                label="Loại công bố"
-                rules={[{ required: true, message: 'Vui lòng chọn loại công bố' }]}
-              >
-                <Select
-                  options={Object.entries(PUBLICATION_TYPE_MAP).map(([value, { text }]) => ({
-                    label: text,
-                    value,
-                  }))}
-                  placeholder="Chọn loại"
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item name="journalOrConference" label="Tạp chí / Hội thảo">
-                <Input placeholder="Tên tạp chí hoặc hội thảo" />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item
-                name="rank"
-                label="Phân hạng"
-                rules={[{ required: true, message: 'Vui lòng chọn phân hạng' }]}
-              >
-                <Select options={RANK_OPTIONS} placeholder="Chọn phân hạng" />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item
-                name="quartile"
-                label="Quartile"
-                rules={[
-                  {
-                    required: watchRank === 'ISI' || watchRank === 'SCOPUS',
-                    message: 'Vui lòng chọn Q',
-                  },
-                ]}
-              >
-                <Select
-                  options={QUARTILE_OPTIONS}
-                  placeholder="Chọn Q"
-                  disabled={watchRank !== 'ISI' && watchRank !== 'SCOPUS'}
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
               <Form.Item name="publicationStatus" label="Trạng thái">
                 <Select
                   options={[
@@ -808,92 +932,91 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
               </Form.Item>
             </Col>
 
-            {/* Conditional fields for DOMESTIC/OTHER */}
-            {(watchRank === 'DOMESTIC' || watchRank === 'OTHER') && (
+            {(selectedLeafRuleKind === 'HDGSNN_POINTS_TO_HOURS' ||
+              selectedLeafSchema.batBuocForm.includes('hdgsnnScore')) && (
+              <Col span={12}>
+                <Form.Item
+                  name="hdgsnnScore"
+                  label="Điểm HĐGSNN (quy đổi giờ)"
+                  rules={[{ required: true, message: 'Vui lòng nhập điểm HĐGSNN' }]}
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0}
+                    max={10}
+                    step={0.25}
+                    placeholder="VD: 0.75"
+                  />
+                </Form.Item>
+              </Col>
+            )}
+
+            <Col span={24}>
+              <Button type="link" style={{ paddingLeft: 0 }} onClick={() => setShowAdvancedPubFields((v) => !v)}>
+                {showAdvancedPubFields ? 'Ẩn thông tin bài báo mở rộng' : 'Hiện thông tin bài báo mở rộng'}
+              </Button>
+            </Col>
+
+            {selectedLeafSchema.batBuocForm.includes('isbn') && (
+              <Col span={12}>
+                <Form.Item
+                  name="isbn"
+                  label="ISBN"
+                  rules={[{ required: true, message: 'Vui lòng nhập ISBN cho loại kết quả này' }]}
+                >
+                  <Input placeholder="VD: 978-..." />
+                </Form.Item>
+              </Col>
+            )}
+
+            {showAdvancedPubFields && (
               <>
-                <Col span={12}>
-                  <Form.Item
-                    name="domesticRuleType"
-                    label="Quy tắc tính giờ"
-                    rules={[{ required: true, message: 'Vui lòng chọn quy tắc' }]}
-                  >
-                    <Select options={DOMESTIC_RULE_TYPE_OPTIONS} placeholder="Chọn quy tắc" />
+                <Col span={8}>
+                  <Form.Item name="volume" label="Volume">
+                    <Input placeholder="VD: 15" />
+                  </Form.Item>
+                </Col>
+
+                <Col span={8}>
+                  <Form.Item name="issue" label="Issue">
+                    <Input placeholder="VD: 3" />
+                  </Form.Item>
+                </Col>
+
+                <Col span={8}>
+                  <Form.Item name="pages" label="Trang">
+                    <Input placeholder="VD: 123-145" />
                   </Form.Item>
                 </Col>
 
                 <Col span={12}>
-                  <Form.Item
-                    noStyle
-                    shouldUpdate={(prev, cur) => prev.domesticRuleType !== cur.domesticRuleType}
-                  >
-                    {({ getFieldValue }) =>
-                      getFieldValue('domesticRuleType') === 'HDGSNN_SCORE' ? (
-                        <Form.Item
-                          name="hdgsnnScore"
-                          label="Điểm HĐGSNN"
-                          rules={[{ required: true, message: 'Vui lòng nhập điểm' }]}
-                        >
-                          <InputNumber
-                            style={{ width: '100%' }}
-                            min={0}
-                            max={10}
-                            step={0.25}
-                            placeholder="VD: 0.75"
-                          />
-                        </Form.Item>
-                      ) : null
-                    }
+                  <Form.Item name="doi" label="DOI">
+                    <Input placeholder="VD: 10.1234/example" />
+                  </Form.Item>
+                </Col>
+
+                <Col span={12}>
+                  <Form.Item name="issn" label="ISSN">
+                    <Input placeholder="VD: 1234-5678" />
+                  </Form.Item>
+                </Col>
+
+                <Col span={24}>
+                  <Form.Item name="url" label="Link (URL)">
+                    <Input placeholder="https://..." />
                   </Form.Item>
                 </Col>
               </>
             )}
-
-            <Col span={24}>
-              <Form.Item name="authors" label="Danh sách tác giả (text)">
-                <Input.TextArea rows={2} placeholder="VD: Nguyễn Văn A, Trần Thị B, ..." />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item name="volume" label="Volume">
-                <Input placeholder="VD: 15" />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item name="issue" label="Issue">
-                <Input placeholder="VD: 3" />
-              </Form.Item>
-            </Col>
-
-            <Col span={8}>
-              <Form.Item name="pages" label="Trang">
-                <Input placeholder="VD: 123-145" />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item name="doi" label="DOI">
-                <Input placeholder="VD: 10.1234/example" />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item name="issn" label="ISSN">
-                <Input placeholder="VD: 1234-5678" />
-              </Form.Item>
-            </Col>
-
-            <Col span={24}>
-              <Form.Item name="url" label="Link bài báo">
-                <Input placeholder="https://..." />
-              </Form.Item>
-            </Col>
           </Row>
 
           <Divider>Danh sách tác giả chi tiết (để tính quy đổi giờ)</Divider>
 
-          <AuthorsEditor value={authors} onChange={setAuthors} />
+          <AuthorsEditor
+            value={authors}
+            onChange={setAuthors}
+            ownerProfileId={myProfileId}
+          />
         </Form>
       </Drawer>
 
@@ -932,6 +1055,11 @@ const MyProfilePage: React.FC = () => {
   const [suggestions, setSuggestions] = useState<PublicationSuggestion[]>([]);
   const [activeTab, setActiveTab] = useState<string>('general');
   const [languageEditableKeys, setLanguageEditableKeys] = useState<React.Key[]>([]);
+
+  /** Tổng giờ NCKH + điểm quy đổi (năm học mặc định theo API). */
+  const [nckhHours, setNckhHours] = useState<number | null>(null);
+  const [nckhPoints, setNckhPoints] = useState<number | null>(null);
+  const [nckhLoading, setNckhLoading] = useState(false);
 
   // Load profile data
   const loadProfile = useCallback(async () => {
@@ -980,6 +1108,37 @@ const MyProfilePage: React.FC = () => {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    let cancelled = false;
+    setNckhLoading(true);
+    getTeacherKpi(profile.id)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && res.data) {
+          setNckhHours(res.data.totalHours);
+          setNckhPoints(
+            typeof res.data.totalPoints === 'number' ? res.data.totalPoints : null,
+          );
+        } else {
+          setNckhHours(null);
+          setNckhPoints(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNckhHours(null);
+          setNckhPoints(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setNckhLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id]);
 
   const dismissOnboarding = () => {
     history.replace('/profile/me');
@@ -1047,9 +1206,9 @@ const MyProfilePage: React.FC = () => {
         }
 
         if (result.data?.newCount && result.data.newCount > 0) {
-          message.success(`Tìm thấy ${result.data.newCount} công bố gợi ý mới`);
+          message.success(`Tìm thấy ${result.data.newCount} gợi ý kết quả NCKH mới`);
         } else {
-          message.info('Không có công bố mới');
+          message.info('Không có gợi ý kết quả NCKH mới');
         }
       }
     } catch (error) {
@@ -1067,7 +1226,7 @@ const MyProfilePage: React.FC = () => {
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
       // Reload profile to get updated publications
       await loadProfile();
-      message.success('Đã thêm công bố vào hồ sơ');
+      message.success('Đã thêm kết quả NCKH vào hồ sơ');
     }
   };
 
@@ -1276,7 +1435,7 @@ const MyProfilePage: React.FC = () => {
     { key: 'degree', label: 'Học vị', done: !!profile.degree, tabKey: 'education' },
     { key: 'research', label: 'Hướng nghiên cứu', done: !!profile.mainResearchArea, tabKey: 'research' },
     { key: 'language', label: 'Ngoại ngữ', done: (profile.languages?.length || 0) > 0, tabKey: 'languages' },
-    { key: 'publications', label: 'Công bố/Đề tài', done: (profile.publications?.length || 0) > 0 || (profile.linkedProjects?.length || 0) > 0, tabKey: 'publications' },
+    { key: 'publications', label: 'Kết quả NCKH / Đề tài', done: (profile.publications?.length || 0) > 0 || (profile.linkedProjects?.length || 0) > 0, tabKey: 'publications' },
   ];
 
   // Handle checklist item click - navigate to tab
@@ -1295,12 +1454,52 @@ const MyProfilePage: React.FC = () => {
       <Card className="profile-header-card" bordered={false}>
         <div className="profile-header">
           <div className="profile-header-left">
-            <Avatar 
-              size={72} 
-              src={profile.avatarUrl} 
-              icon={<UserOutlined />}
-              className="profile-avatar"
-            />
+            <div className="profile-avatar-nckh">
+              <div className="profile-avatar-ring">
+                <Avatar
+                  size={72}
+                  src={profile.avatarUrl}
+                  icon={<UserOutlined />}
+                  className="profile-avatar"
+                />
+              </div>
+              {profile.id != null && (
+                <Tooltip
+                  title="Giờ và điểm quy đổi theo năm học hiện tại (tháng 9 đổi năm), từ loại kết quả NCKH đã gán và bảng tác giả."
+                >
+                  <div
+                    className="profile-nckh-highlight"
+                    aria-label="Số giờ NCKH và điểm quy đổi"
+                  >
+                    <div className="profile-nckh-metric">
+                      <span className="profile-nckh-highlight-label">Số giờ NCKH</span>
+                      <span className="profile-nckh-highlight-value">
+                        {nckhLoading ? (
+                          <Spin size="small" />
+                        ) : nckhHours != null ? (
+                          <>{Math.round(nckhHours * 100) / 100} giờ</>
+                        ) : (
+                          '—'
+                        )}
+                      </span>
+                    </div>
+                    <div className="profile-nckh-divider" aria-hidden />
+                    <div className="profile-nckh-metric">
+                      <span className="profile-nckh-highlight-label">Điểm quy đổi</span>
+                      <span className="profile-nckh-highlight-value profile-nckh-points">
+                        {nckhLoading ? (
+                          <Spin size="small" />
+                        ) : nckhPoints != null ? (
+                          <>{Math.round(nckhPoints * 100) / 100} điểm</>
+                        ) : (
+                          '—'
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </Tooltip>
+              )}
+            </div>
             <div className="profile-header-info">
               <Title level={4} className="profile-name">
                 {profile.fullName}
@@ -1771,7 +1970,7 @@ const MyProfilePage: React.FC = () => {
                   label: (
                     <span>
                       <FileTextOutlined />
-                      Công bố khoa học & Bài báo
+                      Kết quả NCKH
                       {suggestions.length > 0 && (
                         <Tag color="red" className="tab-badge">{suggestions.length}</Tag>
                       )}
@@ -1784,6 +1983,8 @@ const MyProfilePage: React.FC = () => {
                       onConfirmSuggestion={handleConfirmSuggestion}
                       onIgnoreSuggestion={handleIgnoreSuggestion}
                       onReloadPublications={loadProfile}
+                      myProfileId={profile.id}
+                      myFullName={profile.fullName || ''}
                     />
                   ),
                 },

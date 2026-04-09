@@ -448,7 +448,7 @@ const ProfileDetailPage: React.FC = () => {
                   label: (
                     <span>
                       <BookOutlined />
-                      Công bố khoa học ({profile.publications?.length || 0})
+                      Kết quả NCKH ({profile.publications?.length || 0})
                     </span>
                   ),
                   children: (
@@ -549,7 +549,7 @@ const ProfileDetailPage: React.FC = () => {
                           }}
                         />
                       ) : (
-                        <Empty description="Chưa có công bố khoa học nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                        <Empty description="Chưa có kết quả NCKH nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />
                       )}
                     </div>
                   ),
@@ -709,7 +709,7 @@ const ProfileDetailPage: React.FC = () => {
             <Card className="stats-card" bordered={false}>
               <div className="stat-item">
                 <div className="stat-value">{profile.publications?.length || 0}</div>
-                <div className="stat-label">Công bố</div>
+                <div className="stat-label">Kết quả NCKH</div>
               </div>
               <div className="stat-item">
                 <div className="stat-value">{profile.linkedProjects?.length || 0}</div>
@@ -810,7 +810,7 @@ const ProfileDetailPage: React.FC = () => {
                 <li>Kiểm tra thông tin cá nhân</li>
                 <li>Xác minh học vị / học hàm</li>
                 <li>Kiểm tra bằng cấp đính kèm</li>
-                <li>Xác minh các công bố khoa học</li>
+                <li>Xác minh các kết quả NCKH</li>
               </ul>
             </div>
           )}

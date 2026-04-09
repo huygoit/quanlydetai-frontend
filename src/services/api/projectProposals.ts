@@ -44,6 +44,8 @@ export interface ProjectProposal {
   unitApproved?: boolean;
   sciDeptComment?: string;
   sciDeptPriority?: Priority;
+  researchOutputTypeId?: number | null;
+  researchOutputType?: { id: number; code: string; name: string } | null;
 }
 
 export interface ProposalQueryParams {
@@ -73,6 +75,7 @@ export interface ProposalCreateData {
   applicationPotential?: string;
   requestedBudgetTotal?: number;
   requestedBudgetDetail?: string;
+  researchOutputTypeId?: number | null;
 }
 
 // API Functions

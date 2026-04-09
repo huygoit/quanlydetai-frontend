@@ -50,14 +50,14 @@ const SemanticScholarImportModal: React.FC<SemanticScholarImportModalProps> = ({
         const { imported, errors } = result.data;
         
         if (imported > 0) {
-          message.success(`Đã import ${imported} công bố từ Semantic Scholar`);
+          message.success(`Đã import ${imported} gợi ý kết quả NCKH từ Semantic Scholar`);
           form.resetFields();
           onClose();
           onSuccess?.();
         } else if (errors && errors.length > 0) {
           setError(errors.join('. '));
         } else {
-          message.info('Không tìm thấy công bố nào phù hợp');
+          message.info('Không tìm thấy kết quả NCKH nào phù hợp');
         }
       } else {
         setError('Không thể import từ Semantic Scholar');
@@ -84,7 +84,7 @@ const SemanticScholarImportModal: React.FC<SemanticScholarImportModalProps> = ({
       title={
         <Space>
           <BookOutlined />
-          <span>Thêm từ Semantic Scholar</span>
+          <span>Thêm kết quả NCKH từ Semantic Scholar</span>
         </Space>
       }
       open={open}
@@ -98,7 +98,7 @@ const SemanticScholarImportModal: React.FC<SemanticScholarImportModalProps> = ({
     >
       <div className="modal-description">
         <Text type="secondary">
-          Nhập ít nhất một thông tin để tìm kiếm công bố trên Semantic Scholar
+          Nhập ít nhất một thông tin để tìm kiếm kết quả NCKH trên Semantic Scholar
         </Text>
       </div>
 
@@ -117,7 +117,7 @@ const SemanticScholarImportModal: React.FC<SemanticScholarImportModalProps> = ({
         <Form.Item
           name="doi"
           label="DOI"
-          tooltip="Digital Object Identifier của bài báo"
+          tooltip="Digital Object Identifier (DOI) của kết quả NCKH"
         >
           <Input placeholder="VD: 10.1234/example.2024" />
         </Form.Item>
@@ -155,7 +155,7 @@ const SemanticScholarImportModal: React.FC<SemanticScholarImportModalProps> = ({
       <Alert
         type="info"
         message="Lưu ý"
-        description="Các công bố tìm được sẽ được thêm vào danh sách gợi ý để bạn xác nhận trước khi đưa vào hồ sơ."
+        description="Các kết quả NCKH tìm được sẽ được thêm vào danh sách gợi ý để bạn xác nhận trước khi đưa vào hồ sơ."
         showIcon
       />
     </Modal>

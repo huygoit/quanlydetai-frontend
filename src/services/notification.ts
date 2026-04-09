@@ -47,8 +47,8 @@ const defaultNotifications: Notification[] = [
     id: 'notif-1',
     userId: 'user-1',
     type: 'PUBLICATION_SYNC',
-    title: 'Công bố gợi ý mới',
-    message: 'Có 2 công bố gợi ý mới từ Google Scholar. Vui lòng xác nhận hoặc bỏ qua.',
+    title: 'Gợi ý kết quả NCKH mới',
+    message: 'Có 2 gợi ý kết quả NCKH mới từ Google Scholar. Vui lòng xác nhận hoặc bỏ qua.',
     link: '/profile/me?tab=publications',
     read: false,
     createdAt: '2024-03-15T08:00:00Z',
@@ -87,8 +87,8 @@ const defaultNotifications: Notification[] = [
     id: 'notif-5',
     userId: 'user-3',
     type: 'PUBLICATION_SYNC',
-    title: 'Công bố gợi ý mới',
-    message: 'Có 1 công bố gợi ý mới từ Google Scholar.',
+    title: 'Gợi ý kết quả NCKH mới',
+    message: 'Có 1 gợi ý kết quả NCKH mới từ Google Scholar.',
     link: '/profile/me?tab=publications',
     read: false,
     createdAt: '2024-03-10T12:00:00Z',
@@ -332,8 +332,8 @@ export async function notifyPublicationSync(
     await pushNotification({
       userId,
       type: 'PUBLICATION_SYNC',
-      title: 'Công bố gợi ý mới',
-      message: `Có ${count} công bố gợi ý mới từ ${source}. Vui lòng xác nhận hoặc bỏ qua.`,
+      title: 'Gợi ý kết quả NCKH mới',
+      message: `Có ${count} gợi ý kết quả NCKH mới từ ${source}. Vui lòng xác nhận hoặc bỏ qua.`,
       link: '/profile/me?tab=publications',
     });
   }
