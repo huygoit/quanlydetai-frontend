@@ -19,6 +19,18 @@ function dinhDangSo(v: unknown, maxFractionDigits = 2): string {
   });
 }
 
+function noiDungTooltipHeSoA(v: unknown): string {
+  const a = Number(v);
+  if (!Number.isFinite(a)) return '';
+  if (Math.abs(a - 2) < 0.001) {
+    return 'a=2: Các tác giả liên hệ đều thuộc các đơn vị trong ĐHĐN';
+  }
+  if (Math.abs(a - 1.5) < 0.001) {
+    return 'a=1,5: Các tác giả thuộc đơn vị trong và ngoài ĐHĐN';
+  }
+  return 'a=1: Các trường hợp khác';
+}
+
 interface ConvertedHoursPreviewModalProps {
   open: boolean;
   publicationId: number | null;
@@ -243,8 +255,11 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
                 <strong>B = B0 × a</strong>.
               </p>
               <p style={{ margin: '4px 0' }}>
-                <strong>Điểm quy đổi</strong> lấy theo cột điểm của loại kết quả (hoặc điểm HĐGSNN với mục
-                tương ứng), không dùng công thức chia n/p của giờ.
+                <strong>Điểm quy đổi:</strong>{' '}
+                <Text strong style={{ color: '#722ed1' }}>
+                  1 điểm
+                </Text>{' '}
+                = 600 giờ.
               </p>
               <p style={{ margin: '4px 0' }}>
                 Tác giả nhóm chính (chính hoặc liên hệ): <strong>B/(3n) + 2B/(3p)</strong>.
@@ -268,32 +283,38 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
         width={760}
       >
         <Descriptions bordered size="small" column={2} className="summary-descriptions">
-          <Descriptions.Item label="Giờ chuẩn (B0)">
+          <Descriptions.Item label="Giờ quy đổi chuẩn (B0)">
             <Text strong>{dinhDangSo(data?.baseHours, 2)}</Text>
           </Descriptions.Item>
-          <Descriptions.Item label="Hệ số a (QĐ — cả nhóm tác giả)">
-            <Text strong>{dinhDangSo(data?.unitCoefficient, 2)}</Text>
+          <Descriptions.Item label="Điểm quy đổi chuẩn (P0)">
+            <Text strong>{dinhDangSo(data?.basePoints, 2)}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Tổng số tác giả (p)">
+            <Text strong>{data?.p || 0}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Số tác giả chính (n)">
+            <Text strong>{data?.n || 0}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Hệ số điều chỉnh theo đơn vị (a)" span={2}>
+            <Tooltip title={noiDungTooltipHeSoA(data?.unitCoefficient)}>
+              <Text strong style={{ cursor: 'help' }}>
+                {dinhDangSo(data?.unitCoefficient, 2)}
+              </Text>
+            </Tooltip>
           </Descriptions.Item>
           {data?.authorUnitFactor != null &&
             data.authorUnitFactor !== data.unitCoefficient &&
             Number(data.authorUnitFactor) !== 1 && (
-              <Descriptions.Item label="Hệ số đơn vị dòng NCV (a₁)">
+              <Descriptions.Item label="Hệ số đơn vị dòng NCV (a₁)" span={2}>
                 <Text strong>{dinhDangSo(data.authorUnitFactor, 2)}</Text>
               </Descriptions.Item>
             )}
-          <Descriptions.Item label="Điểm danh mục (P0)">
-            <Text strong>{dinhDangSo(data?.basePoints, 2)}</Text>
+          <Descriptions.Item label="Tổng điểm quy đổi (P)">
+            <Title level={4} style={{ margin: 0, color: '#722ed1' }}>
+              {dinhDangSo(poolP, 2)} điểm
+            </Title>
           </Descriptions.Item>
-          <Descriptions.Item label="Tổng điểm công trình (P)">
-            <Text strong>{dinhDangSo(poolP, 2)}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="n (nhóm chia 1/3: chính ∪ liên hệ)">
-            <Text strong>{data?.n || 0}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="p (tổng số tác giả)">
-            <Text strong>{data?.p || 0}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="Tổng giờ công trình (B, trước chia)" span={2}>
+          <Descriptions.Item label="Tổng giờ NCKH quy đổi (B)">
             <Title level={4} style={{ margin: 0, color: '#52c41a' }}>
               {dinhDangSo(poolB, 2)} giờ
             </Title>

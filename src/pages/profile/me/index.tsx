@@ -614,7 +614,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                       icon={<CalculatorOutlined />}
                       onClick={() => handlePreviewHours(record)}
                     >
-                      Xem thử quy đổi giờ
+                      Xem quy đổi giờ NCKH
                     </Button>,
                   ],
                 },

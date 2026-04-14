@@ -541,7 +541,7 @@ const ProfileDetailPage: React.FC = () => {
                                       icon={<CalculatorOutlined />}
                                       onClick={() => handlePreviewHours(record)}
                                     >
-                                      Xem thử quy đổi giờ
+                                      Xem quy đổi giờ NCKH
                                     </Button>
                                   ),
                                 ].filter(Boolean),
