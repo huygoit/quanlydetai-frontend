@@ -110,6 +110,7 @@ import {
   type PublicationAuthor,
   type ResearchOutputTypeTreeNode,
 } from '@/services/api/profilePublications';
+import type { OpenAlexPublicationDraft } from '@/services/api/openalex';
 import {
   layNodeTheoPath,
   laySchemaTheoMaLa,
@@ -118,7 +119,7 @@ import {
 import AuthorsEditor from '@/components/AuthorsEditor';
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import ProfileCompletionBar, { type ChecklistItem } from '@/components/ProfileCompletionBar';
-import SemanticScholarImportModal from '@/components/SemanticScholarImportModal';
+import OpenAlexImportModal from '@/components/OpenAlexImportModal';
 
 const LANGUAGE_LEVELS = ['Cơ bản', 'Trung cấp', 'Cao cấp', 'Thành thạo', 'Bản ngữ'];
 const PUBLICATION_STATUS_MAP: Record<string, { text: string; color: string }> = {
@@ -170,7 +171,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewPubId, setPreviewPubId] = useState<number | null>(null);
   const [previewPubTitle, setPreviewPubTitle] = useState<string>('');
-  const [semanticScholarModalVisible, setSemanticScholarModalVisible] = useState(false);
+  const [openAlexModalVisible, setOpenAlexModalVisible] = useState(false);
   const [showAdvancedPubFields, setShowAdvancedPubFields] = useState(false);
   const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
   const [researchTreeLoading, setResearchTreeLoading] = useState(false);
@@ -315,6 +316,110 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
     setPreviewPubId(pub.id);
     setPreviewPubTitle(pub.title);
     setPreviewModalVisible(true);
+  };
+
+  const handleApplyOpenAlexDraft = (draft: OpenAlexPublicationDraft) => {
+    setEditingPub(null);
+    const rotId = draft.researchOutputTypeId ?? null;
+    const path = rotId && researchOutputTree.length ? findResearchOutputPathById(researchOutputTree, rotId) : null;
+    const leaf = rotId && researchOutputTree.length ? findResearchOutputNodeById(researchOutputTree, rotId) : null;
+    setSelectedLeafRuleKind(leaf?.ruleKind ?? null);
+    setSelectedLeafCode(leaf?.code ?? draft.researchOutputTypeCode ?? null);
+    setSelectedLeafSchema(laySchemaTheoMaLa(leaf?.code ?? draft.researchOutputTypeCode ?? null, leaf?.ruleKind ?? null));
+    setShowAdvancedPubFields(Boolean(draft.volume || draft.issue || draft.pages || draft.doi || draft.issn || draft.url));
+    form.setFieldsValue({
+      title: draft.title,
+      year: draft.year ?? undefined,
+      publicationStatus: draft.publicationStatus,
+      volume: draft.volume ?? undefined,
+      issue: draft.issue ?? undefined,
+      pages: draft.pages ?? undefined,
+      doi: draft.doi ?? undefined,
+      issn: draft.issn ?? undefined,
+      url: draft.url ?? undefined,
+      researchOutputTypePath: path ?? undefined,
+    });
+    setAuthors(
+      ensureOwnerAuthorInList(
+        reassignAuthorOrdersSequential((draft.authors || []).map(normalizePublicationAuthor)),
+        myProfileId,
+        myFullName
+      )
+    );
+    setDrawerVisible(true);
+    if (!rotId) {
+      message.warning('OpenAlex chưa map được loại kết quả NCKH phù hợp, vui lòng chọn lại mục lá.');
+      return;
+    }
+    if (!path?.length) {
+      message.warning(
+        `Đã nạp bài báo nhưng chưa tìm thấy mã loại ${draft.researchOutputTypeCode || 'N/A'} trong danh mục hiện tại.`
+      );
+    }
+  };
+
+  const handleImportOpenAlexDraft = async (draft: OpenAlexPublicationDraft) => {
+    if (!draft.researchOutputTypeId) {
+      message.warning('Bài báo này chưa map được loại kết quả NCKH. Tôi sẽ mở form để bạn chọn mục lá rồi lưu.');
+      handleApplyOpenAlexDraft(draft);
+      return;
+    }
+    const importedAuthors = ensureOwnerAuthorInList(
+      reassignAuthorOrdersSequential((draft.authors || []).map(normalizePublicationAuthor)),
+      myProfileId,
+      myFullName
+    );
+    const authorsFromTable = importedAuthors
+      .slice()
+      .sort((a, b) => a.authorOrder - b.authorOrder)
+      .map((a) => a.fullName.trim())
+      .filter(Boolean)
+      .join(', ');
+    if (!authorsFromTable) {
+      message.error('Bài báo OpenAlex không có danh sách tác giả hợp lệ để import.');
+      return;
+    }
+    const created = await createMyPublication({
+      researchOutputTypeId: draft.researchOutputTypeId,
+      title: draft.title,
+      authors: authorsFromTable,
+      correspondingAuthor:
+        importedAuthors.find((a) => a.isCorresponding)?.fullName ?? undefined,
+      publicationType: draft.publicationType,
+      journalOrConference: draft.journalOrConference || 'Không rõ nguồn công bố',
+      year: draft.year ?? undefined,
+      volume: draft.volume ?? undefined,
+      issue: draft.issue ?? undefined,
+      pages: draft.pages ?? undefined,
+      doi: draft.doi ?? undefined,
+      issn: draft.issn ?? undefined,
+      url: draft.url ?? undefined,
+      publicationStatus: 'PUBLISHED',
+      source: 'OPENALEX',
+      sourceId: draft.sourceId || undefined,
+      needsIndexConfirmation: !!draft.needsIndexConfirmation,
+      indexMappedCode: draft.researchOutputTypeCode ?? undefined,
+      indexMappingReason: draft.typeMappingReason ?? undefined,
+      verifiedByNcv: false,
+      academicYear: undefined,
+      rank: undefined,
+      quartile: undefined,
+      domesticRuleType: undefined,
+      hdgsnnScore: undefined,
+      isbn: undefined,
+      approvedInternal: false,
+      attachmentUrl: undefined,
+    });
+    if (!created.success || !created.data) {
+      throw new Error('Tạo bài báo từ OpenAlex thất bại.');
+    }
+    await saveMyPublicationAuthors(created.data.id, importedAuthors);
+    if (draft.needsIndexConfirmation) {
+      message.warning('Đã import bài báo, nhưng cần xác nhận lại chỉ mục/Q trước khi chốt KPI.');
+    } else {
+      message.success('Đã import bài báo từ OpenAlex và tạo danh sách tác giả.');
+    }
+    await onReloadPublications();
   };
 
   // Save publication
@@ -485,8 +590,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
               Thêm kết quả NCKH
             </Button>
-            <Button icon={<ImportOutlined />} onClick={() => setSemanticScholarModalVisible(true)}>
-              Thêm kết quả từ Semantic Scholar
+            <Button icon={<ImportOutlined />} onClick={() => setOpenAlexModalVisible(true)}>
+              Thêm kết quả NCKH từ Open Alex
             </Button>
           </Space>
         </div>
@@ -584,6 +689,9 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                           {AUTHOR_ROLE_MAP[record.myRole]?.text}
                         </Tag>
                       )}
+                      {record.needsIndexConfirmation && (
+                        <Tag color="orange">Cần xác nhận chỉ mục/Q</Tag>
+                      )}
                     </Space>
                   ),
                 },
@@ -634,8 +742,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
               <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
                 Thêm kết quả NCKH
               </Button>
-              <Button icon={<ImportOutlined />} onClick={() => setSemanticScholarModalVisible(true)}>
-                Thêm kết quả từ Semantic Scholar
+              <Button icon={<ImportOutlined />} onClick={() => setOpenAlexModalVisible(true)}>
+                Thêm kết quả NCKH từ Open Alex
               </Button>
             </Space>
           </Empty>
@@ -801,6 +909,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                     color={
                       selectedPub.source === 'INTERNAL'
                         ? 'blue'
+                        : selectedPub.source === 'OPENALEX'
+                        ? 'cyan'
                         : selectedPub.source === 'GOOGLE_SCHOLAR'
                         ? 'green'
                         : 'purple'
@@ -808,6 +918,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   >
                     {selectedPub.source === 'INTERNAL'
                       ? 'Nội bộ'
+                      : selectedPub.source === 'OPENALEX'
+                      ? 'OpenAlex'
                       : selectedPub.source === 'GOOGLE_SCHOLAR'
                       ? 'Google Scholar'
                       : 'SCV ĐHĐN'}
@@ -874,25 +986,6 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   }}
                 />
               </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Alert
-                type="info"
-                showIcon
-                message={`Yêu cầu nhập liệu cho lá: ${selectedLeafCode || 'chưa chọn'}`}
-                description={
-                  <div>
-                    <div>
-                      Trường bắt buộc theo API: {selectedLeafSchema.batBuocApiPayload.join(', ')}
-                    </div>
-                    <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
-                      {selectedLeafSchema.ghiChuTinhToan.map((note, idx) => (
-                        <li key={idx}>{note}</li>
-                      ))}
-                    </ul>
-                  </div>
-                }
-              />
             </Col>
             <Col span={24}>
               <Form.Item
@@ -1028,11 +1121,12 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         onClose={() => setPreviewModalVisible(false)}
       />
 
-      {/* Semantic Scholar Import Modal */}
-      <SemanticScholarImportModal
-        open={semanticScholarModalVisible}
-        onClose={() => setSemanticScholarModalVisible(false)}
-        onSuccess={onReloadPublications}
+      {/* OpenAlex Import Modal */}
+      <OpenAlexImportModal
+        open={openAlexModalVisible}
+        onClose={() => setOpenAlexModalVisible(false)}
+        onSelectDraft={handleApplyOpenAlexDraft}
+        onImportDraft={handleImportOpenAlexDraft}
       />
     </div>
   );

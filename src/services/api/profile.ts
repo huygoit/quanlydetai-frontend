@@ -9,7 +9,7 @@ export type Gender = 'Nam' | 'Nữ' | 'Khác';
 export type Degree = 'Cử nhân' | 'Thạc sĩ' | 'Tiến sĩ' | 'Khác';
 export type AcademicTitle = 'PGS' | 'GS' | 'Không';
 export type AttachmentType = 'CV_PDF' | 'DEGREE' | 'CERTIFICATE' | 'OTHER';
-export type PublicationSource = 'INTERNAL' | 'GOOGLE_SCHOLAR' | 'SCV_DHDN';
+export type PublicationSource = 'INTERNAL' | 'GOOGLE_SCHOLAR' | 'SCV_DHDN' | 'OPENALEX';
 export type PublicationType = 'JOURNAL' | 'CONFERENCE' | 'BOOK_CHAPTER' | 'BOOK';
 export type PublicationRank = 'ISI' | 'SCOPUS' | 'DOMESTIC' | 'OTHER';
 export type PublicationStatus = 'PUBLISHED' | 'ACCEPTED' | 'UNDER_REVIEW';
@@ -72,6 +72,9 @@ export interface PublicationItem {
   publicationStatus: PublicationStatus;
   source: PublicationSource;
   sourceId?: string;
+  needsIndexConfirmation?: boolean;
+  indexMappedCode?: string;
+  indexMappingReason?: string;
   verifiedByNcv: boolean;
   approvedInternal?: boolean;
   attachmentUrl?: string;

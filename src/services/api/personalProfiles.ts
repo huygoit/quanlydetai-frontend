@@ -40,6 +40,7 @@ export interface QueryPersonalProfilesParams {
   perPage?: number;
   per_page?: number;
   keyword?: string;
+  staffCode?: string;
   departmentId?: number;
   status?: PersonalProfileStatus;
   sortBy?: string;

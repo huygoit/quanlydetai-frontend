@@ -34,6 +34,7 @@ export interface QueryStaffsParams {
   page?: number;
   perPage?: number;
   keyword?: string;
+  staffCode?: string;
   departmentId?: number;
   departmentCode?: string;
   staffType?: string;

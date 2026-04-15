@@ -10,24 +10,71 @@ export type Quartile = 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'NO_Q';
 export type DomesticRuleType = 'HDGSNN_SCORE' | 'CONFERENCE_ISBN';
 export type AffiliationType = 'UDN_ONLY' | 'MIXED' | 'OUTSIDE';
 
-/** Nhãn cơ quan công tác — map API `affiliationType`: `UDN_ONLY` */
-export const AUTHOR_WORKPLACE_MEMBER_UNIT = 'Đại học Đà Nẵng' as const;
+/** Danh sách đơn vị trong ĐHĐN cho multi-select cơ quan công tác tác giả. */
+export const UDN_AFFILIATION_UNITS = [
+  'The University of Danang (Đại học Đà Nẵng)',
+  'The University of Danang - University of Science and Technology (Trường Đại học Bách khoa)',
+  'The University of Danang - University of Economics (Trường Đại học Kinh tế)',
+  'The University of Danang - University of Science and Education (Trường Đại học Sư phạm)',
+  'University of Foreign Language Studies - The University of Danang (Trường Đại học Ngoại ngữ)',
+  'University of Technology and Education - The University of Danang (Trường Đại học Sư phạm Kỹ thuật)',
+  'Vietnam-Korea University of Information and Communication Technology - The University of Danang (Trường Đại học Công nghệ Thông tin và Truyền thông Việt - Hàn)',
+  'School of Medicine and Pharmacy - The University of Danang (Trường Y Dược)',
+  'The University of Danang Campus in Kon Tum (Phân hiệu Đại học Đà Nẵng tại Kon Tum)',
+  'Vietnam-UK Institute for Research and Executive Education - The University of Danang (Viện Nghiên cứu và Đào tạo Việt - Anh)',
+  'Danang International Institute of Technology - The University of Danang (Viện Công nghệ Quốc tế DNIIT)',
+  'Faculty of Physical Education - The University of Danang (Khoa Giáo dục Thể chất)',
+  'Center for Defense and Security Education - The University of Danang (Trung tâm Giáo dục Quốc phòng và An ninh)',
+] as const;
 
-/** Nhãn cơ quan công tác — map API `affiliationType`: `OUTSIDE` */
-export const AUTHOR_WORKPLACE_OTHER_UNIT = 'Đơn vị khác' as const;
+export const AUTHOR_WORKPLACE_OTHER_UNIT = 'Other Organization (Đơn vị khác)' as const;
+const LEGACY_AUTHOR_WORKPLACE_OTHER_UNIT = 'Đơn vị khác' as const;
 
-/** Nhãn cơ quan công tác — map API `affiliationType`: `MIXED` */
-export const AUTHOR_WORKPLACE_MIXED_UNIT = 'Vừa trong và ngoài ĐHĐN' as const;
-
-/** Lựa chọn cơ quan công tác trên form (khớp đúng enum API). */
-export const AUTHOR_WORKPLACE_OPTIONS: {
-  value: AffiliationType;
-  label: string;
-}[] = [
-  { value: 'UDN_ONLY', label: AUTHOR_WORKPLACE_MEMBER_UNIT },
-  { value: 'MIXED', label: AUTHOR_WORKPLACE_MIXED_UNIT },
-  { value: 'OUTSIDE', label: AUTHOR_WORKPLACE_OTHER_UNIT },
+/** Lựa chọn cơ quan công tác trên form tác giả (cho phép chọn nhiều). */
+export const AUTHOR_AFFILIATION_MULTI_OPTIONS: { value: string; label: string }[] = [
+  ...UDN_AFFILIATION_UNITS.map((v) => ({ value: v, label: v })),
+  { value: AUTHOR_WORKPLACE_OTHER_UNIT, label: AUTHOR_WORKPLACE_OTHER_UNIT },
 ];
+
+function uniqueNonEmptyStrings(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const v = String(raw ?? '').trim();
+    if (!v) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
+/** Suy ra affiliation_type từ danh sách đơn vị người dùng chọn. */
+export function deriveAffiliationTypeFromUnits(units: string[]): AffiliationType {
+  const picked = uniqueNonEmptyStrings(units);
+  const hasOutside = picked.includes(AUTHOR_WORKPLACE_OTHER_UNIT) || picked.includes(LEGACY_AUTHOR_WORKPLACE_OTHER_UNIT);
+  const hasUdn = picked.some(
+    (v) => v !== AUTHOR_WORKPLACE_OTHER_UNIT && v !== LEGACY_AUTHOR_WORKPLACE_OTHER_UNIT
+  );
+  if (hasOutside && hasUdn) return 'MIXED';
+  if (hasOutside) return 'OUTSIDE';
+  return 'UDN_ONLY';
+}
+
+/** Đồng bộ dữ liệu cũ: nếu chưa có units thì nội suy từ affiliationType cũ. */
+export function normalizeAffiliationUnits(
+  units: unknown,
+  fallbackAffiliationType: AffiliationType
+): string[] {
+  const picked = uniqueNonEmptyStrings(units);
+  if (picked.length > 0) return picked;
+  if (fallbackAffiliationType === 'OUTSIDE') return [AUTHOR_WORKPLACE_OTHER_UNIT];
+  if (fallbackAffiliationType === 'MIXED') {
+    return [UDN_AFFILIATION_UNITS[0], AUTHOR_WORKPLACE_OTHER_UNIT];
+  }
+  return [UDN_AFFILIATION_UNITS[0]];
+}
 
 /** Chuẩn hoá tác giả từ API về enum hợp lệ của FE, giữ nguyên MIXED để tính đúng điều 1.5. */
 export function normalizePublicationAuthor(a: PublicationAuthor): PublicationAuthor {
@@ -35,9 +82,13 @@ export function normalizePublicationAuthor(a: PublicationAuthor): PublicationAut
     a.affiliationType === 'UDN_ONLY' || a.affiliationType === 'MIXED' || a.affiliationType === 'OUTSIDE'
       ? a.affiliationType
       : 'OUTSIDE';
+  const affiliationUnits = normalizeAffiliationUnits(a.affiliationUnits, aff);
+  const derivedAff = deriveAffiliationTypeFromUnits(affiliationUnits);
   return {
     ...a,
-    affiliationType: aff,
+    affiliationUnits,
+    affiliationType: derivedAff,
+    isMultiAffiliationOutsideUdn: derivedAff === 'MIXED',
   };
 }
 
@@ -101,6 +152,7 @@ export function ensureOwnerAuthorInList(
   bumped.unshift({
     profileId: ownerProfileId,
     fullName: displayName,
+    affiliationUnits: [UDN_AFFILIATION_UNITS[0]],
     authorOrder: 1,
     isMainAuthor: wasEmpty,
     isCorresponding: wasEmpty,
@@ -152,6 +204,7 @@ export interface PublicationAuthor {
   authorOrder: number;
   isMainAuthor: boolean;
   isCorresponding: boolean;
+  affiliationUnits: string[];
   affiliationType: AffiliationType;
   isMultiAffiliationOutsideUdn: boolean;
 }
@@ -180,8 +233,11 @@ export interface Publication {
   isbn?: string;
   url?: string;
   publicationStatus: 'PUBLISHED' | 'ACCEPTED' | 'UNDER_REVIEW';
-  source: 'INTERNAL' | 'GOOGLE_SCHOLAR' | 'SCV_DHDN';
+  source: 'INTERNAL' | 'GOOGLE_SCHOLAR' | 'SCV_DHDN' | 'OPENALEX';
   sourceId?: string;
+  needsIndexConfirmation?: boolean;
+  indexMappedCode?: string;
+  indexMappingReason?: string;
   verifiedByNcv: boolean;
   approvedInternal?: boolean;
   attachmentUrl?: string;
@@ -386,6 +442,7 @@ function publicationAuthorToApiPayload(a: PublicationAuthor) {
     id: coerceAuthorRowId(a.id),
     profile_id: coerceProfileId(a.profileId),
     full_name: a.fullName,
+    affiliation_units: uniqueNonEmptyStrings(a.affiliationUnits),
     author_order: a.authorOrder,
     is_main_author: a.isMainAuthor,
     is_corresponding: a.isCorresponding,
@@ -441,7 +498,7 @@ export const DOMESTIC_RULE_TYPE_OPTIONS: { value: DomesticRuleType; label: strin
 
 /** Giữ cho chỗ khác cần đủ 3 giá trị KPI; form tác giả dùng AUTHOR_WORKPLACE_OPTIONS. */
 export const AFFILIATION_TYPE_OPTIONS: { value: AffiliationType; label: string }[] = [
-  { value: 'UDN_ONLY', label: AUTHOR_WORKPLACE_MEMBER_UNIT },
+  { value: 'UDN_ONLY', label: 'Đơn vị trong ĐHĐN' },
   { value: 'MIXED', label: 'Hỗn hợp (có ngoài ĐHĐN)' },
   { value: 'OUTSIDE', label: AUTHOR_WORKPLACE_OTHER_UNIT },
 ];

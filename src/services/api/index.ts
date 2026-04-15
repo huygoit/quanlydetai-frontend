@@ -23,6 +23,9 @@ export * from './profilePublications';
 // Semantic Scholar Integration
 export * from './semanticScholar';
 
+// OpenAlex Integration
+export * from './openalex';
+
 // Project Proposals
 export * from './projectProposals';
 

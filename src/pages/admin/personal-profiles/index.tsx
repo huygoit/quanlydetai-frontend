@@ -168,11 +168,17 @@ const PersonalProfilesPage: React.FC = () => {
             : []
         }
         request={async (params) => {
-          const { current, pageSize, keyword, departmentId, status } = params;
+          const { current, pageSize, keyword, staffCode, fullName, workEmail, departmentId, status } = params;
+          const mergedKeyword =
+            (typeof keyword === 'string' && keyword.trim()) ||
+            (typeof fullName === 'string' && fullName.trim()) ||
+            (typeof workEmail === 'string' && workEmail.trim()) ||
+            undefined;
           const result = await getPersonalProfiles({
             page: current,
             perPage: pageSize,
-            keyword,
+            keyword: mergedKeyword,
+            staffCode: typeof staffCode === 'string' && staffCode.trim() ? staffCode.trim() : undefined,
             departmentId,
             status: status as PersonalProfileStatus,
           });

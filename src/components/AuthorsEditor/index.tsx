@@ -4,7 +4,11 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { Alert, Space, Typography, Tag, Modal, Input, List, Button, Spin } from 'antd';
 import type { PublicationAuthor, AffiliationType } from '@/services/api/profilePublications';
 import {
-  AUTHOR_WORKPLACE_OPTIONS,
+  AUTHOR_AFFILIATION_MULTI_OPTIONS,
+  AUTHOR_WORKPLACE_OTHER_UNIT,
+  deriveAffiliationTypeFromUnits,
+  normalizeAffiliationUnits,
+  UDN_AFFILIATION_UNITS,
   normalizePublicationAuthor,
   lookupAuthorProfiles,
   type AuthorProfileLookupItem,
@@ -173,21 +177,17 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
           next = { ...next, profileId: prevRow.profileId };
         }
       }
+      const legacyAff: AffiliationType =
+        next.affiliationType === 'UDN_ONLY' || next.affiliationType === 'MIXED' || next.affiliationType === 'OUTSIDE'
+          ? next.affiliationType
+          : 'OUTSIDE';
+      const affiliationUnits = normalizeAffiliationUnits(next.affiliationUnits, legacyAff);
+      const affiliationType = deriveAffiliationTypeFromUnits(affiliationUnits);
       return {
         ...next,
-        affiliationType:
-          next.affiliationType === 'UDN_ONLY' ||
-          next.affiliationType === 'MIXED' ||
-          next.affiliationType === 'OUTSIDE'
-            ? next.affiliationType
-            : ('OUTSIDE' as AffiliationType),
-        // affiliation_type=MIXED đã bao hàm đồng thời trong + ngoài ĐHĐN => tự động coi là kiêm nhiệm ngoài.
-        isMultiAffiliationOutsideUdn:
-          (next.affiliationType === 'UDN_ONLY' ||
-            next.affiliationType === 'MIXED' ||
-            next.affiliationType === 'OUTSIDE'
-            ? next.affiliationType
-            : 'OUTSIDE') === 'MIXED',
+        affiliationUnits,
+        affiliationType,
+        isMultiAffiliationOutsideUdn: affiliationType === 'MIXED',
       };
     });
   }
@@ -339,19 +339,37 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     },
     {
       title: 'Cơ quan công tác',
-      dataIndex: 'affiliationType',
+      dataIndex: 'affiliationUnits',
       valueType: 'select',
-      width: 230,
+      width: 320,
       fieldProps: {
-        options: AUTHOR_WORKPLACE_OPTIONS,
-        placeholder: 'Chọn cơ quan công tác',
+        mode: 'multiple',
+        options: AUTHOR_AFFILIATION_MULTI_OPTIONS,
+        maxTagCount: 'responsive',
+        placeholder: 'Chọn một hoặc nhiều đơn vị',
       },
       formItemProps: {
-        rules: [{ required: true, message: 'Chọn cơ quan công tác' }],
+        rules: [
+          { required: true, message: 'Chọn cơ quan công tác' },
+          {
+            validator: async (_, value: unknown) => {
+              if (Array.isArray(value) && value.length > 0) return;
+              throw new Error('Cần chọn ít nhất 1 đơn vị');
+            },
+          },
+        ],
       },
       render: (_, record) => {
-        const opt = AUTHOR_WORKPLACE_OPTIONS.find((o) => o.value === record.affiliationType);
-        return opt?.label ?? '-';
+        if (!Array.isArray(record.affiliationUnits) || record.affiliationUnits.length === 0) return '-';
+        return (
+          <Space size={[4, 4]} wrap>
+            {record.affiliationUnits.map((u) => (
+              <Tag key={`${record.id}-${u}`} color={u === AUTHOR_WORKPLACE_OTHER_UNIT ? 'orange' : 'geekblue'}>
+                {u}
+              </Tag>
+            ))}
+          </Space>
+        );
       },
     },
     {
@@ -419,27 +437,6 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         />
       )}
 
-      <Space style={{ marginBottom: 12 }} direction="vertical" size={4}>
-        <Space wrap>
-          <Text>
-            <strong>n</strong> (nhóm chính = tác giả chính hoặc liên hệ): {validation.n}
-          </Text>
-          <Text>
-            <strong>p</strong> (tổng số tác giả): {dataSource.length}
-          </Text>
-        </Space>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          Tác giả vừa thuộc đơn vị trong và ngoài ĐHĐN: chọn cơ quan "Vừa trong và ngoài ĐHĐN", hệ thống sẽ tự
-          áp điều kiện chia 2 theo quy định 1.5.
-        </Text>
-        {ownerProfileId != null && (
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            NCV nội bộ: dùng “Chọn từ hồ sơ NCV” để gắn profile_id. Tác giả ngoài: nhập họ tên, có thể để “Tác
-            giả ngoài / nhập tay”.
-          </Text>
-        )}
-      </Space>
-
       <EditableProTable<AuthorEditableRow>
         rowKey="id"
         /** Bật chế độ value điều khiển từ ngoài: mỗi lần dữ liệu dòng đổi thì Form trong bảng được cập nhật; nếu tắt thì sau khi chọn NCV ô họ tên vẫn trống dù state đã có tên. */
@@ -467,6 +464,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                     authorOrder: maxOrder + 1,
                     isMainAuthor: false,
                     isCorresponding: false,
+                    affiliationUnits: [UDN_AFFILIATION_UNITS[0]],
                     affiliationType: 'UDN_ONLY' as AffiliationType,
                     isMultiAffiliationOutsideUdn: false,
                   };

@@ -21,6 +21,25 @@ const MAC_DINH: LeafFormSchema = {
 };
 
 const PUB_THEO_LA: Record<string, LeafFormSchema> = {
+  QD_R14: {
+    leafCode: 'QD_R14',
+    tenHienThi: 'Tạp chí thuộc danh mục HĐGSNN',
+    batBuocForm: ['title', 'researchOutputTypePath', 'hdgsnnScore', 'authors'],
+    batBuocApiPayload: ['researchOutputTypeId', 'title', 'hdgsnnScore', 'authors'],
+    ghiChuTinhToan: [
+      'Giờ gốc B0 = 600 × điểm HĐGSNN.',
+      'Áp hệ số a và chia theo n/p theo quy định 1883.',
+    ],
+  },
+  QD_R15: {
+    leafCode: 'QD_R15',
+    tenHienThi: 'Hội thảo có ISBN (danh mục HĐGSNN)',
+    batBuocForm: ['title', 'researchOutputTypePath', 'isbn', 'authors'],
+    batBuocApiPayload: ['researchOutputTypeId', 'title', 'isbn', 'authors'],
+    ghiChuTinhToan: [
+      'Cần ISBN để xác định đúng loại hội thảo có phản biện và kỷ yếu có ISBN.',
+    ],
+  },
   PUB_DOMESTIC_HDGNN: {
     leafCode: 'PUB_DOMESTIC_HDGNN',
     tenHienThi: 'Bài báo tính theo điểm HĐGSNN',
@@ -134,7 +153,7 @@ export function laySchemaTheoMaLa(
     };
   }
   if ((ruleKind ?? '').toUpperCase() === 'HDGSNN_POINTS_TO_HOURS') {
-    return PUB_THEO_LA.PUB_DOMESTIC_HDGNN;
+    return PUB_THEO_LA.QD_R14 ?? PUB_THEO_LA.PUB_DOMESTIC_HDGNN;
   }
   return { ...MAC_DINH, leafCode: code || MAC_DINH.leafCode };
 }

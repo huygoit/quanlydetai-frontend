@@ -72,7 +72,7 @@ const StaffsPage: React.FC = () => {
       dataIndex: 'staffCode',
       width: 110,
       copyable: true,
-      search: false,
+      fieldProps: { placeholder: 'Nhập mã NV' },
       sorter: true,
     },
     {
@@ -168,7 +168,7 @@ const StaffsPage: React.FC = () => {
         rowKey="id"
         columns={columns}
         request={async (params, sort) => {
-          const { current, pageSize, keyword, departmentId, staffType, hasUser } = params;
+          const { current, pageSize, keyword, staffCode, departmentId, staffType, hasUser } = params;
 
           let sortBy: StaffSortField = 'fullName';
           let order: 'asc' | 'desc' = 'asc';
@@ -191,6 +191,7 @@ const StaffsPage: React.FC = () => {
             page: current,
             perPage: pageSize,
             keyword: kw || undefined,
+            staffCode: typeof staffCode === 'string' && staffCode.trim() ? staffCode.trim() : undefined,
             departmentId: Number.isFinite(deptId) ? deptId : undefined,
             staffType: typeof staffType === 'string' && staffType.trim() ? staffType.trim() : undefined,
             sortBy,
