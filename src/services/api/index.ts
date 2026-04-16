@@ -20,6 +20,9 @@ export * from './profile';
 // Profile Publications (quy đổi giờ NCKH)
 export * from './profilePublications';
 
+// Upload file
+export * from './fileUpload';
+
 // Semantic Scholar Integration
 export * from './semanticScholar';
 

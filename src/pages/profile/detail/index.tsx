@@ -25,6 +25,7 @@ import {
   message,
   Timeline,
   Descriptions,
+  Modal,
 } from 'antd';
 import {
   UserOutlined,
@@ -43,6 +44,7 @@ import {
   HomeOutlined,
   TrophyOutlined,
   CalculatorOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { PageContainer, ProList } from '@ant-design/pro-components';
 import {
@@ -71,6 +73,12 @@ const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
   CHU_TRI: { text: 'Tác giả chính', color: 'gold' },
   DONG_TAC_GIA: { text: 'Đồng tác giả', color: 'blue' },
 };
+
+/** Đoán ảnh / tệp PDF từ đuôi đường dẫn (bỏ tham số sau dấu ?) để hiển thị trong popup. */
+const laDuongDanAnhChungChi = (url: string) =>
+  /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(url).split('?')[0] || '');
+const laDuongDanPdfChungChi = (url: string) => /\.pdf$/i.test(String(url).split('?')[0] || '');
+
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import './index.less';
 
@@ -96,6 +104,14 @@ const ProfileDetailPage: React.FC = () => {
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewPubId, setPreviewPubId] = useState<number | null>(null);
   const [previewPubTitle, setPreviewPubTitle] = useState<string>('');
+
+  /** Popup xem chứng chỉ ngoại ngữ (ảnh hoặc tệp PDF). */
+  const [popupChungChi, setPopupChungChi] = useState<{
+    mo: boolean;
+    url: string;
+    tieuDe: string;
+  }>({ mo: false, url: '', tieuDe: 'Xem chứng chỉ' });
+  const [loiXemChungChi, setLoiXemChungChi] = useState<string | null>(null);
 
   const canVerify = access.canVerifyProfile;
   const canViewHoursConversion = access.canVerifyProfile;
@@ -629,9 +645,28 @@ const ProfileDetailPage: React.FC = () => {
                             },
                             description: {
                               render: (_, record) => (
-                                <Space>
+                                <Space wrap>
                                   {record.level && <Tag>{record.level}</Tag>}
                                   {record.certificate && <Tag color="blue">{record.certificate}</Tag>}
+                                  {record.certificateUrl && (
+                                    <Button
+                                      type="link"
+                                      size="small"
+                                      icon={<EyeOutlined />}
+                                      style={{ padding: 0, height: 'auto' }}
+                                      onClick={() =>
+                                        setPopupChungChi({
+                                          mo: true,
+                                          url: record.certificateUrl!,
+                                          tieuDe: record.language
+                                            ? `Xem chứng chỉ — ${record.language}`
+                                            : 'Xem chứng chỉ',
+                                        })
+                                      }
+                                    >
+                                      Xem chứng chỉ
+                                    </Button>
+                                  )}
                                 </Space>
                               ),
                             },
@@ -816,6 +851,79 @@ const ProfileDetailPage: React.FC = () => {
           )}
         </div>
       </Drawer>
+
+      <Modal
+        title={popupChungChi.tieuDe}
+        open={popupChungChi.mo}
+        onCancel={() => setPopupChungChi((s) => ({ ...s, mo: false }))}
+        footer={
+          <Space wrap>
+            <Button
+              onClick={() =>
+                window.open(popupChungChi.url, '_blank', 'noopener,noreferrer')
+              }
+            >
+              Mở tab mới
+            </Button>
+            <Button type="primary" onClick={() => setPopupChungChi((s) => ({ ...s, mo: false }))}>
+              Đóng
+            </Button>
+          </Space>
+        }
+        width={Math.min(920, typeof window !== 'undefined' ? window.innerWidth - 48 : 920)}
+        centered
+        destroyOnClose
+      >
+        {popupChungChi.url ? (
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            {loiXemChungChi && (
+              <div>
+                <Tag color="orange">Không xem được trong popup</Tag>
+                <Text type="secondary"> {loiXemChungChi}</Text>
+              </div>
+            )}
+
+            {laDuongDanAnhChungChi(popupChungChi.url) ? (
+              <div style={{ textAlign: 'center', minHeight: 120 }}>
+                <img
+                  src={popupChungChi.url}
+                  alt="Ảnh chứng chỉ"
+                  style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' }}
+                  onError={() => {
+                    setLoiXemChungChi('Ảnh không tải được. Có thể link hết hạn hoặc máy chủ chặn truy cập từ trang này.');
+                  }}
+                />
+              </div>
+            ) : laDuongDanPdfChungChi(popupChungChi.url) ? (
+              <object
+                data={popupChungChi.url}
+                type="application/pdf"
+                style={{ width: '100%', height: '75vh' }}
+              >
+                <iframe
+                  title="Tệp PDF chứng chỉ"
+                  src={popupChungChi.url}
+                  style={{ width: '100%', height: '75vh', border: 'none' }}
+                  onError={() => {
+                    setLoiXemChungChi('Tệp PDF bị chặn nhúng (X-Frame-Options/CSP) hoặc link không truy cập được. Vui lòng bấm «Mở tab mới».');
+                  }}
+                />
+              </object>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <img
+                  src={popupChungChi.url}
+                  alt="Chứng chỉ"
+                  style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }}
+                  onError={() => {
+                    setLoiXemChungChi('Không tải được nội dung. Nếu đây là PDF/ảnh dạng link ký tên, hãy bấm «Mở tab mới».');
+                  }}
+                />
+              </div>
+            )}
+          </Space>
+        ) : null}
+      </Modal>
 
       {/* Converted Hours Preview Modal */}
       <ConvertedHoursPreviewModal

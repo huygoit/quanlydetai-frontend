@@ -30,6 +30,7 @@ import {
   InputNumber,
   Popconfirm,
   Cascader,
+  Upload,
 } from 'antd';
 import {
   UserOutlined,
@@ -51,6 +52,8 @@ import {
   CalculatorOutlined,
   ImportOutlined,
   FilePdfOutlined,
+  UploadOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import {
   PageContainer,
@@ -89,6 +92,7 @@ import {
   type PublicationSuggestion,
   type ProfileAttachment,
 } from '@/services/api/profile';
+import { THU_MUC_UPLOAD_MAC_DINH, uploadFileDon } from '@/services/api/fileUpload';
 import { getTeacherKpi } from '@/services/api/kpis';
 import { downloadBlob, downloadFromUrl } from '@/utils/download';
 import {
@@ -131,6 +135,11 @@ const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
   CHU_TRI: { text: 'Tác giả chính', color: 'gold' },
   DONG_TAC_GIA: { text: 'Đồng tác giả', color: 'blue' },
 };
+
+/** Đoán loại file từ đuôi URL (bỏ query) để chọn ảnh / PDF trong popup xem chứng chỉ. */
+const laDuongDanAnhChungChi = (url: string) =>
+  /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(url).split('?')[0] || '');
+const laDuongDanPdfChungChi = (url: string) => /\.pdf$/i.test(String(url).split('?')[0] || '');
 
 import './index.less';
 
@@ -1150,6 +1159,15 @@ const MyProfilePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('general');
   const [languageEditableKeys, setLanguageEditableKeys] = useState<React.Key[]>([]);
 
+  /** Popup xem file chứng chỉ ngoại ngữ (ảnh/PDF) thay vì mở tab mới ngay. */
+  const [popupChungChi, setPopupChungChi] = useState<{
+    mo: boolean;
+    url: string;
+    /** Tiêu đề modal — thường gắn với tên ngôn ngữ để người dùng biết đang xem chứng chỉ nào. */
+    tieuDe: string;
+  }>({ mo: false, url: '', tieuDe: 'Xem chứng chỉ' });
+  const [loiXemChungChi, setLoiXemChungChi] = useState<string | null>(null);
+
   /** Tổng giờ NCKH + điểm quy đổi (năm học mặc định theo API). */
   const [nckhHours, setNckhHours] = useState<number | null>(null);
   const [nckhPoints, setNckhPoints] = useState<number | null>(null);
@@ -1383,15 +1401,96 @@ const MyProfilePage: React.FC = () => {
       width: 150,
     },
     {
-      title: 'Link file',
+      title: 'File chứng chỉ',
       dataIndex: 'certificateUrl',
-      width: 200,
-      render: (_, record) => 
-        record.certificateUrl ? (
-          <a href={record.certificateUrl} target="_blank" rel="noopener noreferrer">
-            Xem file
-          </a>
-        ) : '-',
+      width: 220,
+      render: (_, record) => {
+        const id = record.id as unknown as React.Key;
+        const isEditing = languageEditableKeys.includes(id);
+        if (isEditing) {
+          return <Tag color="processing">Đang sửa…</Tag>;
+        }
+        if (record.certificateUrl) {
+          return (
+            <Space size={8} wrap>
+              <Button
+                type="link"
+                size="small"
+                icon={<EyeOutlined />}
+                style={{ padding: 0 }}
+                onClick={() =>
+                  setPopupChungChi({
+                    mo: true,
+                    url: record.certificateUrl!,
+                    tieuDe: record.language
+                      ? `Xem chứng chỉ — ${record.language}`
+                      : 'Xem chứng chỉ',
+                  })
+                }
+              >
+                Xem chứng chỉ
+              </Button>
+              <Button
+                size="small"
+                icon={<UploadOutlined />}
+                onClick={() => setLanguageEditableKeys((prev) => (prev.includes(id) ? prev : [...prev, id]))}
+              >
+                Đổi file
+              </Button>
+            </Space>
+          );
+        }
+        return (
+          <Button
+            size="small"
+            icon={<UploadOutlined />}
+            onClick={() => setLanguageEditableKeys((prev) => (prev.includes(id) ? prev : [...prev, id]))}
+          >
+            Tải lên
+          </Button>
+        );
+      },
+      renderFormItem: (_schema, config, form) => {
+        const recordKey = (config as any)?.recordKey as React.Key;
+        const currentUrl =
+          typeof recordKey !== 'undefined'
+            ? (form as any)?.getFieldValue?.([recordKey, 'certificateUrl'])
+            : undefined;
+
+        return (
+          <Space.Compact style={{ width: '100%' }}>
+            <Upload
+              accept=".pdf,.png,.jpg,.jpeg"
+              showUploadList={false}
+              customRequest={async (options) => {
+                const file = options.file as File;
+                try {
+                  const kq = await uploadFileDon(file, { folder: THU_MUC_UPLOAD_MAC_DINH });
+                  (form as any)?.setFieldValue?.([recordKey, 'certificateUrl'], kq.url);
+                  message.success('Đã tải file lên, vui lòng bấm “Lưu” dòng này để ghi nhận.');
+                  options.onSuccess?.(kq as any);
+                } catch (e: any) {
+                  message.error(e?.message || 'Tải file lên thất bại');
+                  options.onError?.(e);
+                }
+              }}
+            >
+              <Button icon={<UploadOutlined />}>Tải lên</Button>
+            </Upload>
+            <Input
+              value={currentUrl}
+              placeholder="URL file sẽ tự điền sau khi tải lên"
+              onChange={(ev) => (form as any)?.setFieldValue?.([recordKey, 'certificateUrl'], ev.target.value)}
+            />
+            <Button
+              onClick={() => (form as any)?.setFieldValue?.([recordKey, 'certificateUrl'], undefined)}
+              disabled={!currentUrl}
+            >
+              Xóa
+            </Button>
+          </Space.Compact>
+        );
+      },
     },
     {
       title: 'Thao tác',
@@ -1966,11 +2065,18 @@ const MyProfilePage: React.FC = () => {
                         rowKey="id"
                         value={profile.languages || []}
                         onChange={async (value) => {
-                          const result = await updateMyProfile(profile.id, {
-                            languages: value as ProfileLanguage[],
-                          });
-                          if (result.data) {
-                            setProfile(result.data);
+                          try {
+                            const result = await updateMyProfile({
+                              languages: value as ProfileLanguage[],
+                            });
+                            if (result.success && result.data) {
+                              setProfile(result.data);
+                              message.success('Đã lưu ngoại ngữ');
+                              return;
+                            }
+                            message.error('Lưu ngoại ngữ thất bại');
+                          } catch (e: any) {
+                            message.error(e?.message || 'Lưu ngoại ngữ thất bại');
                           }
                         }}
                         columns={languageColumns}
@@ -1988,7 +2094,7 @@ const MyProfilePage: React.FC = () => {
                           editableKeys: languageEditableKeys,
                           onChange: setLanguageEditableKeys,
                           onSave: async () => {
-                            message.success('Đã lưu');
+                            // Việc lưu thực tế được thực hiện trong onChange khi người dùng bấm lưu dòng/xóa dòng.
                           },
                           actionRender: (row, config, dom) => [dom.save, dom.cancel, dom.delete],
                         }}
@@ -2150,6 +2256,83 @@ const MyProfilePage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      <Modal
+        title={popupChungChi.tieuDe}
+        open={popupChungChi.mo}
+        onCancel={() => setPopupChungChi((s) => ({ ...s, mo: false }))}
+        footer={
+          <Space wrap>
+            <Button
+              onClick={() =>
+                window.open(popupChungChi.url, '_blank', 'noopener,noreferrer')
+              }
+            >
+              Mở tab mới
+            </Button>
+            <Button type="primary" onClick={() => setPopupChungChi((s) => ({ ...s, mo: false }))}>
+              Đóng
+            </Button>
+          </Space>
+        }
+        width={Math.min(920, typeof window !== 'undefined' ? window.innerWidth - 48 : 920)}
+        centered
+        destroyOnClose
+      >
+        {popupChungChi.url ? (
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            {loiXemChungChi && (
+              <Alert
+                type="warning"
+                showIcon
+                message="Không xem được chứng chỉ trong popup"
+                description={loiXemChungChi}
+              />
+            )}
+
+            {laDuongDanAnhChungChi(popupChungChi.url) ? (
+              <div style={{ textAlign: 'center', minHeight: 120 }}>
+                <img
+                  src={popupChungChi.url}
+                  alt="Ảnh chứng chỉ"
+                  style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' }}
+                  onError={() => {
+                    setLoiXemChungChi('Ảnh không tải được. Có thể link hết hạn hoặc máy chủ chặn truy cập từ trang này.');
+                  }}
+                />
+              </div>
+            ) : laDuongDanPdfChungChi(popupChungChi.url) ? (
+              <>
+                <object
+                  data={popupChungChi.url}
+                  type="application/pdf"
+                  style={{ width: '100%', height: '75vh' }}
+                >
+                  <iframe
+                    title="Tệp PDF chứng chỉ"
+                    src={popupChungChi.url}
+                    style={{ width: '100%', height: '75vh', border: 'none' }}
+                    onError={() => {
+                      setLoiXemChungChi('Tệp PDF bị chặn nhúng (X-Frame-Options/CSP) hoặc link không truy cập được. Vui lòng bấm «Mở tab mới».');
+                    }}
+                  />
+                </object>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <img
+                  src={popupChungChi.url}
+                  alt="Chứng chỉ"
+                  style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }}
+                  onError={() => {
+                    setLoiXemChungChi('Không tải được nội dung. Nếu đây là PDF/ảnh dạng link ký tên, hãy bấm «Mở tab mới».');
+                  }}
+                />
+              </div>
+            )}
+          </Space>
+        ) : null}
+      </Modal>
     </PageContainer>
   );
 };

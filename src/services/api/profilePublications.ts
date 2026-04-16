@@ -254,8 +254,12 @@ export interface PublicationQueryParams {
 
 export interface ConvertedHoursBreakdown {
   baseHours: number;
-  /** Hệ số a QĐ trên cả nhóm tác giả (VD cùng ĐHĐN = 2) */
-  unitCoefficient: number;
+  /** Hệ số a mục 1.1 — chỉ dùng khi rule công bố là MULTIPLY_A; loại khác null (hiển thị NA) */
+  unitCoefficient: number | null;
+  /** Mã rule_kind từ backend (FIXED, MULTIPLY_A, …) — phục vụ mô tả công thức trên UI */
+  ruleKind?: string | null;
+  /** Giải thích unitCoefficient hoặc lý do không áp dụng a */
+  unitCoefficientReason?: string | null;
   /** Điểm danh mục P0 trước chia tác giả */
   basePoints?: number;
   /** Tổng giờ công trình B (sau B0×a, trước chia n/p) — khác phần giờ một NCV */
@@ -267,6 +271,8 @@ export interface ConvertedHoursBreakdown {
   totalConvertedPoints?: number;
   /** B (pool) — trùng poolHoursB nếu có */
   totalHours?: number | null;
+  /** P (pool) — trùng poolPointsP nếu có */
+  totalPoints?: number | null;
   n: number;
   p: number;
   authorBreakdown: Array<{
@@ -280,7 +286,7 @@ export interface ConvertedHoursBreakdown {
     coefficient: number;
   }>;
   warnings?: string[];
-  affiliationCompositeA?: number;
+  affiliationCompositeA?: number | null;
   authorUnitFactor?: number;
 }
 

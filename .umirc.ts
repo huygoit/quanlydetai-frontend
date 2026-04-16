@@ -15,6 +15,14 @@ export default defineConfig({
       target: 'http://localhost:3333',
       changeOrigin: true,
     },
+    /**
+     * Proxy file tĩnh upload (chứng chỉ/đính kèm) sang backend.
+     * Backend phục vụ theo route: GET /storage/profile-attachments/:filename
+     */
+    '/storage': {
+      target: 'http://localhost:3333',
+      changeOrigin: true,
+    },
   },
   access: {},
   model: {},

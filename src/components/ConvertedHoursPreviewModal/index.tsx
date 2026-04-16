@@ -19,6 +19,19 @@ function dinhDangSo(v: unknown, maxFractionDigits = 2): string {
   });
 }
 
+/** Điểm quy đổi: cần nhiều chữ số thập phân hơn giờ (vd B0=21 giờ → P0=0,035 điểm). */
+function dinhDangDiem(v: unknown, maxFractionDigits = 4): string {
+  return dinhDangSo(v, maxFractionDigits);
+}
+
+/** Hiển thị hệ số a mục 1.1: null/undefined → NA (loại cố định và rule không nhân a). */
+function chuoiHeSoDonViA(v: unknown): string {
+  if (v === null || v === undefined) return 'NA';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 'NA';
+  return dinhDangSo(n, 2);
+}
+
 function noiDungTooltipHeSoA(v: unknown): string {
   const a = Number(v);
   if (!Number.isFinite(a)) return '';
@@ -29,6 +42,17 @@ function noiDungTooltipHeSoA(v: unknown): string {
     return 'a=1,5: Các tác giả thuộc đơn vị trong và ngoài ĐHĐN';
   }
   return 'a=1: Các trường hợp khác';
+}
+
+function tooltipHeSoDonViTheoPhanHoi(data: ConvertedHoursBreakdown | null): string {
+  if (!data) return '';
+  const lyDo = (data.unitCoefficientReason || '').trim();
+  if (data.unitCoefficient == null) {
+    return lyDo || 'Loại kết quả này không áp hệ số a theo đơn vị (mục 1.1).';
+  }
+  const theoA = noiDungTooltipHeSoA(data.unitCoefficient);
+  if (theoA) return theoA;
+  return lyDo;
 }
 
 interface ConvertedHoursPreviewModalProps {
@@ -135,7 +159,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       align: 'right',
       render: (val) => (
         <Text strong style={{ color: '#722ed1' }}>
-          {dinhDangSo(val, 2)}
+          {dinhDangDiem(val, 4)}
         </Text>
       ),
     },
@@ -228,7 +252,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
                 </Table.Summary.Cell>
                 <Table.Summary.Cell index={2} align="right">
                   <Text strong style={{ color: '#722ed1' }}>
-                    {dinhDangSo(tongDiemBang, 2)}
+                    {dinhDangDiem(tongDiemBang, 4)}
                   </Text>
                 </Table.Summary.Cell>
               </Table.Summary.Row>
@@ -251,8 +275,23 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
           description={
             <div>
               <p style={{ margin: '4px 0' }}>
-                <strong>B</strong> = tổng giờ công trình sau hệ số <strong>a</strong> (quy định 1.1), thường{' '}
-                <strong>B = B0 × a</strong>.
+                {(data?.ruleKind || '').toUpperCase() === 'MULTIPLY_A' ? (
+                  <>
+                    <strong>B</strong> = tổng giờ công trình sau hệ số <strong>a</strong> (quy định 1.1):{' '}
+                    <strong>B = B0 × a</strong>.
+                  </>
+                ) : (data?.ruleKind || '').toUpperCase() === 'HDGSNN_POINTS_TO_HOURS' ? (
+                  <>
+                    <strong>B</strong> = giờ suy từ điểm HĐGSNN (không nhân thêm hệ số <strong>a</strong> mục 1.1):{' '}
+                    <strong>B = B0</strong>.
+                  </>
+                ) : (
+                  <>
+                    Với loại <strong>{data?.ruleKind ?? '…'}</strong>, tổng giờ công trình{' '}
+                    <strong>B = B0</strong> (không nhân hệ số <strong>a</strong> mục 1.1). Chỉ rule{' '}
+                    <strong>MULTIPLY_A</strong> mới dùng <strong>B = B0 × a</strong>.
+                  </>
+                )}
               </p>
               <p style={{ margin: '4px 0' }}>
                 <strong>Điểm quy đổi:</strong>{' '}
@@ -287,7 +326,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
             <Text strong>{dinhDangSo(data?.baseHours, 2)}</Text>
           </Descriptions.Item>
           <Descriptions.Item label="Điểm quy đổi chuẩn (P0)">
-            <Text strong>{dinhDangSo(data?.basePoints, 2)}</Text>
+            <Text strong>{dinhDangDiem(data?.basePoints, 4)}</Text>
           </Descriptions.Item>
           <Descriptions.Item label="Tổng số tác giả (p)">
             <Text strong>{data?.p || 0}</Text>
@@ -296,13 +335,14 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
             <Text strong>{data?.n || 0}</Text>
           </Descriptions.Item>
           <Descriptions.Item label="Hệ số điều chỉnh theo đơn vị (a)" span={2}>
-            <Tooltip title={noiDungTooltipHeSoA(data?.unitCoefficient)}>
+            <Tooltip title={tooltipHeSoDonViTheoPhanHoi(data)}>
               <Text strong style={{ cursor: 'help' }}>
-                {dinhDangSo(data?.unitCoefficient, 2)}
+                {chuoiHeSoDonViA(data?.unitCoefficient)}
               </Text>
             </Tooltip>
           </Descriptions.Item>
           {data?.authorUnitFactor != null &&
+            data.unitCoefficient != null &&
             data.authorUnitFactor !== data.unitCoefficient &&
             Number(data.authorUnitFactor) !== 1 && (
               <Descriptions.Item label="Hệ số đơn vị dòng NCV (a₁)" span={2}>
@@ -311,7 +351,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
             )}
           <Descriptions.Item label="Tổng điểm quy đổi (P)">
             <Title level={4} style={{ margin: 0, color: '#722ed1' }}>
-              {dinhDangSo(poolP, 2)} điểm
+              {dinhDangDiem(poolP, 4)} điểm
             </Title>
           </Descriptions.Item>
           <Descriptions.Item label="Tổng giờ NCKH quy đổi (B)">
