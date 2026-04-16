@@ -941,7 +941,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         title={editingPub ? 'Chỉnh sửa kết quả NCKH' : 'Thêm kết quả NCKH'}
         open={drawerVisible}
         onClose={() => setDrawerVisible(false)}
-        width={800}
+        width="100vw"
         extra={
           <Space>
             <Button onClick={() => setDrawerVisible(false)}>Hủy</Button>
