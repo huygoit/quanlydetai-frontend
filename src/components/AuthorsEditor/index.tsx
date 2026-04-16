@@ -255,7 +255,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       title: 'STT',
       dataIndex: 'authorOrder',
       valueType: 'digit',
-      width: 72,
+      width: 56,
       formItemProps: {
         rules: [{ required: true, message: 'Bắt buộc' }],
       },
@@ -264,7 +264,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     {
       title: 'Họ tên',
       dataIndex: 'fullName',
-      width: 200,
+      width: 170,
       formItemProps: {
         rules: [{ required: true, message: 'Bắt buộc' }],
       },
@@ -275,7 +275,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     {
       title: 'Liên kết hồ sơ',
       key: 'profileLookup',
-      width: 280,
+      width: 180,
       editable: false,
       render: (_, record) => (
         <Space direction="vertical" size={4} style={{ width: '100%' }}>
@@ -317,7 +317,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       title: 'Tác giả chính',
       dataIndex: 'isMainAuthor',
       valueType: 'switch',
-      width: 130,
+      width: 110,
       fieldProps: {
         checkedChildren: 'Có',
         unCheckedChildren: 'Không',
@@ -329,7 +329,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       title: 'Tác giả liên hệ',
       dataIndex: 'isCorresponding',
       valueType: 'switch',
-      width: 140,
+      width: 120,
       fieldProps: {
         checkedChildren: 'Có',
         unCheckedChildren: 'Không',
@@ -341,7 +341,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       title: 'Cơ quan công tác',
       dataIndex: 'affiliationUnits',
       valueType: 'select',
-      width: 320,
+      width: 260,
       fieldProps: {
         mode: 'multiple',
         options: AUTHOR_AFFILIATION_MULTI_OPTIONS,
@@ -375,7 +375,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     {
       title: 'Thao tác',
       valueType: 'option',
-      width: 120,
+      width: 90,
       render: (_, record, __, action) => [
         <a
           key="edit"
@@ -480,7 +480,6 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
           cancelText: 'Hủy',
           actionRender: (_row, _config, defaultDom) => [defaultDom.save, defaultDom.cancel],
         }}
-        scroll={{ x: 1200 }}
         bordered
         size="small"
       />
