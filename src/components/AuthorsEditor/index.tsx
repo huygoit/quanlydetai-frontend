@@ -364,7 +364,17 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         return (
           <Space size={[4, 4]} wrap>
             {record.affiliationUnits.map((u) => (
-              <Tag key={`${record.id}-${u}`} color={u === AUTHOR_WORKPLACE_OTHER_UNIT ? 'orange' : 'geekblue'}>
+              <Tag
+                key={`${record.id}-${u}`}
+                color={u === AUTHOR_WORKPLACE_OTHER_UNIT ? 'orange' : 'geekblue'}
+                style={{
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: '18px',
+                  height: 'auto',
+                  maxWidth: '100%',
+                }}
+              >
                 {u}
               </Tag>
             ))}
