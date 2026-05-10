@@ -66,7 +66,7 @@ interface AuthorBreakdownRow {
   key: string;
   authorName: string;
   authorOrder: number;
-  isMainAuthor: boolean;
+  isTopAuthor: boolean;
   isCorresponding: boolean;
   coefficient: number;
   convertedHours: number;
@@ -128,7 +128,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       render: (name, record) => (
         <Space wrap>
           <span>{name}</span>
-          {record.isMainAuthor && <Tag color="blue">Chính</Tag>}
+          {record.isTopAuthor && <Tag color="blue">Đứng đầu</Tag>}
           {record.isCorresponding && <Tag color="green">Liên hệ</Tag>}
           {record.isViewerRow && <Tag color="purple">Đang xem</Tag>}
         </Space>

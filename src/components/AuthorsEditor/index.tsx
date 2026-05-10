@@ -105,7 +105,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       errors.push('Cần ít nhất 1 tác giả');
     }
 
-    const mainAuthors = dataSource.filter((a) => a.isMainAuthor || a.isCorresponding);
+    const mainAuthors = dataSource.filter((a) => a.isTopAuthor || a.isCorresponding);
     const correspondingAuthors = dataSource.filter((a) => a.isCorresponding);
 
     if (mainAuthors.length === 0) {
@@ -314,8 +314,8 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       ),
     },
     {
-      title: 'Tác giả chính',
-      dataIndex: 'isMainAuthor',
+      title: 'Tác giả đầu',
+      dataIndex: 'isTopAuthor',
       valueType: 'switch',
       width: 110,
       fieldProps: {
@@ -323,7 +323,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         unCheckedChildren: 'Không',
       },
       render: (_, record) =>
-        record.isMainAuthor ? <Tag color="blue">Có</Tag> : <Text type="secondary">Không</Text>,
+        record.isTopAuthor ? <Tag color="blue">Có</Tag> : <Text type="secondary">Không</Text>,
     },
     {
       title: 'Tác giả liên hệ',
@@ -472,7 +472,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                     fullName: '',
                     profileId: null,
                     authorOrder: maxOrder + 1,
-                    isMainAuthor: false,
+                    isTopAuthor: false,
                     isCorresponding: false,
                     affiliationUnits: [UDN_AFFILIATION_UNITS[0]],
                     affiliationType: 'UDN_ONLY' as AffiliationType,

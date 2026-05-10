@@ -28,6 +28,7 @@ import type {
   MoveTypePayload,
   RuleDTO,
   UpsertRulePayload,
+  PhamViHeSoA1883,
 } from '@/types/researchOutputs';
 import './ResearchOutputTypes.less';
 
@@ -85,15 +86,17 @@ const ResearchOutputTypes: React.FC = () => {
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
-  const loadTree = useCallback(async () => {
+  const loadTree = useCallback(async (): Promise<ResearchOutputTypeNode[] | null> => {
     setTreeLoading(true);
     try {
       const data = await fetchTree();
       setTreeData(data);
       setUseDemoMode(false);
+      return data;
     } catch (error: any) {
       setTreeData(MOCK_TREE);
       setUseDemoMode(true);
+      return null;
     } finally {
       setTreeLoading(false);
     }
@@ -227,15 +230,14 @@ const ResearchOutputTypes: React.FC = () => {
           setCreateParent(null);
         } else if (selectedNode) {
           const payload = values as UpdateTypePayload;
-          setTreeData((prev) =>
-            updateNodeInTree(prev, selectedNode.id, {
-              code: payload.code,
-              name: payload.name,
-              sortOrder: payload.sortOrder,
-              isActive: payload.isActive,
-            })
-          );
-          setSelectedNode({ ...selectedNode, ...payload });
+          const demoUpdates: Partial<ResearchOutputTypeNode> = {
+            code: payload.code,
+            name: payload.name,
+            sortOrder: payload.sortOrder,
+            isActive: payload.isActive,
+          };
+          setTreeData((prev) => updateNodeInTree(prev, selectedNode.id, demoUpdates));
+          setSelectedNode({ ...selectedNode, ...demoUpdates });
           message.success('Đã cập nhật (demo)');
         }
       } else {
@@ -248,9 +250,9 @@ const ResearchOutputTypes: React.FC = () => {
           await updateType(selectedNode.id, values as UpdateTypePayload);
           message.success('Đã cập nhật');
         }
-        await loadTree();
-        if (selectedNode) {
-          const updatedNode = findNodeById(treeData, selectedNode.id);
+        const freshTree = await loadTree();
+        if (selectedNode && freshTree) {
+          const updatedNode = findNodeById(freshTree, selectedNode.id);
           if (updatedNode) setSelectedNode(updatedNode);
         }
       }
@@ -381,15 +383,46 @@ const ResearchOutputTypes: React.FC = () => {
     });
   };
 
-  const handleSaveRule = async (payload: UpsertRulePayload) => {
+  const handleSaveRule = async (
+    payload: UpsertRulePayload,
+    phamViHeSoA1883: PhamViHeSoA1883 | null
+  ) => {
     if (!selectedNode) return;
 
     setRuleLoading(true);
     try {
-      const saved = await upsertRule(selectedNode.id, payload);
-      setRule(saved);
-      message.success('Đã lưu rule');
-      await loadTree();
+      if (useDemoMode) {
+        const nextRule: RuleDTO = {
+          ...(rule as RuleDTO),
+          ...payload,
+          id: rule?.id || 1,
+          typeId: selectedNode.id,
+          meta: payload.meta ?? rule?.meta ?? {},
+          createdAt: rule?.createdAt || '',
+          updatedAt: rule?.updatedAt || '',
+        };
+        setRule(nextRule);
+        setTreeData((prev) =>
+          updateNodeInTree(prev, selectedNode.id, {
+            hasRule: true,
+            phamViHeSoA1883,
+          })
+        );
+        setSelectedNode((sn) =>
+          sn ? { ...sn, hasRule: true, phamViHeSoA1883 } : null
+        );
+        message.success('Đã lưu rule (demo)');
+      } else {
+        const saved = await upsertRule(selectedNode.id, payload);
+        setRule(saved);
+        await updateType(selectedNode.id, { phamViHeSoA1883 });
+        message.success('Đã lưu rule');
+        const freshTree = await loadTree();
+        if (selectedNode && freshTree) {
+          const updatedNode = findNodeById(freshTree, selectedNode.id);
+          if (updatedNode) setSelectedNode(updatedNode);
+        }
+      }
     } catch (error: any) {
       message.error(error.message || 'Lỗi lưu rule');
     } finally {
@@ -463,6 +496,7 @@ const ResearchOutputTypes: React.FC = () => {
                     ) : (
                       <RuleForm
                         rule={rule}
+                        typePhamViHeSoA1883={selectedNode.phamViHeSoA1883 ?? null}
                         loading={ruleLoading}
                         onSave={handleSaveRule}
                         onCreate={handleCreateRule}

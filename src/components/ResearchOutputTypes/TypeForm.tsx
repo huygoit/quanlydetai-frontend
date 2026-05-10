@@ -2,9 +2,9 @@
  * TypeForm - Form for creating/editing Research Output Type
  */
 import React, { useEffect } from 'react';
-import { Form, Input, InputNumber, Switch, Button, Space, Popconfirm } from 'antd';
+import { Form, Input, InputNumber, Switch, Button, Space, Popconfirm, Row, Col } from 'antd';
 import { SaveOutlined, DeleteOutlined, DragOutlined } from '@ant-design/icons';
-import type { ResearchOutputTypeNode, CreateTypePayload, UpdateTypePayload } from '@/types/researchOutputs';
+import type { CreateTypePayload, ResearchOutputTypeNode, UpdateTypePayload } from '@/types/researchOutputs';
 
 interface TypeFormProps {
   node: ResearchOutputTypeNode | null;
@@ -99,35 +99,45 @@ const TypeForm: React.FC<TypeFormProps> = ({
         </div>
       )}
 
-      <Form.Item
-        name="code"
-        label="Mã"
-        rules={[
-          { required: true, message: 'Vui lòng nhập mã' },
-          { max: 50, message: 'Tối đa 50 ký tự' },
-        ]}
-      >
-        <Input placeholder="VD: BB_ISI_Q1" />
-      </Form.Item>
+      <Row gutter={[16, 0]}>
+        <Col xs={24} md={12}>
+          <Form.Item
+            name="code"
+            label="Mã"
+            rules={[
+              { required: true, message: 'Vui lòng nhập mã' },
+              { max: 50, message: 'Tối đa 50 ký tự' },
+            ]}
+          >
+            <Input placeholder="VD: BB_ISI_Q1" />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item
+            name="name"
+            label="Tên"
+            rules={[
+              { required: true, message: 'Vui lòng nhập tên' },
+              { max: 200, message: 'Tối đa 200 ký tự' },
+            ]}
+          >
+            <Input placeholder="VD: Bài báo ISI Q1" />
+          </Form.Item>
+        </Col>
+      </Row>
 
-      <Form.Item
-        name="name"
-        label="Tên"
-        rules={[
-          { required: true, message: 'Vui lòng nhập tên' },
-          { max: 200, message: 'Tối đa 200 ký tự' },
-        ]}
-      >
-        <Input placeholder="VD: Bài báo ISI Q1" />
-      </Form.Item>
-
-      <Form.Item name="sortOrder" label="Thứ tự sắp xếp">
-        <InputNumber min={1} max={999} style={{ width: '100%' }} />
-      </Form.Item>
-
-      <Form.Item name="isActive" label="Kích hoạt" valuePropName="checked">
-        <Switch checkedChildren="Bật" unCheckedChildren="Tắt" />
-      </Form.Item>
+      <Row gutter={[16, 0]}>
+        <Col xs={24} md={12}>
+          <Form.Item name="sortOrder" label="Thứ tự sắp xếp">
+            <InputNumber min={1} max={999} style={{ width: '100%' }} />
+          </Form.Item>
+        </Col>
+        <Col xs={24} md={12}>
+          <Form.Item name="isActive" label="Kích hoạt" valuePropName="checked">
+            <Switch checkedChildren="Bật" unCheckedChildren="Tắt" />
+          </Form.Item>
+        </Col>
+      </Row>
 
       <Form.Item>
         <Space wrap>

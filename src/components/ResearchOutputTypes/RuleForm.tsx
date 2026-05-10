@@ -2,7 +2,7 @@
  * RuleForm - Form for editing Rule of Research Output Type
  */
 import React, { useEffect, useState } from 'react';
-import { Form, Input, InputNumber, Select, Button, Space, Alert, Divider, Card, Row, Col } from 'antd';
+import { Form, Input, InputNumber, Select, Button, Alert, Divider, Row, Col, Typography } from 'antd';
 import { SaveOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { EditableProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -11,19 +11,22 @@ import type {
   UpsertRulePayload,
   RuleKind,
   RangeItem,
+  PhamViHeSoA1883,
 } from '@/types/researchOutputs';
-import { RULE_KIND_OPTIONS } from '@/types/researchOutputs';
+import { RULE_KIND_OPTIONS, PHAM_VI_HE_SO_A_1883_OPTIONS } from '@/types/researchOutputs';
 
 const { TextArea } = Input;
 
 interface RuleFormProps {
   rule: RuleDTO | null;
+  /** Giá trị đang lưu trên node lá (research_output_types.pham_vi_he_so_a_1883). */
+  typePhamViHeSoA1883?: PhamViHeSoA1883 | null;
   loading: boolean;
-  onSave: (payload: UpsertRulePayload) => void;
+  onSave: (payload: UpsertRulePayload, phamViHeSoA1883: PhamViHeSoA1883 | null) => void;
   onCreate: () => void;
 }
 
-const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) => {
+const RuleForm: React.FC<RuleFormProps> = ({ rule, typePhamViHeSoA1883, loading, onSave, onCreate }) => {
   const [form] = Form.useForm();
   const [ruleKind, setRuleKind] = useState<RuleKind | undefined>(rule?.ruleKind);
   const [ranges, setRanges] = useState<RangeItem[]>(rule?.meta?.ranges || []);
@@ -42,13 +45,15 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
         c_excellent: rule.meta?.c_map?.EXCELLENT,
         c_pass_on_time: rule.meta?.c_map?.PASS_ON_TIME,
         c_pass_late: rule.meta?.c_map?.PASS_LATE,
+        phamViHeSoA1883:
+          rule.ruleKind === 'MULTIPLY_A' ? (typePhamViHeSoA1883 ?? undefined) : undefined,
       });
     } else {
       form.resetFields();
       setRuleKind(undefined);
       setRanges([]);
     }
-  }, [rule, form]);
+  }, [rule, typePhamViHeSoA1883, form]);
 
   const handleFinish = (values: any) => {
     const payload: UpsertRulePayload = {
@@ -62,11 +67,13 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
         payload.hoursValue = values.hoursValue;
         break;
 
-      case 'MULTIPLY_A':
+      case 'MULTIPLY_A': {
+        const hv = Number(values.hoursValue);
         payload.hoursValue = values.hoursValue;
-        payload.pointsValue = values.pointsValue;
+        payload.pointsValue = Number.isFinite(hv) ? hv / 600 : undefined;
         payload.hoursMultiplierVar = 'a';
         break;
+      }
 
       case 'HDGSNN_POINTS_TO_HOURS':
         payload.hoursValue = 600;
@@ -97,7 +104,9 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
         break;
     }
 
-    onSave(payload);
+    const phamViHeSoA1883: PhamViHeSoA1883 | null =
+      values.ruleKind === 'MULTIPLY_A' ? (values.phamViHeSoA1883 ?? null) : null;
+    onSave(payload, phamViHeSoA1883);
   };
 
   const rangeColumns: ProColumns<RangeItem & { id: string }>[] = [
@@ -141,8 +150,8 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
       case 'FIXED':
         return (
           <>
-            <Row gutter={16}>
-              <Col span={12}>
+            <Row gutter={[16, 0]}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="pointsValue"
                   label="Điểm"
@@ -151,7 +160,7 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
                   <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="hoursValue"
                   label="Giờ quy đổi"
@@ -167,8 +176,8 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
       case 'MULTIPLY_A':
         return (
           <>
-            <Row gutter={16}>
-              <Col span={12}>
+            <Row gutter={[16, 16]} align="stretch">
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="hoursValue"
                   label="Giờ cơ sở"
@@ -177,18 +186,16 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
                   <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
-              <Col span={12}>
-                <Form.Item name="pointsValue" label="Điểm (tuỳ chọn)">
-                  <InputNumber min={0} style={{ width: '100%' }} />
+              <Col xs={24} md={12}>
+                <Form.Item label=" " colon={false} style={{ marginBottom: 0 }}>
+                  <Alert
+                    message="Công thức: Giờ = Giờ cơ sở × a (hệ số tác giả)"
+                    type="info"
+                    showIcon
+                  />
                 </Form.Item>
               </Col>
             </Row>
-            <Alert
-              message="Công thức: Giờ = Giờ cơ sở × a (hệ số tác giả)"
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-            />
           </>
         );
 
@@ -206,8 +213,8 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
       case 'MULTIPLY_C':
         return (
           <>
-            <Row gutter={16}>
-              <Col span={12}>
+            <Row gutter={[16, 0]}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="pointsValue"
                   label="Điểm"
@@ -216,7 +223,7 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
                   <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="hoursValue"
                   label="Giờ cơ sở"
@@ -227,8 +234,8 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
               </Col>
             </Row>
             <Divider orientation="left">Hệ số C theo kết quả nghiệm thu</Divider>
-            <Row gutter={16}>
-              <Col span={8}>
+            <Row gutter={[16, 0]}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="c_excellent"
                   label="Xuất sắc"
@@ -237,7 +244,7 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
                   <InputNumber min={0} step={0.1} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="c_pass_on_time"
                   label="Đạt đúng hạn"
@@ -246,7 +253,9 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
                   <InputNumber min={0} step={0.1} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+            </Row>
+            <Row gutter={[16, 0]}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="c_pass_late"
                   label="Đạt chậm"
@@ -301,8 +310,8 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
       case 'BONUS_ADD':
         return (
           <>
-            <Row gutter={16}>
-              <Col span={8}>
+            <Row gutter={[16, 0]}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="pointsValue"
                   label="Điểm"
@@ -311,7 +320,7 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
                   <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="hoursValue"
                   label="Giờ cơ sở"
@@ -320,7 +329,9 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
                   <InputNumber min={0} style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
-              <Col span={8}>
+            </Row>
+            <Row gutter={[16, 0]}>
+              <Col xs={24} md={12}>
                 <Form.Item
                   name="hoursBonus"
                   label="Giờ thưởng"
@@ -363,27 +374,69 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, loading, onSave, onCreate }) 
 
   return (
     <Form form={form} layout="vertical" onFinish={handleFinish}>
-      <Form.Item
-        name="ruleKind"
-        label="Loại rule"
-        rules={[{ required: true, message: 'Vui lòng chọn loại rule' }]}
-      >
-        <Select
-          options={RULE_KIND_OPTIONS}
-          onChange={(value) => setRuleKind(value as RuleKind)}
-          placeholder="Chọn loại rule"
-        />
-      </Form.Item>
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="Quy đổi giờ theo QĐ 1883 — loại rule (research_output_rules)"
+        description={
+          <>
+            Đủ các dạng engine hỗ trợ, gồm <strong>cộng thưởng</strong> và{' '}
+            <strong>doanh thu theo dải</strong>. Seed ban đầu chỉ có lá với cố định / HĐGSNN / nhân c;
+            có thể đổi hoặc tạo lá mới và chọn đúng loại. Engine công bố không áp «theo dải doanh
+            thu» cho bài báo.
+          </>
+        }
+      />
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={ruleKind === 'MULTIPLY_A' ? 12 : 24}>
+          <Form.Item
+            name="ruleKind"
+            label="Loại rule"
+            rules={[{ required: true, message: 'Vui lòng chọn loại rule' }]}
+          >
+            <Select
+              options={RULE_KIND_OPTIONS}
+              onChange={(value) => {
+                const v = value as RuleKind;
+                setRuleKind(v);
+                if (v === 'MULTIPLY_A') {
+                  form.setFieldValue('phamViHeSoA1883', typePhamViHeSoA1883 ?? undefined);
+                } else {
+                  form.setFieldValue('phamViHeSoA1883', undefined);
+                }
+              }}
+              placeholder="Chọn loại rule"
+            />
+          </Form.Item>
+        </Col>
+        {ruleKind === 'MULTIPLY_A' && (
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="phamViHeSoA1883"
+              label="Phạm vi tính hệ số a (QĐ 1883)"
+              extra={
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Tập tác giả dùng để tính hệ số a. Để trống: engine dùng mặc định (nhóm tác giả chính).
+                </Typography.Text>
+              }
+            >
+              <Select
+                allowClear
+                placeholder="Để trống — mặc định hệ thống"
+                options={PHAM_VI_HE_SO_A_1883_OPTIONS}
+              />
+            </Form.Item>
+          </Col>
+        )}
+      </Row>
 
       {renderRuleFields()}
 
       <Divider />
 
       <Form.Item name="evidenceRequirements" label="Yêu cầu minh chứng">
-        <TextArea
-          rows={3}
-          placeholder="Mô tả các minh chứng cần nộp kèm..."
-        />
+        <TextArea rows={3} placeholder="Mô tả các minh chứng cần nộp kèm..." />
       </Form.Item>
 
       <Form.Item>

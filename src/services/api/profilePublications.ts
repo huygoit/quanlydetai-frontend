@@ -154,7 +154,7 @@ export function ensureOwnerAuthorInList(
     fullName: displayName,
     affiliationUnits: [UDN_AFFILIATION_UNITS[0]],
     authorOrder: 1,
-    isMainAuthor: wasEmpty,
+    isTopAuthor: wasEmpty,
     isCorresponding: wasEmpty,
     affiliationType: 'UDN_ONLY' as AffiliationType,
     isMultiAffiliationOutsideUdn: false,
@@ -202,7 +202,7 @@ export interface PublicationAuthor {
   fullName: string;
   profileId?: number | null;
   authorOrder: number;
-  isMainAuthor: boolean;
+  isTopAuthor: boolean;
   isCorresponding: boolean;
   affiliationUnits: string[];
   affiliationType: AffiliationType;
@@ -278,7 +278,7 @@ export interface ConvertedHoursBreakdown {
   authorBreakdown: Array<{
     authorName: string;
     authorOrder: number;
-    isMainAuthor: boolean;
+    isTopAuthor: boolean;
     isCorresponding: boolean;
     convertedHours: number;
     convertedPoints?: number;
@@ -450,7 +450,7 @@ function publicationAuthorToApiPayload(a: PublicationAuthor) {
     full_name: a.fullName,
     affiliation_units: uniqueNonEmptyStrings(a.affiliationUnits),
     author_order: a.authorOrder,
-    is_main_author: a.isMainAuthor,
+    is_top_author: a.isTopAuthor,
     is_corresponding: a.isCorresponding,
     affiliation_type: a.affiliationType,
     is_multi_affiliation_outside_udn: a.isMultiAffiliationOutsideUdn,
