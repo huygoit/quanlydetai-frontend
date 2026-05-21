@@ -3,7 +3,7 @@
  * Theo specs/scientific-profile.md.md
  * 2-column layout: 70% tabs content + 30% sticky summary
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useModel, history, useSearchParams } from '@umijs/max';
 import {
   Row,
@@ -171,6 +171,11 @@ import './index.less';
 
 const { Title, Text } = Typography;
 
+/** Breadcrumb — mục cha không có path (tránh link /profile trắng trang) */
+const BREADCRUMB_HO_SO_CUA_TOI = {
+  items: [{ title: 'Hồ sơ khoa học' }, { title: 'Hồ sơ của tôi' }],
+};
+
 // ========== PUBLICATIONS TAB COMPONENT ==========
 
 interface PublicationsTabProps {
@@ -207,6 +212,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   const [previewPubId, setPreviewPubId] = useState<number | null>(null);
   const [previewPubTitle, setPreviewPubTitle] = useState<string>('');
   const [openAlexModalVisible, setOpenAlexModalVisible] = useState(false);
+  /** Sau「Nạp vào form」từ OpenAlex — gửi source/sourceId khi lưu mới */
+  const [pendingOpenAlexSourceId, setPendingOpenAlexSourceId] = useState<string | null>(null);
   const [showAdvancedPubFields, setShowAdvancedPubFields] = useState(false);
   const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
   const [researchTreeLoading, setResearchTreeLoading] = useState(false);
@@ -243,6 +250,17 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   // Get unique years for filter
   const years = [...new Set(publications.map((p) => p.year).filter(Boolean))].sort((a, b) => (b || 0) - (a || 0));
 
+  /** Bài OpenAlex đã lưu hồ sơ — khớp sourceId để disable「Nạp vào form」 */
+  const importedOpenAlexSourceIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const p of publications) {
+      if (p.source === 'OPENALEX' && p.sourceId) {
+        ids.add(String(p.sourceId).trim());
+      }
+    }
+    return ids;
+  }, [publications]);
+
   // View publication detail
   const handleViewDetail = (pub: PublicationItem) => {
     setSelectedPub(pub);
@@ -252,6 +270,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   // Open drawer for create
   const handleCreate = () => {
     setEditingPub(null);
+    setPendingOpenAlexSourceId(null);
     setAuthors(ensureOwnerAuthorInList([], myProfileId, myFullName));
     setSelectedLeafRuleKind(null);
     setSelectedLeafCode(null);
@@ -263,6 +282,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
   // Open drawer for edit
   const handleEdit = async (pub: PublicationItem) => {
+    setPendingOpenAlexSourceId(null);
     setEditingPub(pub as unknown as Publication);
     const rotId = pub.researchOutputTypeId;
     const path =
@@ -354,6 +374,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
   const handleApplyOpenAlexDraft = (draft: OpenAlexPublicationDraft) => {
     setEditingPub(null);
+    setPendingOpenAlexSourceId(String(draft.sourceId ?? '').trim() || null);
     const rotId = draft.researchOutputTypeId ?? null;
     const path = rotId && researchOutputTree.length ? findResearchOutputPathById(researchOutputTree, rotId) : null;
     const leaf = rotId && researchOutputTree.length ? findResearchOutputNodeById(researchOutputTree, rotId) : null;
@@ -390,70 +411,6 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         `Đã nạp bài báo nhưng chưa tìm thấy mã loại ${draft.researchOutputTypeCode || 'N/A'} trong danh mục hiện tại.`
       );
     }
-  };
-
-  const handleImportOpenAlexDraft = async (draft: OpenAlexPublicationDraft) => {
-    if (!draft.researchOutputTypeId) {
-      message.warning('Bài báo này chưa map được loại kết quả NCKH. Tôi sẽ mở form để bạn chọn mục lá rồi lưu.');
-      handleApplyOpenAlexDraft(draft);
-      return;
-    }
-    const importedAuthors = ensureOwnerAuthorInList(
-      reassignAuthorOrdersSequential((draft.authors || []).map(normalizePublicationAuthor)),
-      myProfileId,
-      myFullName
-    );
-    const authorsFromTable = importedAuthors
-      .slice()
-      .sort((a, b) => a.authorOrder - b.authorOrder)
-      .map((a) => a.fullName.trim())
-      .filter(Boolean)
-      .join(', ');
-    if (!authorsFromTable) {
-      message.error('Bài báo OpenAlex không có danh sách tác giả hợp lệ để import.');
-      return;
-    }
-    const created = await createMyPublication({
-      researchOutputTypeId: draft.researchOutputTypeId,
-      title: draft.title,
-      authors: authorsFromTable,
-      correspondingAuthor:
-        importedAuthors.find((a) => a.isCorresponding)?.fullName ?? undefined,
-      publicationType: draft.publicationType,
-      journalOrConference: draft.journalOrConference || 'Không rõ nguồn công bố',
-      year: draft.year ?? undefined,
-      volume: draft.volume ?? undefined,
-      issue: draft.issue ?? undefined,
-      pages: draft.pages ?? undefined,
-      doi: draft.doi ?? undefined,
-      issn: draft.issn ?? undefined,
-      url: draft.url ?? undefined,
-      publicationStatus: 'PUBLISHED',
-      source: 'OPENALEX',
-      sourceId: draft.sourceId || undefined,
-      needsIndexConfirmation: !!draft.needsIndexConfirmation,
-      indexMappedCode: draft.researchOutputTypeCode ?? undefined,
-      indexMappingReason: draft.typeMappingReason ?? undefined,
-      verifiedByNcv: false,
-      academicYear: undefined,
-      rank: undefined,
-      quartile: undefined,
-      domesticRuleType: undefined,
-      hdgsnnScore: undefined,
-      isbn: undefined,
-      approvedInternal: false,
-      attachmentUrl: undefined,
-    });
-    if (!created.success || !created.data) {
-      throw new Error('Tạo bài báo từ OpenAlex thất bại.');
-    }
-    await saveMyPublicationAuthors(created.data.id, importedAuthors);
-    if (draft.needsIndexConfirmation) {
-      message.warning('Đã import bài báo, nhưng cần xác nhận lại chỉ mục/Q trước khi chốt KPI.');
-    } else {
-      message.success('Đã import bài báo từ OpenAlex và tạo danh sách tác giả.');
-    }
-    await onReloadPublications();
   };
 
   // Save publication
@@ -520,7 +477,13 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         url: values.url,
         publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
         journalOrConference,
-        source: 'INTERNAL' as const,
+        source: (pendingOpenAlexSourceId && !editingPub
+          ? 'OPENALEX'
+          : editingPub?.source ?? 'INTERNAL') as Publication['source'],
+        sourceId:
+          pendingOpenAlexSourceId && !editingPub
+            ? pendingOpenAlexSourceId
+            : editingPub?.sourceId,
         verifiedByNcv: false,
       };
       setSaving(true);
@@ -547,6 +510,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
       await saveMyPublicationAuthors(pubId, finalAuthors);
 
+      setPendingOpenAlexSourceId(null);
       setDrawerVisible(false);
       onReloadPublications();
     } catch (e: any) {
@@ -988,11 +952,21 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       <Drawer
         title={editingPub ? 'Chỉnh sửa kết quả NCKH' : 'Thêm kết quả NCKH'}
         open={drawerVisible}
-        onClose={() => setDrawerVisible(false)}
+        onClose={() => {
+          setDrawerVisible(false);
+          setPendingOpenAlexSourceId(null);
+        }}
         width="100vw"
         extra={
           <Space>
-            <Button onClick={() => setDrawerVisible(false)}>Hủy</Button>
+            <Button
+              onClick={() => {
+                setDrawerVisible(false);
+                setPendingOpenAlexSourceId(null);
+              }}
+            >
+              Hủy
+            </Button>
             <Button type="primary" loading={saving} onClick={handleSave}>
               Lưu
             </Button>
@@ -1169,7 +1143,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         open={openAlexModalVisible}
         onClose={() => setOpenAlexModalVisible(false)}
         onSelectDraft={handleApplyOpenAlexDraft}
-        onImportDraft={handleImportOpenAlexDraft}
+        importedOpenAlexSourceIds={importedOpenAlexSourceIds}
       />
     </div>
   );
@@ -1696,7 +1670,7 @@ const MyProfilePage: React.FC = () => {
 
   if (loading) {
     return (
-      <PageContainer>
+      <PageContainer breadcrumb={BREADCRUMB_HO_SO_CUA_TOI}>
         <div className="profile-loading">
           <Spin size="large" tip="Đang tải hồ sơ..." />
         </div>
@@ -1706,7 +1680,7 @@ const MyProfilePage: React.FC = () => {
 
   if (!profile) {
     return (
-      <PageContainer>
+      <PageContainer breadcrumb={BREADCRUMB_HO_SO_CUA_TOI}>
         <Empty description="Không tìm thấy hồ sơ" />
       </PageContainer>
     );
@@ -1734,6 +1708,7 @@ const MyProfilePage: React.FC = () => {
     <PageContainer
       title={false}
       className="profile-me-page"
+      breadcrumb={BREADCRUMB_HO_SO_CUA_TOI}
     >
       <ProfileHeader
         name={profile.fullName}

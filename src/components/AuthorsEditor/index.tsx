@@ -13,6 +13,10 @@ import {
   lookupAuthorProfiles,
   type AuthorProfileLookupItem,
 } from '@/services/api/profilePublications';
+import {
+  formatAuthorLookupSubtitle,
+  formatAuthorLookupTitle,
+} from '@/utils/authorProfileLookupDisplay';
 import './index.less';
 
 const { Text } = Typography;
@@ -216,7 +220,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     setPickerOpen(true);
   };
 
-  /** Lấy tên hiển thị từ dòng lookup (đủ biến thể field từ API). */
+  /** Họ tên thuần để ghi vào ô tác giả sau khi chọn (không kèm học hàm/học vị). */
   function tenTuLookup(it: AuthorProfileLookupItem): string {
     const fn = typeof it.fullName === 'string' ? it.fullName.trim() : '';
     if (fn) return fn;
@@ -533,17 +537,8 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                 onClick={() => applyProfilePick(item)}
               >
                 <List.Item.Meta
-                  title={item.fullName}
-                  description={
-                    <span>
-                      {item.workEmail}
-                      {item.faculty || item.department
-                        ? ` · ${[item.faculty, item.department].filter(Boolean).join(' — ')}`
-                        : ''}
-                      {item.organization ? ` · ${item.organization}` : ''}
-                      {item.status ? ` · ${item.status}` : ''}
-                    </span>
-                  }
+                  title={formatAuthorLookupTitle(item)}
+                  description={formatAuthorLookupSubtitle(item)}
                 />
               </List.Item>
             )}

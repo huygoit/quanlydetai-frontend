@@ -10,21 +10,27 @@ interface OpenAlexImportModalProps {
   open: boolean;
   onClose: () => void;
   onSelectDraft: (draft: OpenAlexPublicationDraft) => void;
-  onImportDraft?: (draft: OpenAlexPublicationDraft) => Promise<void> | void;
+  /** sourceId OpenAlex đã lưu trong hồ sơ — không cho nạp lại */
+  importedOpenAlexSourceIds?: ReadonlySet<string>;
 }
 
 const OpenAlexImportModal: React.FC<OpenAlexImportModalProps> = ({
   open,
   onClose,
   onSelectDraft,
-  onImportDraft,
+  importedOpenAlexSourceIds,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<OpenAlexPublicationDraft[]>([]);
-  const [importingKey, setImportingKey] = useState<string | null>(null);
   const [year, setYear] = useState<number | undefined>();
   const [perPage, setPerPage] = useState<number>(20);
+
+  const daCoTrongHoSo = (item: OpenAlexPublicationDraft): boolean => {
+    const id = String(item.sourceId ?? '').trim();
+    if (!id || !importedOpenAlexSourceIds?.size) return false;
+    return importedOpenAlexSourceIds.has(id);
+  };
 
   const loadDrafts = async () => {
     setLoading(true);
@@ -68,7 +74,7 @@ const OpenAlexImportModal: React.FC<OpenAlexImportModalProps> = ({
     >
       <Space direction="vertical" style={{ width: '100%' }} size={12}>
         <Text type="secondary">
-          Dữ liệu được lấy theo ORCID trong hồ sơ đang đăng nhập, sau đó nạp vào form tạo mới kết quả NCKH.
+          Dữ liệu lấy theo ORCID trong hồ sơ. Chọn bài rồi nạp vào form để kiểm tra, chỉnh sửa và lưu vào hồ sơ.
         </Text>
 
         <Row gutter={12}>
@@ -121,28 +127,18 @@ const OpenAlexImportModal: React.FC<OpenAlexImportModalProps> = ({
                   key="apply"
                   type="primary"
                   icon={<CloudDownloadOutlined />}
+                  disabled={daCoTrongHoSo(item)}
+                  title={
+                    daCoTrongHoSo(item)
+                      ? 'Bài này đã được nạp và lưu trong hồ sơ'
+                      : undefined
+                  }
                   onClick={() => {
                     onSelectDraft(item);
                     onClose();
                   }}
                 >
                   Nạp vào form
-                </Button>,
-                <Button
-                  key="import-now"
-                  loading={importingKey === item.sourceId}
-                  onClick={async () => {
-                    if (!onImportDraft) return;
-                    try {
-                      setImportingKey(item.sourceId);
-                      await onImportDraft(item);
-                      onClose();
-                    } finally {
-                      setImportingKey(null);
-                    }
-                  }}
-                >
-                  Import ngay
                 </Button>,
               ]}
             >
@@ -154,6 +150,7 @@ const OpenAlexImportModal: React.FC<OpenAlexImportModalProps> = ({
                     {item.researchOutputTypeCode && <Tag color="geekblue">{item.researchOutputTypeCode}</Tag>}
                     <Tag color="purple">{item.publicationType}</Tag>
                     {item.needsIndexConfirmation && <Tag color="orange">Cần xác nhận chỉ mục</Tag>}
+                    {daCoTrongHoSo(item) && <Tag color="success">Đã có trong hồ sơ</Tag>}
                   </Space>
                 }
                 description={

@@ -299,6 +299,8 @@ export interface AuthorProfileLookupItem {
   id: number;
   fullName: string;
   workEmail: string;
+  degree?: string | null;
+  academicTitle?: string | null;
   organization: string;
   faculty: string | null;
   department: string | null;
@@ -325,15 +327,19 @@ export async function lookupAuthorProfiles(
       [row.fullName, row.full_name, row.name, row.displayName, row.display_name, row.hoTen, row.ho_ten].find(
         (v): v is string => typeof v === 'string' && v.trim().length > 0
       )?.trim() ?? '';
+    const degreeRaw = row.degree ?? row.hoc_vi;
+    const academicTitleRaw = row.academicTitle ?? row.academic_title ?? row.hoc_ham;
     return {
-    id: Number(row.id) || 0,
-    fullName: hoTen,
-    workEmail: String(row.workEmail ?? row.work_email ?? ''),
-    organization: String(row.organization ?? ''),
-    faculty: (row.faculty as string | null) ?? null,
-    department: (row.department as string | null) ?? null,
-    status: String(row.status ?? ''),
-  };
+      id: Number(row.id) || 0,
+      fullName: hoTen,
+      workEmail: String(row.workEmail ?? row.work_email ?? ''),
+      degree: typeof degreeRaw === 'string' ? degreeRaw : null,
+      academicTitle: typeof academicTitleRaw === 'string' ? academicTitleRaw : null,
+      organization: String(row.organization ?? row.co_quan_cong_tac ?? ''),
+      faculty: (row.faculty as string | null) ?? null,
+      department: (row.department as string | null) ?? null,
+      status: String(row.status ?? ''),
+    };
   }).filter((r) => r.id > 0);
 }
 
