@@ -6,8 +6,16 @@ import { get, post, put, del, ApiResponse, PaginatedResponse } from '../request'
 // Types
 export type ProfileStatus = 'DRAFT' | 'UPDATED' | 'VERIFIED' | 'NEED_MORE_INFO';
 export type Gender = 'Nam' | 'Nữ' | 'Khác';
-export type Degree = 'Cử nhân' | 'Thạc sĩ' | 'Tiến sĩ' | 'Khác';
-export type AcademicTitle = 'PGS' | 'GS' | 'Không';
+/** Key `degree` — đồng bộ BE catalog (tiếng Anh) */
+export type Degree =
+  | 'HIGH_SCHOOL'
+  | 'BACHELOR'
+  | 'MASTER'
+  | 'DOCTORATE'
+  | (string & {});
+
+/** Key `academicTitle` — đồng bộ BE catalog */
+export type AcademicTitle = 'NONE' | 'ASSOCIATE_PROFESSOR' | 'PROFESSOR' | (string & {});
 export type AttachmentType = 'CV_PDF' | 'DEGREE' | 'CERTIFICATE' | 'OTHER';
 export type PublicationSource = 'INTERNAL' | 'GOOGLE_SCHOLAR' | 'SCV_DHDN' | 'OPENALEX';
 export type PublicationType = 'JOURNAL' | 'CONFERENCE' | 'BOOK_CHAPTER' | 'BOOK';
@@ -57,6 +65,7 @@ export interface PublicationItem {
   myRole?: AuthorRole;
   publicationType: PublicationType;
   journalOrConference: string;
+  publishedAt?: string | null;
   year?: number;
   academicYear?: string;
   volume?: string;
@@ -130,6 +139,8 @@ export interface ScientificProfile {
   startWorkingAt?: string;
   degree?: Degree;
   academicTitle?: AcademicTitle;
+  /** Năm đạt học hàm — BE có thể trả thêm `academic_title_year` */
+  academicTitleYear?: number | null;
   degreeYear?: number;
   degreeInstitution?: string;
   degreeCountry?: string;
@@ -306,8 +317,22 @@ export const PROFILE_STATUS_MAP: Record<ProfileStatus, { text: string; color: st
   NEED_MORE_INFO: { text: 'Yêu cầu bổ sung', color: 'warning' },
 };
 
-export const DEGREE_OPTIONS: Degree[] = ['Cử nhân', 'Thạc sĩ', 'Tiến sĩ', 'Khác'];
-export const ACADEMIC_TITLE_OPTIONS: AcademicTitle[] = ['Không', 'PGS', 'GS'];
+export {
+  FALLBACK_DEGREE_CATALOG as DEGREE_CATALOG,
+  FALLBACK_ACADEMIC_TITLE_CATALOG,
+  type DegreeKey,
+  type AcademicTitleKey,
+} from '@/constants/scientificProfileCatalog';
+
+/** @deprecated Dùng catalog API — giữ để tương thích import cũ */
+export const DEGREE_OPTIONS: Degree[] = [
+  'HIGH_SCHOOL',
+  'BACHELOR',
+  'MASTER',
+  'DOCTORATE',
+];
+
+export const ACADEMIC_TITLE_OPTIONS: AcademicTitle[] = ['NONE', 'ASSOCIATE_PROFESSOR', 'PROFESSOR'];
 
 export const RESEARCH_AREAS = [
   'Công nghệ thông tin',

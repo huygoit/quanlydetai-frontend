@@ -7,6 +7,7 @@
  */
 import { request as umiRequest, history } from '@umijs/max';
 import { message } from 'antd';
+import { chuanHoaLoiTacGia, laLoiThieuNhomChinh } from '@/utils/authorValidationMessages';
 
 const fromEnv = process.env.UMI_APP_API_URL || process.env.API_URL;
 export const API_BASE_URL = fromEnv && String(fromEnv).trim() !== '' ? String(fromEnv).trim() : '';
@@ -83,24 +84,31 @@ export async function request<T = any>(
         case 403:
           message.error('Bạn không có quyền thực hiện thao tác này.');
           break;
-        case 400:
-          message.error(data.message || 'Yêu cầu không hợp lệ.');
+        case 400: {
+          const raw400 = data.message as string | undefined;
+          if (!laLoiThieuNhomChinh(raw400)) {
+            message.error(chuanHoaLoiTacGia(raw400) || 'Yêu cầu không hợp lệ.');
+          }
           break;
+        }
         case 404:
           message.error(data.message || 'Không tìm thấy tài nguyên.');
           break;
-        case 422:
+        case 422: {
           // Validation error (AdonisJS: errors là mảng {field, rule, message})
+          let rawMsg = data.message as string | undefined;
           if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
             const first = data.errors[0];
-            message.error(first?.message || data.errors[0]);
+            rawMsg = (first?.message as string) || String(data.errors[0]);
           } else if (data.errors && typeof data.errors === 'object') {
             const firstVal = Object.values(data.errors)[0];
-            message.error(Array.isArray(firstVal) ? firstVal[0] : String(firstVal));
-          } else {
-            message.error(data.message || 'Dữ liệu không hợp lệ.');
+            rawMsg = Array.isArray(firstVal) ? String(firstVal[0]) : String(firstVal);
+          }
+          if (!laLoiThieuNhomChinh(rawMsg)) {
+            message.error(chuanHoaLoiTacGia(rawMsg) || 'Dữ liệu không hợp lệ.');
           }
           break;
+        }
         case 500:
           message.error('Lỗi máy chủ. Vui lòng thử lại sau.');
           break;

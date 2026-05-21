@@ -47,6 +47,16 @@ import {
   EyeOutlined,
 } from '@ant-design/icons';
 import { PageContainer, ProList } from '@ant-design/pro-components';
+import ProfileHeader from '@/components/ProfileHeader';
+import {
+  chuanHoaProfileTuApi,
+  coHienThiHocHam,
+  loadScientificProfileCatalogOptions,
+  nhanNhanHocHam,
+  nhanNhanHocVi,
+  type HocViHocHamSelectOption,
+} from '@/utils/profileCatalogOptions';
+import { FALLBACK_ACADEMIC_TITLE_CATALOG, FALLBACK_DEGREE_CATALOG } from '@/constants/scientificProfileCatalog';
 import {
   getProfileById,
   getVerifyLogs,
@@ -113,6 +123,17 @@ const ProfileDetailPage: React.FC = () => {
   }>({ mo: false, url: '', tieuDe: 'Xem chứng chỉ' });
   const [loiXemChungChi, setLoiXemChungChi] = useState<string | null>(null);
 
+  const [degreeOptions, setDegreeOptions] = useState<HocViHocHamSelectOption[]>(() =>
+    FALLBACK_DEGREE_CATALOG.map((d) => ({
+      value: d.value,
+      label: d.label,
+      title: d.description,
+    })),
+  );
+  const [academicTitleOptions, setAcademicTitleOptions] = useState<HocViHocHamSelectOption[]>(() =>
+    FALLBACK_ACADEMIC_TITLE_CATALOG.map((d) => ({ value: d.value, label: d.label })),
+  );
+
   const canVerify = access.canVerifyProfile;
   const canViewHoursConversion = access.canVerifyProfile;
 
@@ -135,7 +156,7 @@ const ProfileDetailPage: React.FC = () => {
       ]);
 
       if (profileResult.success && profileResult.data) {
-        setProfile(profileResult.data);
+        setProfile(chuanHoaProfileTuApi(profileResult.data));
       }
       if (logsResult.success) {
         setVerifyLogs(logsResult.data);
@@ -150,6 +171,13 @@ const ProfileDetailPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    loadScientificProfileCatalogOptions().then(({ degreeOptions: hv, academicTitleOptions: hh }) => {
+      setDegreeOptions(hv);
+      setAcademicTitleOptions(hh);
+    });
+  }, []);
 
   // Handle verify/request
   const handleOpenVerify = (action: 'verify' | 'request') => {
@@ -227,78 +255,63 @@ const ProfileDetailPage: React.FC = () => {
         Quay lại
       </Button>
 
-      {/* Header card */}
-      <Card className="profile-header-card" bordered={false}>
-        <Row gutter={24} align="middle">
-          <Col xs={24} md={16}>
-            <div className="profile-header">
-              <Avatar
-                size={80}
-                src={profile.avatarUrl}
-                icon={<UserOutlined />}
-                className="profile-avatar"
+      <ProfileHeader
+        name={profile.fullName}
+        organization={profile.organization}
+        faculty={profile.faculty}
+        department={profile.department}
+        avatarUrl={profile.avatarUrl}
+        status={statusConfig.text}
+        statusColor={statusConfig.color}
+        researchArea={profile.mainResearchArea}
+        degree={profile.degree}
+        degreeLabel={nhanNhanHocVi(degreeOptions, profile.degree)}
+        degreeYear={profile.degreeYear}
+        academicTitle={profile.academicTitle}
+        academicTitleLabel={nhanNhanHocHam(academicTitleOptions, profile.academicTitle)}
+        academicTitleYear={profile.academicTitleYear}
+        researchHours={null}
+        convertedPoint={null}
+        showMetrics={false}
+        verified={profile.status === 'VERIFIED'}
+        extraActions={
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            {canVerify && (
+              <Space wrap>
+                {profile.status !== 'VERIFIED' && (
+                  <Button
+                    type="primary"
+                    icon={<CheckCircleOutlined />}
+                    onClick={() => handleOpenVerify('verify')}
+                  >
+                    Xác thực
+                  </Button>
+                )}
+                {profile.status !== 'NEED_MORE_INFO' && (
+                  <Button
+                    danger
+                    icon={<ExclamationCircleOutlined />}
+                    onClick={() => handleOpenVerify('request')}
+                  >
+                    Yêu cầu bổ sung
+                  </Button>
+                )}
+              </Space>
+            )}
+            <div className="profile-detail-completeness">
+              <Text type="secondary">Hoàn thiện:</Text>
+              <Progress
+                percent={profile.completeness}
+                size="small"
+                status={profile.completeness >= 80 ? 'success' : 'normal'}
               />
-              <div className="profile-header-info">
-                <Title level={3} className="profile-name">
-                  {profile.fullName}
-                  {profile.status === 'VERIFIED' && (
-                    <Tooltip title="Hồ sơ đã xác thực">
-                      <SafetyCertificateOutlined className="verified-badge" />
-                    </Tooltip>
-                  )}
-                </Title>
-                <Text type="secondary" className="profile-org">
-                  {[profile.organization, profile.faculty, profile.department]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Text>
-                <div className="profile-badges">
-                  <Tag color={statusConfig.color}>{statusConfig.text}</Tag>
-                  {profile.degree && <Tag>{profile.degree}</Tag>}
-                  {profile.academicTitle && profile.academicTitle !== 'Không' && (
-                    <Tag color="gold">{profile.academicTitle}</Tag>
-                  )}
-                  {profile.currentTitle && <Tag color="cyan">{profile.currentTitle}</Tag>}
-                </div>
-              </div>
             </div>
-          </Col>
-          <Col xs={24} md={8}>
-            <div className="profile-actions">
-              {canVerify && (
-                <Space>
-                  {profile.status !== 'VERIFIED' && (
-                    <Button
-                      type="primary"
-                      icon={<CheckCircleOutlined />}
-                      onClick={() => handleOpenVerify('verify')}
-                    >
-                      Xác thực
-                    </Button>
-                  )}
-                  {profile.status !== 'NEED_MORE_INFO' && (
-                    <Button
-                      danger
-                      icon={<ExclamationCircleOutlined />}
-                      onClick={() => handleOpenVerify('request')}
-                    >
-                      Yêu cầu bổ sung
-                    </Button>
-                  )}
-                </Space>
-              )}
-              <div className="completeness">
-                <Text type="secondary">Hoàn thiện:</Text>
-                <Progress
-                  percent={profile.completeness}
-                  size="small"
-                  status={profile.completeness >= 80 ? 'success' : 'normal'}
-                />
-              </div>
-            </div>
-          </Col>
-        </Row>
-      </Card>
+            {profile.currentTitle && (
+              <Tag color="cyan">{profile.currentTitle}</Tag>
+            )}
+          </Space>
+        }
+      />
 
       <Row gutter={24}>
         {/* Main content */}
@@ -386,13 +399,16 @@ const ProfileDetailPage: React.FC = () => {
                         <Descriptions column={1} size="small">
                           {profile.degree && (
                             <Descriptions.Item label="Học vị">
-                              {profile.degree}
+                              {nhanNhanHocVi(degreeOptions, profile.degree) || profile.degree}
                               {profile.degreeYear && ` (${profile.degreeYear})`}
                             </Descriptions.Item>
                           )}
-                          {profile.academicTitle && profile.academicTitle !== 'Không' && (
+                          {coHienThiHocHam(profile.academicTitle) && (
                             <Descriptions.Item label="Học hàm">
-                              {profile.academicTitle}
+                              {nhanNhanHocHam(academicTitleOptions, profile.academicTitle) ||
+                                profile.academicTitle}
+                              {profile.academicTitleYear != null &&
+                                ` (${profile.academicTitleYear})`}
                             </Descriptions.Item>
                           )}
                           {profile.degreeInstitution && (
@@ -408,11 +424,11 @@ const ProfileDetailPage: React.FC = () => {
                       <div className="section">
                         <Title level={5}>Công tác</Title>
                         <Descriptions column={1} size="small">
-                          <Descriptions.Item label={<><HomeOutlined /> Đơn vị</>}>
+                          <Descriptions.Item label={<><HomeOutlined /> Cơ quan công tác</>}>
                             {profile.organization}
                           </Descriptions.Item>
                           {profile.faculty && (
-                            <Descriptions.Item label="Khoa/Phòng">
+                            <Descriptions.Item label="Khoa/phòng ban">
                               {profile.faculty}
                             </Descriptions.Item>
                           )}

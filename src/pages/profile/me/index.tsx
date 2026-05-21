@@ -9,7 +9,6 @@ import {
   Row,
   Col,
   Card,
-  Avatar,
   Tag,
   Button,
   Space,
@@ -28,6 +27,7 @@ import {
   Form,
   Input,
   InputNumber,
+  DatePicker,
   Popconfirm,
   Cascader,
   Upload,
@@ -44,14 +44,12 @@ import {
   FileTextOutlined,
   GlobalOutlined,
   TeamOutlined,
-  SafetyCertificateOutlined,
   CloudSyncOutlined,
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   CalculatorOutlined,
   ImportOutlined,
-  FilePdfOutlined,
   UploadOutlined,
   EyeOutlined,
 } from '@ant-design/icons';
@@ -62,6 +60,8 @@ import {
   ProFormTextArea,
   ProFormSelect,
   ProFormDatePicker,
+  ProFormDependency,
+  ProFormDigit,
   EditableProTable,
   ProList,
 } from '@ant-design/pro-components';
@@ -78,10 +78,7 @@ import {
   ignoreSuggestion,
   exportMyCvPdf,
   PROFILE_STATUS_MAP,
-  DEGREE_OPTIONS,
-  ACADEMIC_TITLE_OPTIONS,
   RESEARCH_AREAS,
-  FACULTIES,
   LANGUAGES,
   PUBLICATION_TYPE_MAP,
   PUBLICATION_RANK_MAP,
@@ -96,6 +93,30 @@ import { THU_MUC_UPLOAD_MAC_DINH, uploadFileDon } from '@/services/api/fileUploa
 import { getTeacherKpi } from '@/services/api/kpis';
 import { downloadBlob, downloadFromUrl } from '@/utils/download';
 import {
+  CO_QUAN_CONG_TAC_OPTIONS,
+  gopGiaTriHienCo,
+  loadProfileKhoaPhongBanOptions,
+  type DonViSelectOption,
+} from '@/utils/profileDepartmentOptions';
+import {
+  chuanHoaAcademicTitleKey,
+  chuanHoaDegreeKey,
+  chuanHoaPayloadTruocKhiLuuProfile,
+  chuanHoaProfileTuApi,
+  coHienThiHocHam,
+  gopGiaTriHocViHienCo,
+  loadScientificProfileCatalogOptions,
+  nhanNhanHocHam,
+  nhanNhanHocVi,
+  type HocViHocHamSelectOption,
+} from '@/utils/profileCatalogOptions';
+import {
+  FALLBACK_ACADEMIC_TITLE_CATALOG,
+  FALLBACK_DEGREE_CATALOG,
+  layNamNhanBangToiDa,
+  NAM_NHAN_BANG_TOI_THIEU,
+} from '@/constants/scientificProfileCatalog';
+import {
   listMyPublications,
   createMyPublication,
   updateMyPublication,
@@ -105,7 +126,6 @@ import {
   normalizePublicationAuthor,
   ensureOwnerAuthorInList,
   reassignAuthorOrdersSequential,
-  generateAcademicYears,
   getResearchOutputTypesTree,
   buildResearchOutputCascaderOptions,
   findResearchOutputPathById,
@@ -115,6 +135,11 @@ import {
   type ResearchOutputTypeTreeNode,
 } from '@/services/api/profilePublications';
 import type { OpenAlexPublicationDraft } from '@/services/api/openalex';
+import { dayjsRaPublishedAt, publishedAtRaDayjs } from '@/utils/publicationDate';
+import {
+  HINT_KHONG_QUY_DOI_THIEU_NHOM_CHINH,
+  laLoiThieuNhomChinh,
+} from '@/utils/authorValidationMessages';
 import {
   layNodeTheoPath,
   laySchemaTheoMaLa,
@@ -123,6 +148,7 @@ import {
 import AuthorsEditor from '@/components/AuthorsEditor';
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import ProfileCompletionBar, { type ChecklistItem } from '@/components/ProfileCompletionBar';
+import ProfileHeader from '@/components/ProfileHeader';
 import OpenAlexImportModal from '@/components/OpenAlexImportModal';
 
 const LANGUAGE_LEVELS = ['Cơ bản', 'Trung cấp', 'Cao cấp', 'Thành thạo', 'Bản ngữ'];
@@ -207,7 +233,6 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   }, []);
 
   // Academic years options
-  const academicYearOptions = generateAcademicYears(10).map((y) => ({ label: y, value: y }));
 
   // Filter publications
   const filteredPublications = publications.filter((pub) => {
@@ -259,7 +284,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
     form.setFieldsValue({
       title: pub.title,
       academicYear: pub.academicYear,
-      year: pub.year,
+      publishedAt: publishedAtRaDayjs(pub),
       hdgsnnScore: pub.hdgsnnScore ?? undefined,
       isbn: pub.isbn,
       publicationStatus: pub.publicationStatus,
@@ -338,7 +363,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
     setShowAdvancedPubFields(Boolean(draft.volume || draft.issue || draft.pages || draft.doi || draft.issn || draft.url));
     form.setFieldsValue({
       title: draft.title,
-      year: draft.year ?? undefined,
+      publishedAt: publishedAtRaDayjs({ year: draft.year ?? undefined }),
       publicationStatus: draft.publicationStatus,
       volume: draft.volume ?? undefined,
       issue: draft.issue ?? undefined,
@@ -483,7 +508,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         title: values.title,
         authors: authorsFromTable,
         academicYear: values.academicYear,
-        year: values.year,
+        publishedAt: dayjsRaPublishedAt(values.publishedAt),
         publicationStatus,
         hdgsnnScore: values.hdgsnnScore,
         volume: values.volume,
@@ -525,7 +550,21 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       setDrawerVisible(false);
       onReloadPublications();
     } catch (e: any) {
-      message.error(e.message || 'Có lỗi xảy ra');
+      if (e?.response) {
+        const data = e.response.data ?? {};
+        let rawMsg = data.message as string | undefined;
+        if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+          rawMsg = (data.errors[0]?.message as string) || rawMsg;
+        }
+        if (laLoiThieuNhomChinh(rawMsg)) {
+          message.warning(HINT_KHONG_QUY_DOI_THIEU_NHOM_CHINH);
+          setDrawerVisible(false);
+          onReloadPublications();
+          return;
+        }
+        return;
+      }
+      message.error(e?.message || 'Có lỗi xảy ra');
     } finally {
       setSaving(false);
     }
@@ -1007,17 +1046,12 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
             </Col>
 
             <Col span={12}>
-              <Form.Item
-                name="academicYear"
-                label="Năm học (tuỳ chọn, dùng để lọc/thống kê)"
-              >
-                <Select allowClear options={academicYearOptions} placeholder="Chọn năm học" />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item name="year" label="Năm xuất bản">
-                <InputNumber style={{ width: '100%' }} min={1900} max={2100} placeholder="VD: 2024" />
+              <Form.Item name="publishedAt" label="Ngày xuất bản">
+                <DatePicker
+                  style={{ width: '100%' }}
+                  format="DD/MM/YYYY"
+                  placeholder="Chọn ngày xuất bản"
+                />
               </Form.Item>
             </Col>
 
@@ -1153,6 +1187,7 @@ const MyProfilePage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const [profile, setProfile] = useState<ScientificProfile | null>(null);
   const [suggestions, setSuggestions] = useState<PublicationSuggestion[]>([]);
@@ -1173,6 +1208,23 @@ const MyProfilePage: React.FC = () => {
   const [nckhPoints, setNckhPoints] = useState<number | null>(null);
   const [nckhLoading, setNckhLoading] = useState(false);
 
+  /** Khoa/phòng ban từ bảng departments (Admin → Quản lý đơn vị). */
+  const [khoaPhongOptions, setKhoaPhongOptions] = useState<DonViSelectOption[]>([]);
+
+  /** Học vị / học hàm từ GET /api/catalog/scientific-profile/options */
+  const [degreeOptions, setDegreeOptions] = useState<HocViHocHamSelectOption[]>(() =>
+    FALLBACK_DEGREE_CATALOG.map((d) => ({
+      value: d.value,
+      label: d.label,
+      title: d.description,
+    })),
+  );
+  const [academicTitleOptions, setAcademicTitleOptions] = useState<HocViHocHamSelectOption[]>(() =>
+    FALLBACK_ACADEMIC_TITLE_CATALOG.map((d) => ({ value: d.value, label: d.label })),
+  );
+  const [catalogTuApi, setCatalogTuApi] = useState(false);
+  const [catalogGhiChu, setCatalogGhiChu] = useState<string | undefined>();
+
   // Load profile data
   const loadProfile = useCallback(async () => {
     if (!currentUser) return;
@@ -1182,7 +1234,7 @@ const MyProfilePage: React.FC = () => {
       const result = await getMyProfile();
 
       if (result.success && result.data) {
-        setProfile(result.data);
+        setProfile(chuanHoaProfileTuApi(result.data));
         const sugResult = await getMySuggestions();
         if (sugResult.success) {
           setSuggestions(sugResult.data);
@@ -1195,7 +1247,7 @@ const MyProfilePage: React.FC = () => {
           organization: 'Trường Đại học Bách khoa - ĐHĐN',
         });
         if (createResult.success && createResult.data) {
-          setProfile(createResult.data);
+          setProfile(chuanHoaProfileTuApi(createResult.data));
         }
       }
     } catch (error: any) {
@@ -1210,6 +1262,23 @@ const MyProfilePage: React.FC = () => {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    loadProfileKhoaPhongBanOptions().then(({ khoaPhongOptions: opts }) => {
+      setKhoaPhongOptions(opts);
+    });
+  }, []);
+
+  useEffect(() => {
+    loadScientificProfileCatalogOptions().then(
+      ({ degreeOptions: hocVi, academicTitleOptions: hocHam, tuApi, ghiChu }) => {
+        setDegreeOptions(hocVi);
+        setAcademicTitleOptions(hocHam);
+        setCatalogTuApi(tuApi);
+        setCatalogGhiChu(ghiChu);
+      },
+    );
+  }, []);
 
   const isOnboarding = searchParams.get('onboarding') === '1';
 
@@ -1262,13 +1331,15 @@ const MyProfilePage: React.FC = () => {
 
     setSaving(true);
     try {
+      const { department: _boMonBo, ...phanConLai } = values;
       const result = await updateMyProfile({
-        ...values,
+        ...chuanHoaPayloadTruocKhiLuuProfile(phanConLai),
+        department: '',
         status: 'DRAFT',
-      });
+      } as Parameters<typeof updateMyProfile>[0]);
 
       if (result.success && result.data) {
-        setProfile(result.data);
+        setProfile(chuanHoaProfileTuApi(result.data));
         message.success('Đã lưu nháp');
       }
     } catch (error) {
@@ -1287,7 +1358,7 @@ const MyProfilePage: React.FC = () => {
       const result = await submitProfile();
 
       if (result.success && result.data) {
-        setProfile(result.data);
+        setProfile(chuanHoaProfileTuApi(result.data));
         message.success('Đã gửi cập nhật hồ sơ');
       }
     } catch (error) {
@@ -1349,6 +1420,27 @@ const MyProfilePage: React.FC = () => {
     if (result.success) {
       setSuggestions(prev => prev.filter(s => s.id !== suggestionId));
       message.success('Đã bỏ qua');
+    }
+  };
+
+  // Cập nhật ảnh đại diện
+  const handleAvatarChange = async (file: File) => {
+    if (!profile) return;
+
+    setAvatarUploading(true);
+    try {
+      const ketQuaUpload = await uploadFileDon(file, { folder: 'profile/avatars' });
+      const ketQuaCapNhat = await updateMyProfile({ avatarUrl: ketQuaUpload.url });
+      if (ketQuaCapNhat.success && ketQuaCapNhat.data) {
+        setProfile(chuanHoaProfileTuApi(ketQuaCapNhat.data));
+        message.success('Đã cập nhật ảnh đại diện');
+      } else {
+        throw new Error('Cập nhật thất bại');
+      }
+    } catch {
+      throw new Error('Cập nhật ảnh đại diện thất bại');
+    } finally {
+      setAvatarUploading(false);
     }
   };
 
@@ -1643,91 +1735,30 @@ const MyProfilePage: React.FC = () => {
       title={false}
       className="profile-me-page"
     >
-      {/* Header compact */}
-      <Card className="profile-header-card" bordered={false}>
-        <div className="profile-header">
-          <div className="profile-header-left">
-            <div className="profile-avatar-nckh">
-              <div className="profile-avatar-ring">
-                <Avatar
-                  size={72}
-                  src={profile.avatarUrl}
-                  icon={<UserOutlined />}
-                  className="profile-avatar"
-                />
-              </div>
-              {profile.id != null && (
-                <Tooltip
-                  title="Giờ và điểm quy đổi theo năm học hiện tại (tháng 9 đổi năm), từ loại kết quả NCKH đã gán và bảng tác giả."
-                >
-                  <div
-                    className="profile-nckh-highlight"
-                    aria-label="Số giờ NCKH và điểm quy đổi"
-                  >
-                    <div className="profile-nckh-metric">
-                      <span className="profile-nckh-highlight-label">Số giờ NCKH</span>
-                      <span className="profile-nckh-highlight-value">
-                        {nckhLoading ? (
-                          <Spin size="small" />
-                        ) : nckhHours != null ? (
-                          <>{Math.round(nckhHours * 100) / 100} giờ</>
-                        ) : (
-                          '—'
-                        )}
-                      </span>
-                    </div>
-                    <div className="profile-nckh-divider" aria-hidden />
-                    <div className="profile-nckh-metric">
-                      <span className="profile-nckh-highlight-label">Điểm quy đổi</span>
-                      <span className="profile-nckh-highlight-value profile-nckh-points">
-                        {nckhLoading ? (
-                          <Spin size="small" />
-                        ) : nckhPoints != null ? (
-                          <>{Math.round(nckhPoints * 100) / 100} điểm</>
-                        ) : (
-                          '—'
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                </Tooltip>
-              )}
-            </div>
-            <div className="profile-header-info">
-              <Title level={4} className="profile-name">
-                {profile.fullName}
-                {profile.status === 'VERIFIED' && (
-                  <Tooltip title="Hồ sơ đã xác thực">
-                    <SafetyCertificateOutlined className="verified-badge" />
-                  </Tooltip>
-                )}
-              </Title>
-              <Text type="secondary">
-                {[profile.organization, profile.faculty, profile.department]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-              <div className="profile-badges">
-                <Tag color={statusConfig.color}>{statusConfig.text}</Tag>
-                {profile.degree && <Tag>{profile.degree}</Tag>}
-                {profile.academicTitle && profile.academicTitle !== 'Không' && (
-                  <Tag color="gold">{profile.academicTitle}</Tag>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="profile-header-actions">
-            <Button
-              type="primary"
-              icon={<FilePdfOutlined />}
-              loading={exporting}
-              onClick={handleExportCvPdf}
-            >
-              Xuất CV (PDF)
-            </Button>
-          </div>
-        </div>
-      </Card>
+      <ProfileHeader
+        name={profile.fullName}
+        organization={profile.organization}
+        faculty={profile.faculty}
+        department={profile.department}
+        avatarUrl={profile.avatarUrl}
+        status={statusConfig.text}
+        statusColor={statusConfig.color}
+        researchArea={profile.mainResearchArea}
+        degree={profile.degree}
+        degreeLabel={nhanNhanHocVi(degreeOptions, profile.degree)}
+        degreeYear={profile.degreeYear}
+        academicTitle={profile.academicTitle}
+        academicTitleLabel={nhanNhanHocHam(academicTitleOptions, profile.academicTitle)}
+        academicTitleYear={profile.academicTitleYear}
+        researchHours={profile.id != null ? nckhHours : null}
+        convertedPoint={profile.id != null ? nckhPoints : null}
+        metricsLoading={nckhLoading}
+        verified={profile.status === 'VERIFIED'}
+        avatarUploading={avatarUploading}
+        onAvatarChange={handleAvatarChange}
+        exportLoading={exporting}
+        onExportCV={handleExportCvPdf}
+      />
 
       {/* Need more info alert */}
       {profile.status === 'NEED_MORE_INFO' && profile.needMoreInfoReason && (
@@ -1952,28 +1983,99 @@ const MyProfilePage: React.FC = () => {
                     >
                       <div className="form-section">
                         <Title level={5}>Học vị / Học hàm</Title>
+                        {!catalogTuApi && catalogGhiChu && (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="Danh mục học vị / học hàm"
+                            description={catalogGhiChu}
+                          />
+                        )}
+                        <Row gutter={16} align="bottom" className="profile-hoc-vi-hoc-ham-row">
+                          <Col xs={24} lg={12}>
+                            <Row gutter={16} align="bottom">
+                              <Col xs={24} sm={14}>
+                                <ProFormSelect
+                                  name="degree"
+                                  label="Học vị"
+                                  fieldProps={{
+                                    showSearch: true,
+                                    optionFilterProp: 'label',
+                                  }}
+                                  options={gopGiaTriHocViHienCo(
+                                    degreeOptions,
+                                    profile.degree,
+                                    chuanHoaDegreeKey,
+                                  )}
+                                />
+                              </Col>
+                              <Col xs={24} sm={10}>
+                                <ProFormDigit
+                                  name="degreeYear"
+                                  label="Năm nhận học vị"
+                                  min={NAM_NHAN_BANG_TOI_THIEU}
+                                  max={layNamNhanBangToiDa()}
+                                  fieldProps={{ precision: 0 }}
+                                  rules={[
+                                    {
+                                      type: 'number',
+                                      min: NAM_NHAN_BANG_TOI_THIEU,
+                                      max: layNamNhanBangToiDa(),
+                                      message: `Năm từ ${NAM_NHAN_BANG_TOI_THIEU} đến ${layNamNhanBangToiDa()}`,
+                                    },
+                                  ]}
+                                />
+                              </Col>
+                            </Row>
+                          </Col>
+                          <Col xs={24} lg={12}>
+                            <ProFormDependency name={['academicTitle']}>
+                              {({ academicTitle }) => (
+                                <Row gutter={16} align="bottom">
+                                  <Col
+                                    xs={24}
+                                    sm={coHienThiHocHam(academicTitle) ? 14 : 24}
+                                  >
+                                    <ProFormSelect
+                                      name="academicTitle"
+                                      label="Học hàm"
+                                      fieldProps={{
+                                        showSearch: true,
+                                        optionFilterProp: 'label',
+                                      }}
+                                      options={gopGiaTriHocViHienCo(
+                                        academicTitleOptions,
+                                        profile.academicTitle,
+                                        chuanHoaAcademicTitleKey,
+                                      )}
+                                    />
+                                  </Col>
+                                  {coHienThiHocHam(academicTitle) ? (
+                                    <Col xs={24} sm={10}>
+                                      <ProFormDigit
+                                        name="academicTitleYear"
+                                        label="Năm đạt học hàm"
+                                        min={NAM_NHAN_BANG_TOI_THIEU}
+                                        max={layNamNhanBangToiDa()}
+                                        fieldProps={{ precision: 0 }}
+                                        rules={[
+                                          {
+                                            type: 'number',
+                                            min: NAM_NHAN_BANG_TOI_THIEU,
+                                            max: layNamNhanBangToiDa(),
+                                            message: `Năm từ ${NAM_NHAN_BANG_TOI_THIEU} đến ${layNamNhanBangToiDa()}`,
+                                          },
+                                        ]}
+                                      />
+                                    </Col>
+                                  ) : null}
+                                </Row>
+                              )}
+                            </ProFormDependency>
+                          </Col>
+                        </Row>
                         <Row gutter={16}>
-                          <Col xs={24} md={8}>
-                            <ProFormSelect
-                              name="degree"
-                              label="Học vị"
-                              options={DEGREE_OPTIONS.map(d => ({ label: d, value: d }))}
-                            />
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <ProFormSelect
-                              name="academicTitle"
-                              label="Học hàm"
-                              options={ACADEMIC_TITLE_OPTIONS.map(t => ({ label: t, value: t }))}
-                            />
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <ProFormText
-                              name="degreeYear"
-                              label="Năm nhận học vị"
-                              fieldProps={{ type: 'number' }}
-                            />
-                          </Col>
                           <Col xs={24} md={12}>
                             <ProFormText
                               name="degreeInstitution"
@@ -1997,22 +2099,33 @@ const MyProfilePage: React.FC = () => {
                         <Title level={5}>Thông tin công tác</Title>
                         <Row gutter={16}>
                           <Col xs={24} md={12}>
-                            <ProFormText
+                            <ProFormSelect
                               name="organization"
-                              label="Đơn vị"
-                              rules={[{ required: true }]}
+                              label="Cơ quan công tác"
+                              rules={[{ required: true, message: 'Vui lòng chọn cơ quan công tác' }]}
+                              options={gopGiaTriHienCo(
+                                CO_QUAN_CONG_TAC_OPTIONS,
+                                profile.organization,
+                              )}
+                              showSearch
+                              fieldProps={{
+                                optionFilterProp: 'label',
+                                placeholder: 'Chọn cơ quan công tác (ĐHĐN)',
+                              }}
                             />
                           </Col>
                           <Col xs={24} md={12}>
                             <ProFormSelect
                               name="faculty"
-                              label="Khoa / Phòng"
-                              options={FACULTIES.map(f => ({ label: f, value: f }))}
+                              label="Khoa/phòng ban"
+                              options={gopGiaTriHienCo(khoaPhongOptions, profile.faculty)}
                               showSearch
+                              allowClear
+                              fieldProps={{
+                                optionFilterProp: 'label',
+                                placeholder: 'Chọn khoa/phòng ban',
+                              }}
                             />
-                          </Col>
-                          <Col xs={24} md={12}>
-                            <ProFormText name="department" label="Bộ môn" />
                           </Col>
                           <Col xs={24} md={12}>
                             <ProFormText
@@ -2070,7 +2183,7 @@ const MyProfilePage: React.FC = () => {
                               languages: value as ProfileLanguage[],
                             });
                             if (result.success && result.data) {
-                              setProfile(result.data);
+                              setProfile(chuanHoaProfileTuApi(result.data));
                               message.success('Đã lưu ngoại ngữ');
                               return;
                             }
@@ -2093,6 +2206,8 @@ const MyProfilePage: React.FC = () => {
                           type: 'multiple',
                           editableKeys: languageEditableKeys,
                           onChange: setLanguageEditableKeys,
+                          saveText: 'Lưu',
+                          cancelText: 'Hủy',
                           onSave: async () => {
                             // Việc lưu thực tế được thực hiện trong onChange khi người dùng bấm lưu dòng/xóa dòng.
                           },

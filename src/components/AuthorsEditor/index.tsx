@@ -101,15 +101,11 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    if (dataSource.length === 0) {
-      errors.push('Cần ít nhất 1 tác giả');
-    }
-
     const mainAuthors = dataSource.filter((a) => a.isTopAuthor || a.isCorresponding);
     const correspondingAuthors = dataSource.filter((a) => a.isCorresponding);
 
-    if (mainAuthors.length === 0) {
-      errors.push('Cần có ít nhất 1 tác giả trong nhóm chính (chính hoặc liên hệ) (n)');
+    if (dataSource.length === 0) {
+      errors.push('Cần ít nhất 1 tác giả');
     }
 
     if (correspondingAuthors.length === 0) {
@@ -420,19 +416,25 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       {validation.errors.length > 0 && (
         <Alert
           type="error"
-          message="Lỗi danh sách tác giả"
+          message={
+            validation.errors.length === 1
+              ? validation.errors[0]
+              : 'Lỗi danh sách tác giả'
+          }
           description={
-            <ul style={{ margin: 0, paddingLeft: 20 }}>
-              {validation.errors.map((e, i) => (
-                <li key={i}>{e}</li>
-              ))}
-            </ul>
+            validation.errors.length === 1 ? undefined : (
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {validation.errors.map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            )
           }
           style={{ marginBottom: 16 }}
         />
       )}
 
-      {validation.warnings.length > 0 && (
+      {validation.warnings.length > 0 && validation.errors.length === 0 && (
         <Alert
           type="warning"
           message="Cảnh báo"

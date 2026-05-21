@@ -10,9 +10,9 @@ export type ProfileStatus = 'DRAFT' | 'UPDATED' | 'VERIFIED' | 'NEED_MORE_INFO';
 
 export type Gender = 'Nam' | 'Nữ' | 'Khác';
 
-export type Degree = 'Cử nhân' | 'Thạc sĩ' | 'Tiến sĩ' | 'Khác';
+export type Degree = 'HIGH_SCHOOL' | 'BACHELOR' | 'MASTER' | 'DOCTORATE' | (string & {});
 
-export type AcademicTitle = 'PGS' | 'GS' | 'Không';
+export type AcademicTitle = 'NONE' | 'ASSOCIATE_PROFESSOR' | 'PROFESSOR' | (string & {});
 
 export type AttachmentType = 'CV_PDF' | 'DEGREE' | 'CERTIFICATE' | 'OTHER';
 
@@ -161,6 +161,7 @@ export interface ScientificProfile {
   // 3) Học hàm/học vị
   degree?: Degree;
   academicTitle?: AcademicTitle;
+  academicTitleYear?: number | null;
   degreeYear?: number;
   degreeInstitution?: string;
   degreeCountry?: string;
@@ -200,9 +201,9 @@ export const PROFILE_STATUS_MAP: Record<ProfileStatus, { text: string; color: st
   NEED_MORE_INFO: { text: 'Yêu cầu bổ sung', color: 'warning' },
 };
 
-export const DEGREE_OPTIONS: Degree[] = ['Cử nhân', 'Thạc sĩ', 'Tiến sĩ', 'Khác'];
+export const DEGREE_OPTIONS: Degree[] = ['HIGH_SCHOOL', 'BACHELOR', 'MASTER', 'DOCTORATE'];
 
-export const ACADEMIC_TITLE_OPTIONS: AcademicTitle[] = ['Không', 'PGS', 'GS'];
+export const ACADEMIC_TITLE_OPTIONS: AcademicTitle[] = ['NONE', 'ASSOCIATE_PROFESSOR', 'PROFESSOR'];
 
 export const RESEARCH_AREAS = [
   'Công nghệ thông tin',
@@ -296,8 +297,8 @@ const defaultProfiles: ScientificProfile[] = [
     currentTitle: 'Giảng viên chính',
     managementRole: 'Trưởng bộ môn',
     startWorkingAt: '2010-09-01',
-    degree: 'Tiến sĩ',
-    academicTitle: 'Không',
+    degree: 'DOCTORATE',
+    academicTitle: 'NONE',
     degreeYear: 2015,
     degreeInstitution: 'University of Technology Sydney',
     degreeCountry: 'Australia',
@@ -422,7 +423,7 @@ const defaultProfiles: ScientificProfile[] = [
     currentTitle: 'Giảng viên',
     startWorkingAt: '2015-09-01',
     degree: 'Thạc sĩ',
-    academicTitle: 'Không',
+    academicTitle: 'NONE',
     degreeYear: 2018,
     degreeInstitution: 'Đại học Sư phạm Hà Nội',
     degreeCountry: 'Việt Nam',
@@ -489,8 +490,9 @@ const defaultProfiles: ScientificProfile[] = [
     currentTitle: 'Giảng viên cao cấp',
     managementRole: 'Phó trưởng Khoa',
     startWorkingAt: '2000-09-01',
-    degree: 'Tiến sĩ',
-    academicTitle: 'PGS',
+    degree: 'DOCTORATE',
+    academicTitle: 'ASSOCIATE_PROFESSOR',
+    academicTitleYear: 2015,
     degreeYear: 2008,
     degreeInstitution: 'Wageningen University',
     degreeCountry: 'Hà Lan',
@@ -602,7 +604,7 @@ const defaultProfiles: ScientificProfile[] = [
     currentTitle: 'Giảng viên',
     startWorkingAt: '2014-09-01',
     degree: 'Thạc sĩ',
-    academicTitle: 'Không',
+    academicTitle: 'NONE',
     degreeYear: 2016,
     mainResearchArea: 'Kinh tế',
     subResearchAreas: ['Circular Economy', 'Sustainable Development'],
@@ -627,8 +629,8 @@ const defaultProfiles: ScientificProfile[] = [
     organization: 'Trường Đại học Bách khoa - ĐHĐN',
     faculty: 'Khoa Kỹ thuật',
     currentTitle: 'Nghiên cứu viên',
-    degree: 'Cử nhân',
-    academicTitle: 'Không',
+    degree: 'BACHELOR',
+    academicTitle: 'NONE',
     mainResearchArea: 'Kỹ thuật',
     status: 'DRAFT',
     completeness: 35,

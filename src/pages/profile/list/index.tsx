@@ -2,7 +2,7 @@
  * Danh sách hồ sơ khoa học - PHONG_KH, ADMIN
  * Theo specs/scientific-profile.md.md Section 5.3
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { history, useModel, useAccess } from '@umijs/max';
 import {
   Avatar,
@@ -32,13 +32,20 @@ import {
   verifyProfile,
   requestMoreInfo,
   PROFILE_STATUS_MAP,
-  DEGREE_OPTIONS,
   RESEARCH_AREAS,
   FACULTIES,
   type ScientificProfile,
   type ProfileStatus,
   type Degree,
 } from '@/services/api/profile';
+import {
+  coHienThiHocHam,
+  loadScientificProfileCatalogOptions,
+  nhanNhanHocHam,
+  nhanNhanHocVi,
+  type HocViHocHamSelectOption,
+} from '@/utils/profileCatalogOptions';
+import { FALLBACK_DEGREE_CATALOG } from '@/constants/scientificProfileCatalog';
 import './index.less';
 
 const ProfileListPage: React.FC = () => {
@@ -51,6 +58,25 @@ const ProfileListPage: React.FC = () => {
   const [selectedProfile, setSelectedProfile] = useState<ScientificProfile | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyForm] = Form.useForm();
+
+  const [degreeFilterOptions, setDegreeFilterOptions] = useState<HocViHocHamSelectOption[]>(() =>
+    FALLBACK_DEGREE_CATALOG.map((d) => ({
+      value: d.value,
+      label: d.label,
+      title: d.description,
+    })),
+  );
+
+  const [academicTitleFilterOptions, setAcademicTitleFilterOptions] = useState<
+    HocViHocHamSelectOption[]
+  >([]);
+
+  useEffect(() => {
+    loadScientificProfileCatalogOptions().then(({ degreeOptions, academicTitleOptions }) => {
+      setDegreeFilterOptions(degreeOptions);
+      setAcademicTitleFilterOptions(academicTitleOptions);
+    });
+  }, []);
 
   const canVerify = access.canVerifyProfile;
 
@@ -144,13 +170,16 @@ const ProfileListPage: React.FC = () => {
       width: 100,
       valueType: 'select',
       fieldProps: {
-        options: DEGREE_OPTIONS.map(d => ({ label: d, value: d })),
+        options: degreeFilterOptions,
       },
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <span>{record.degree || '-'}</span>
-          {record.academicTitle && record.academicTitle !== 'Không' && (
-            <Tag color="gold" style={{ marginTop: 4 }}>{record.academicTitle}</Tag>
+          <span>{nhanNhanHocVi(degreeFilterOptions, record.degree) || record.degree || '-'}</span>
+          {coHienThiHocHam(record.academicTitle) && (
+            <Tag color="gold" style={{ marginTop: 4 }}>
+              {nhanNhanHocHam(academicTitleFilterOptions, record.academicTitle) ||
+                record.academicTitle}
+            </Tag>
           )}
         </Space>
       ),

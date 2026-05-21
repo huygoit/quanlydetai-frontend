@@ -121,8 +121,9 @@ interface ScientificProfile {
   startWorkingAt?: string;
 
   // 3) Học hàm/học vị
-  degree?: 'Cử nhân' | 'Thạc sĩ' | 'Tiến sĩ' | 'Khác';
-  academicTitle?: 'PGS' | 'GS' | 'Không';
+  degree?: 'HIGH_SCHOOL' | 'BACHELOR' | 'MASTER' | 'DOCTORATE';
+  academicTitle?: 'NONE' | 'ASSOCIATE_PROFESSOR' | 'PROFESSOR';
+  academicTitleYear?: number | null;
   degreeYear?: number;
   degreeInstitution?: string;
   degreeCountry?: string;

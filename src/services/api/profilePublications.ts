@@ -219,6 +219,8 @@ export interface Publication {
   correspondingAuthor?: string;
   publicationType: 'JOURNAL' | 'CONFERENCE' | 'BOOK_CHAPTER' | 'BOOK';
   journalOrConference: string;
+  /** Ngày xuất bản đầy đủ (YYYY-MM-DD) */
+  publishedAt?: string | null;
   year?: number;
   academicYear?: string;
   volume?: string;

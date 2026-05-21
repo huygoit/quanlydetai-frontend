@@ -25,77 +25,16 @@
   padding-left: 0;
 }
 
-/* Header card */
-.profile-header-card {
-  border-radius: @border-radius;
-  box-shadow: @box-shadow;
-  margin-bottom: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: none;
-}
-
-.profile-header {
+.profile-detail-completeness {
   display: flex;
   align-items: center;
-  gap: 24px;
-}
+  gap: 12px;
+  width: 100%;
+  min-width: 160px;
+  max-width: 220px;
 
-.profile-avatar {
-  flex-shrink: 0;
-  border: 3px solid #fff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.profile-header-info {
-  flex: 1;
-}
-
-.profile-name {
-  margin-bottom: 4px !important;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a2e;
-}
-
-.verified-badge {
-  color: @success-color;
-  font-size: 22px;
-}
-
-.profile-org {
-  display: block;
-  margin-bottom: 12px;
-}
-
-.profile-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-
-  .ant-tag {
-    border-radius: 6px;
-    padding: 2px 10px;
-  }
-}
-
-.profile-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 16px;
-
-  .completeness {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 200px;
-
-    .ant-progress {
-      flex: 1;
-    }
+  .ant-progress {
+    flex: 1;
   }
 }
 
@@ -311,19 +250,8 @@
     position: static;
   }
 
-  .profile-header {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .profile-actions {
-    align-items: center;
-    margin-top: 16px;
-
-    .completeness {
-      width: 100%;
-      justify-content: center;
-    }
+  .profile-detail-completeness {
+    max-width: 100%;
   }
 }
 

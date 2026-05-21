@@ -4,8 +4,15 @@ import type { ColumnsType } from 'antd/es/table';
 import { FunctionOutlined, BarChartOutlined } from '@ant-design/icons';
 import {
   previewPublicationConvertedHours,
+  getMyPublicationAuthors,
+  normalizePublicationAuthor,
   type ConvertedHoursBreakdown,
 } from '@/services/api/profilePublications';
+import {
+  coNhomChinhTacGia,
+  HINT_KHONG_QUY_DOI_THIEU_NHOM_CHINH,
+  laLoiThieuNhomChinh,
+} from '@/utils/authorValidationMessages';
 import './index.less';
 
 const { Text, Title } = Typography;
@@ -83,6 +90,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ConvertedHoursBreakdown | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [thieuNhomChinh, setThieuNhomChinh] = useState(false);
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [metricsOpen, setMetricsOpen] = useState(false);
 
@@ -92,6 +100,9 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
     } else {
       setData(null);
       setError(null);
+      setThieuNhomChinh(false);
+      setFormulaOpen(false);
+      setMetricsOpen(false);
     }
   }, [open, publicationId]);
 
@@ -100,16 +111,35 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
 
     setLoading(true);
     setError(null);
+    setThieuNhomChinh(false);
+    setData(null);
 
     try {
+      const authorsRes = await getMyPublicationAuthors(publicationId);
+      const authors = (authorsRes.success && authorsRes.data
+        ? authorsRes.data.map(normalizePublicationAuthor)
+        : []) as Array<{ isTopAuthor: boolean; isCorresponding: boolean }>;
+
+      if (!coNhomChinhTacGia(authors)) {
+        setThieuNhomChinh(true);
+        return;
+      }
+
       const result = await previewPublicationConvertedHours(publicationId);
       if (result.success && result.data) {
         setData(result.data);
       } else {
         setError('Không thể tải dữ liệu quy đổi giờ');
       }
-    } catch (err) {
-      setError('Có lỗi xảy ra khi tải dữ liệu');
+    } catch (err: unknown) {
+      const raw =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as Error)?.message;
+      if (laLoiThieuNhomChinh(raw)) {
+        setThieuNhomChinh(true);
+      } else {
+        setError('Có lỗi xảy ra khi tải dữ liệu');
+      }
     } finally {
       setLoading(false);
     }
@@ -125,10 +155,12 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
     {
       title: 'Tác giả',
       dataIndex: 'authorName',
+      width: 360,
+      ellipsis: false,
       render: (name, record) => (
         <Space wrap>
           <span>{name}</span>
-          {record.isTopAuthor && <Tag color="blue">Đứng đầu</Tag>}
+          {record.isTopAuthor && <Tag color="blue">Tác giả đầu</Tag>}
           {record.isCorresponding && <Tag color="green">Liên hệ</Tag>}
           {record.isViewerRow && <Tag color="purple">Đang xem</Tag>}
         </Space>
@@ -182,26 +214,27 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       title={
         <div className="modal-title-row">
           <div className="modal-title-main">
-            <span>Điểm và số giờ NCKH quy đổi</span>
-            {publicationTitle && (
-              <Text type="secondary" style={{ fontSize: 14 }}>
-                {' '}
-                - {publicationTitle}
+            <div className="modal-title-heading">Điểm và số giờ NCKH quy đổi</div>
+            {publicationTitle ? (
+              <Text type="secondary" className="modal-title-pub">
+                {publicationTitle}
               </Text>
-            )}
+            ) : null}
           </div>
         </div>
       }
       open={open}
       onCancel={onClose}
       footer={null}
-      width={700}
+      width={800}
       className="converted-hours-preview-modal"
     >
       {loading ? (
         <div className="loading-container">
           <Spin size="large" tip="Đang tính toán..." />
         </div>
+      ) : thieuNhomChinh ? (
+        <Alert type="warning" showIcon message={HINT_KHONG_QUY_DOI_THIEU_NHOM_CHINH} />
       ) : error ? (
         <Alert type="error" message={error} />
       ) : data ? (

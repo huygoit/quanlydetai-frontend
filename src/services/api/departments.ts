@@ -92,8 +92,46 @@ export const DEPARTMENT_STATUS_OPTIONS = Object.entries(DEPARTMENT_STATUS_MAP).m
 
 // API Functions
 
+/** Tham số catalog public — spec: specs/api-departments-catalog-public.md */
+export type DepartmentCatalogScope = 'all' | 'khoa_phong_ban' | 'truong';
+
+export interface QueryDepartmentCatalogParams {
+  scope?: DepartmentCatalogScope;
+  type?: DepartmentType;
+  status?: DepartmentStatus;
+  keyword?: string;
+  page?: number;
+  perPage?: number;
+  sortBy?: string;
+  order?: 'asc' | 'desc';
+}
+
+export type DepartmentOptionRow = Pick<
+  Department,
+  'id' | 'code' | 'name' | 'short_name' | 'type'
+>;
+
 /**
- * Lấy danh sách đơn vị (có phân trang và lọc)
+ * Danh mục đơn vị dùng chung (đã đăng nhập, không cần quyền admin).
+ * BE: GET /api/departments — xem specs/api-departments-catalog-public.md
+ */
+export async function queryDepartmentCatalog(
+  params?: QueryDepartmentCatalogParams,
+): Promise<PaginatedResponse<Department>> {
+  return get<PaginatedResponse<Department>>('/api/departments', params);
+}
+
+/**
+ * Dropdown gọn: GET /api/departments/options
+ */
+export async function getDepartmentCatalogOptions(
+  params?: Pick<QueryDepartmentCatalogParams, 'scope' | 'type' | 'status' | 'keyword'>,
+): Promise<ApiResponse<DepartmentOptionRow[]>> {
+  return get<ApiResponse<DepartmentOptionRow[]>>('/api/departments/options', params);
+}
+
+/**
+ * Lấy danh sách đơn vị (có phân trang và lọc) — quản trị Admin
  */
 export async function queryDepartments(
   params?: QueryDepartmentsParams
