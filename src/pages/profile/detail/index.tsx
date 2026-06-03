@@ -3,6 +3,8 @@
  * Theo specs/scientific-profile.md.md Section 5.4
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+import { laDuongDanAnhChungChi, laDuongDanPdfChungChi } from '@/utils/certificatePreview';
 import { useParams, useModel, useAccess, history } from '@umijs/max';
 import {
   Row,
@@ -83,11 +85,6 @@ const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
   CHU_TRI: { text: 'Tác giả chính', color: 'gold' },
   DONG_TAC_GIA: { text: 'Đồng tác giả', color: 'blue' },
 };
-
-/** Đoán ảnh / tệp PDF từ đuôi đường dẫn (bỏ tham số sau dấu ?) để hiển thị trong popup. */
-const laDuongDanAnhChungChi = (url: string) =>
-  /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(url).split('?')[0] || '');
-const laDuongDanPdfChungChi = (url: string) => /\.pdf$/i.test(String(url).split('?')[0] || '');
 
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import './index.less';
@@ -670,15 +667,16 @@ const ProfileDetailPage: React.FC = () => {
                                       size="small"
                                       icon={<EyeOutlined />}
                                       style={{ padding: 0, height: 'auto' }}
-                                      onClick={() =>
+                                      onClick={() => {
+                                        setLoiXemChungChi(null);
                                         setPopupChungChi({
                                           mo: true,
                                           url: record.certificateUrl!,
                                           tieuDe: record.language
                                             ? `Xem chứng chỉ — ${record.language}`
                                             : 'Xem chứng chỉ',
-                                        })
-                                      }
+                                        });
+                                      }}
                                     >
                                       Xem chứng chỉ
                                     </Button>
@@ -824,7 +822,7 @@ const ProfileDetailPage: React.FC = () => {
       >
         <div className="verify-drawer-content">
           <div className="profile-summary">
-            <Avatar size={48} src={profile.avatarUrl} icon={<UserOutlined />} />
+            <Avatar size={48} src={resolvePublicAssetUrl(profile.avatarUrl)} icon={<UserOutlined />} />
             <div>
               <div className="name">{profile.fullName}</div>
               <div className="info">{profile.faculty}</div>
@@ -872,12 +870,16 @@ const ProfileDetailPage: React.FC = () => {
         title={popupChungChi.tieuDe}
         open={popupChungChi.mo}
         onCancel={() => setPopupChungChi((s) => ({ ...s, mo: false }))}
+        afterOpenChange={(open) => {
+          if (open) setLoiXemChungChi(null);
+        }}
         footer={
           <Space wrap>
             <Button
-              onClick={() =>
-                window.open(popupChungChi.url, '_blank', 'noopener,noreferrer')
-              }
+              onClick={() => {
+                const url = resolvePublicAssetUrl(popupChungChi.url);
+                if (url) window.open(url, '_blank', 'noopener,noreferrer');
+              }}
             >
               Mở tab mới
             </Button>
@@ -890,55 +892,63 @@ const ProfileDetailPage: React.FC = () => {
         centered
         destroyOnClose
       >
-        {popupChungChi.url ? (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            {loiXemChungChi && (
-              <div>
-                <Tag color="orange">Không xem được trong popup</Tag>
-                <Text type="secondary"> {loiXemChungChi}</Text>
-              </div>
-            )}
+        {popupChungChi.url ? (() => {
+          const certificateViewUrl = resolvePublicAssetUrl(popupChungChi.url)!;
+          const handleImgLoad = () => setLoiXemChungChi(null);
+          const handleImgError = () => {
+            setLoiXemChungChi(
+              'Ảnh không tải được. Thử «Mở tab mới» hoặc tải lại chứng chỉ.',
+            );
+          };
 
-            {laDuongDanAnhChungChi(popupChungChi.url) ? (
-              <div style={{ textAlign: 'center', minHeight: 120 }}>
-                <img
-                  src={popupChungChi.url}
-                  alt="Ảnh chứng chỉ"
-                  style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' }}
-                  onError={() => {
-                    setLoiXemChungChi('Ảnh không tải được. Có thể link hết hạn hoặc máy chủ chặn truy cập từ trang này.');
-                  }}
-                />
-              </div>
-            ) : laDuongDanPdfChungChi(popupChungChi.url) ? (
-              <object
-                data={popupChungChi.url}
-                type="application/pdf"
-                style={{ width: '100%', height: '75vh' }}
-              >
-                <iframe
-                  title="Tệp PDF chứng chỉ"
-                  src={popupChungChi.url}
-                  style={{ width: '100%', height: '75vh', border: 'none' }}
-                  onError={() => {
-                    setLoiXemChungChi('Tệp PDF bị chặn nhúng (X-Frame-Options/CSP) hoặc link không truy cập được. Vui lòng bấm «Mở tab mới».');
-                  }}
-                />
-              </object>
-            ) : (
-              <div style={{ textAlign: 'center' }}>
-                <img
-                  src={popupChungChi.url}
-                  alt="Chứng chỉ"
-                  style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }}
-                  onError={() => {
-                    setLoiXemChungChi('Không tải được nội dung. Nếu đây là PDF/ảnh dạng link ký tên, hãy bấm «Mở tab mới».');
-                  }}
-                />
-              </div>
-            )}
-          </Space>
-        ) : null}
+          return (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              {loiXemChungChi && (
+                <div>
+                  <Tag color="orange">Không xem được trong popup</Tag>
+                  <Text type="secondary"> {loiXemChungChi}</Text>
+                </div>
+              )}
+
+              {laDuongDanAnhChungChi(certificateViewUrl) ? (
+                <div style={{ textAlign: 'center', minHeight: 120 }}>
+                  <img
+                    key={certificateViewUrl}
+                    src={certificateViewUrl}
+                    alt="Ảnh chứng chỉ"
+                    style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' }}
+                    onLoad={handleImgLoad}
+                    onError={handleImgError}
+                  />
+                </div>
+              ) : laDuongDanPdfChungChi(certificateViewUrl) ? (
+                <object
+                  key={certificateViewUrl}
+                  data={certificateViewUrl}
+                  type="application/pdf"
+                  style={{ width: '100%', height: '75vh' }}
+                >
+                  <iframe
+                    title="Tệp PDF chứng chỉ"
+                    src={certificateViewUrl}
+                    style={{ width: '100%', height: '75vh', border: 'none' }}
+                  />
+                </object>
+              ) : (
+                <div style={{ textAlign: 'center' }}>
+                  <img
+                    key={certificateViewUrl}
+                    src={certificateViewUrl}
+                    alt="Chứng chỉ"
+                    style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }}
+                    onLoad={handleImgLoad}
+                    onError={handleImgError}
+                  />
+                </div>
+              )}
+            </Space>
+          );
+        })() : null}
       </Modal>
 
       {/* Converted Hours Preview Modal */}

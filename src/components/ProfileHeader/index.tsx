@@ -13,6 +13,7 @@ import {
   theme,
 } from 'antd';
 import type { UploadProps } from 'antd';
+import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import {
   CameraOutlined,
   FilePdfOutlined,
@@ -104,7 +105,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   const { token } = theme.useToken();
   const [previewUrl, setPreviewUrl] = useState<string | undefined>();
 
-  const avatarSrc = previewUrl ?? avatarUrl;
+  const avatarSrc = previewUrl ?? resolvePublicAssetUrl(avatarUrl);
 
   const dongDonVi = useMemo(
     () => formatProfileOrganizationLine(organization, faculty),

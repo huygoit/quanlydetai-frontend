@@ -31,7 +31,10 @@ import {
   Popconfirm,
   Cascader,
   Upload,
+  Dropdown,
 } from 'antd';
+import type { MenuProps } from 'antd';
+import type { UploadFile } from 'antd/es/upload/interface';
 import {
   UserOutlined,
   SaveOutlined,
@@ -52,6 +55,8 @@ import {
   ImportOutlined,
   UploadOutlined,
   EyeOutlined,
+  PaperClipOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import {
   PageContainer,
@@ -90,8 +95,15 @@ import {
   type ProfileAttachment,
 } from '@/services/api/profile';
 import { THU_MUC_UPLOAD_MAC_DINH, uploadFileDon } from '@/services/api/fileUpload';
+import {
+  parsePublicationAttachmentUrls,
+  serializePublicationAttachmentUrls,
+  tenFileTuUrl,
+} from '@/utils/publicationAttachments';
 import { getTeacherKpi } from '@/services/api/kpis';
 import { downloadBlob, downloadFromUrl } from '@/utils/download';
+import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+import { laDuongDanAnhChungChi, laDuongDanPdfChungChi } from '@/utils/certificatePreview';
 import {
   CO_QUAN_CONG_TAC_OPTIONS,
   gopGiaTriHienCo,
@@ -130,12 +142,24 @@ import {
   buildResearchOutputCascaderOptions,
   findResearchOutputPathById,
   findResearchOutputNodeById,
+  publicationThuocNhomGoc,
   type Publication,
   type PublicationAuthor,
   type ResearchOutputTypeTreeNode,
 } from '@/services/api/profilePublications';
 import type { OpenAlexPublicationDraft } from '@/services/api/openalex';
-import { dayjsRaPublishedAt, publishedAtRaDayjs } from '@/utils/publicationDate';
+import { dayjsRaPublishedAt, layPublishedAtTuApi, publishedAtRaDayjs } from '@/utils/publicationDate';
+import {
+  coBoLocNgayDangBat,
+  khoangNgayTheoPreset,
+  layDanhSachNamLoc,
+  moTaKhoangLoc,
+  presetCanChonNam,
+  PRESET_LOC_KQNC,
+  publicationTrongKhoangNgay,
+  type PublicationFilterPreset,
+} from '@/utils/publicationDateFilter';
+import dayjs, { type Dayjs } from 'dayjs';
 import {
   HINT_KHONG_QUY_DOI_THIEU_NHOM_CHINH,
   laLoiThieuNhomChinh,
@@ -162,14 +186,76 @@ const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
   DONG_TAC_GIA: { text: 'Đồng tác giả', color: 'blue' },
 };
 
-/** Đoán loại file từ đuôi URL (bỏ query) để chọn ảnh / PDF trong popup xem chứng chỉ. */
-const laDuongDanAnhChungChi = (url: string) =>
-  /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(url).split('?')[0] || '');
-const laDuongDanPdfChungChi = (url: string) => /\.pdf$/i.test(String(url).split('?')[0] || '');
+/** Thư mục upload file minh chứng bài báo / kết quả NCKH */
+const THU_MUC_FILE_CONG_BO = 'profile/publication-attachments';
+const DINH_DANG_FILE_CONG_BO = '.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp';
+
+type PublicationAttachmentUploadProps = {
+  value?: string[];
+  onChange?: (urls: string[]) => void;
+};
+
+/** Upload nhiều file đính kèm — giá trị form là mảng URL */
+const PublicationAttachmentUpload: React.FC<PublicationAttachmentUploadProps> = ({
+  value = [],
+  onChange,
+}) => {
+  const [dangTai, setDangTai] = useState(false);
+
+  const danhSachFile: UploadFile[] = value.map((url, i) => ({
+    uid: `att-${i}-${url}`,
+    name: tenFileTuUrl(url),
+    status: 'done',
+    url: resolvePublicAssetUrl(url),
+  }));
+
+  const xoaFile = (file: UploadFile) => {
+    const idx = danhSachFile.findIndex((f) => f.uid === file.uid);
+    if (idx < 0) return;
+    onChange?.(value.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <Upload
+      multiple
+      accept={DINH_DANG_FILE_CONG_BO}
+      fileList={danhSachFile}
+      showUploadList={{ showRemoveIcon: true, showDownloadIcon: true }}
+      onRemove={(file) => {
+        xoaFile(file);
+        return true;
+      }}
+      onDownload={(file) => {
+        const href = file.url || resolvePublicAssetUrl(value.find((u) => tenFileTuUrl(u) === file.name));
+        if (href) downloadFromUrl(href, file.name);
+      }}
+      customRequest={async (options) => {
+        const file = options.file as File;
+        setDangTai(true);
+        try {
+          const kq = await uploadFileDon(file, { folder: THU_MUC_FILE_CONG_BO });
+          onChange?.([...value, kq.url]);
+          options.onSuccess?.(kq as any);
+          message.success(`Đã tải lên: ${file.name}`);
+        } catch (e: any) {
+          message.error(e?.message || 'Tải file lên thất bại');
+          options.onError?.(e);
+        } finally {
+          setDangTai(false);
+        }
+      }}
+    >
+      <Button icon={<UploadOutlined />} loading={dangTai}>
+        Chọn file đính kèm
+      </Button>
+    </Upload>
+  );
+};
 
 import './index.less';
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 /** Breadcrumb — mục cha không có path (tránh link /profile trắng trang) */
 const BREADCRUMB_HO_SO_CUA_TOI = {
@@ -187,6 +273,10 @@ interface PublicationsTabProps {
   /** Hồ sơ khoa học hiện tại — bắt buộc có ít nhất một dòng tác giả là chính mình */
   myProfileId: number;
   myFullName: string;
+  researchOutputTree: ResearchOutputTypeTreeNode[];
+  researchTreeLoading?: boolean;
+  rootTypeFilterId: number | null;
+  onRootTypeFilterChange: (id: number | null) => void;
 }
 
 const PublicationsTab: React.FC<PublicationsTabProps> = ({
@@ -197,9 +287,15 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   onReloadPublications,
   myProfileId,
   myFullName,
+  researchOutputTree,
+  researchTreeLoading = false,
+  rootTypeFilterId,
+  onRootTypeFilterChange,
 }) => {
   const [form] = Form.useForm();
-  const [filterYear, setFilterYear] = useState<number | undefined>();
+  const [filterPreset, setFilterPreset] = useState<PublicationFilterPreset>('all');
+  const [filterRefYear, setFilterRefYear] = useState(() => dayjs().year());
+  const [filterDateRange, setFilterDateRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [selectedPub, setSelectedPub] = useState<PublicationItem | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   
@@ -215,40 +311,57 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   /** Sau「Nạp vào form」từ OpenAlex — gửi source/sourceId khi lưu mới */
   const [pendingOpenAlexSourceId, setPendingOpenAlexSourceId] = useState<string | null>(null);
   const [showAdvancedPubFields, setShowAdvancedPubFields] = useState(false);
-  const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
-  const [researchTreeLoading, setResearchTreeLoading] = useState(false);
   const [selectedLeafRuleKind, setSelectedLeafRuleKind] = useState<string | null>(null);
   const [selectedLeafCode, setSelectedLeafCode] = useState<string | null>(null);
   const [selectedLeafSchema, setSelectedLeafSchema] = useState<LeafFormSchema>(() =>
     laySchemaTheoMaLa(null, null)
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setResearchTreeLoading(true);
-      try {
-        const res = await getResearchOutputTypesTree();
-        if (!cancelled && res.success && res.data) setResearchOutputTree(res.data);
-      } finally {
-        if (!cancelled) setResearchTreeLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const filterYears = useMemo(() => layDanhSachNamLoc(publications), [publications]);
 
-  // Academic years options
+  const tenNhomGocDangLoc = useMemo(() => {
+    if (!rootTypeFilterId) return null;
+    return researchOutputTree.find((n) => n.id === rootTypeFilterId)?.name ?? null;
+  }, [rootTypeFilterId, researchOutputTree]);
 
-  // Filter publications
-  const filteredPublications = publications.filter((pub) => {
-    if (filterYear && pub.year !== filterYear) return false;
-    return true;
-  });
+  const filteredPublications = useMemo(() => {
+    const from = filterDateRange?.[0];
+    const to = filterDateRange?.[1];
+    let list = publications;
+    if (rootTypeFilterId != null) {
+      list = list.filter((pub) => publicationThuocNhomGoc(researchOutputTree, pub, rootTypeFilterId));
+    }
+    if (filterPreset !== 'all' && coBoLocNgayDangBat(from, to)) {
+      list = list.filter((pub) => publicationTrongKhoangNgay(pub, from, to));
+    }
+    return list;
+  }, [publications, filterDateRange, filterPreset, rootTypeFilterId, researchOutputTree]);
 
-  // Get unique years for filter
-  const years = [...new Set(publications.map((p) => p.year).filter(Boolean))].sort((a, b) => (b || 0) - (a || 0));
+  const moTaBoLoc = moTaKhoangLoc(filterDateRange?.[0], filterDateRange?.[1]);
+
+  const datLocVeTatCa = () => {
+    setFilterPreset('all');
+    setFilterDateRange(null);
+  };
+
+  const doiPresetLoc = (preset: PublicationFilterPreset) => {
+    setFilterPreset(preset);
+    if (preset === 'all') {
+      setFilterDateRange(null);
+      return;
+    }
+    if (preset === 'custom') return;
+    const range = khoangNgayTheoPreset(preset, filterRefYear);
+    setFilterDateRange(range);
+  };
+
+  const doiNamPreset = (year: number) => {
+    setFilterRefYear(year);
+    if (presetCanChonNam(filterPreset)) {
+      const range = khoangNgayTheoPreset(filterPreset, year);
+      setFilterDateRange(range);
+    }
+  };
 
   /** Bài OpenAlex đã lưu hồ sơ — khớp sourceId để disable「Nạp vào form」 */
   const importedOpenAlexSourceIds = useMemo(() => {
@@ -298,7 +411,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           pub.pages ||
           pub.doi ||
           pub.issn ||
-          pub.url
+          pub.url ||
+          pub.attachmentUrl
       )
     );
     form.setFieldsValue({
@@ -314,6 +428,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       doi: pub.doi,
       issn: pub.issn,
       url: pub.url,
+      attachmentUrls: parsePublicationAttachmentUrls(pub.attachmentUrl),
       researchOutputTypePath: path ?? undefined,
     });
     
@@ -475,6 +590,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         issn: values.issn,
         isbn: values.isbn,
         url: values.url,
+        attachmentUrl: serializePublicationAttachmentUrls(values.attachmentUrls),
         publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
         journalOrConference,
         source: (pendingOpenAlexSourceId && !editingPub
@@ -608,31 +724,61 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           </Space>
         </div>
 
-        {/* Filters */}
+        {/* Bộ lọc theo ngày xuất bản (publishedAt) */}
         <div className="publications-filters" style={{ marginTop: 16 }}>
-          <Space wrap>
-            <Select
-              placeholder="Năm"
-              allowClear
-              style={{ width: 100 }}
-              value={filterYear}
-              onChange={setFilterYear}
-              options={years.map((y) => ({ label: y, value: y }))}
-            />
-            {filterYear && (
-              <Button
-                type="link"
-                onClick={() => {
-                  setFilterYear(undefined);
+          <Space wrap align="start" size="middle">
+            {tenNhomGocDangLoc && (
+              <Tag
+                closable
+                color="blue"
+                onClose={(e) => {
+                  e.preventDefault();
+                  onRootTypeFilterChange(null);
                 }}
               >
+                Nhóm: {tenNhomGocDangLoc}
+              </Tag>
+            )}
+            <Select
+              style={{ minWidth: 200 }}
+              value={filterPreset}
+              onChange={(v) => doiPresetLoc((v ?? 'all') as PublicationFilterPreset)}
+              options={PRESET_LOC_KQNC.filter((o) => o.value !== 'custom').map((o) => ({
+                label: o.label,
+                value: o.value,
+              }))}
+            />
+            {presetCanChonNam(filterPreset) && (
+              <Select
+                style={{ width: 100 }}
+                value={filterRefYear}
+                onChange={doiNamPreset}
+                options={filterYears.map((y) => ({ label: String(y), value: y }))}
+              />
+            )}
+            <RangePicker
+              format="DD/MM/YYYY"
+              placeholder={['Từ ngày', 'Đến ngày']}
+              value={filterDateRange}
+              onChange={(vals) => {
+                if (!vals?.[0] || !vals?.[1]) {
+                  datLocVeTatCa();
+                  return;
+                }
+                setFilterDateRange([vals[0], vals[1]]);
+                setFilterPreset('custom');
+              }}
+            />
+            {coBoLocNgayDangBat(filterDateRange?.[0], filterDateRange?.[1]) && (
+              <Button type="link" onClick={datLocVeTatCa}>
                 Xóa bộ lọc
               </Button>
             )}
           </Space>
-          <div className="filter-stats">
+          <div className="filter-stats" style={{ marginTop: 8 }}>
             <Text type="secondary">
               Hiển thị {filteredPublications.length} / {publications.length} kết quả NCKH
+              {moTaBoLoc ? ` · ${moTaBoLoc}` : ''}
             </Text>
           </div>
         </div>
@@ -641,7 +787,11 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         {filteredPublications.length > 0 ? (
           <div className="publications-table">
             <ProList<PublicationItem>
-              dataSource={filteredPublications.sort((a, b) => (b.year || 0) - (a.year || 0))}
+              dataSource={[...filteredPublications].sort((a, b) => {
+                const db = layPublishedAtTuApi(b) || '';
+                const da = layPublishedAtTuApi(a) || '';
+                return db.localeCompare(da);
+              })}
               rowKey="id"
               metas={{
                 title: {
@@ -914,6 +1064,41 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   </Col>
                 )}
 
+                {selectedPub.url && (
+                  <Col span={24}>
+                    <Text strong>Link:</Text>
+                    <br />
+                    <a href={selectedPub.url} target="_blank" rel="noopener noreferrer">
+                      {selectedPub.url}
+                    </a>
+                  </Col>
+                )}
+
+                {parsePublicationAttachmentUrls(selectedPub.attachmentUrl).length > 0 && (
+                  <Col span={24}>
+                    <Text strong>File đính kèm:</Text>
+                    <br />
+                    <Space direction="vertical" size={4} style={{ marginTop: 4 }}>
+                      {parsePublicationAttachmentUrls(selectedPub.attachmentUrl).map((url) => {
+                        const href = resolvePublicAssetUrl(url);
+                        const ten = tenFileTuUrl(url);
+                        return (
+                          <Button
+                            key={url}
+                            type="link"
+                            size="small"
+                            icon={<PaperClipOutlined />}
+                            style={{ padding: 0, height: 'auto' }}
+                            onClick={() => href && downloadFromUrl(href, ten)}
+                          >
+                            {ten}
+                          </Button>
+                        );
+                      })}
+                    </Space>
+                  </Col>
+                )}
+
                 <Col span={24}>
                   <Text strong>Nguồn dữ liệu:</Text>
                   <br />
@@ -1116,6 +1301,16 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                     <Input placeholder="https://..." />
                   </Form.Item>
                 </Col>
+
+                <Col span={24}>
+                  <Form.Item
+                    name="attachmentUrls"
+                    label="File đính kèm bài báo"
+                    extra="PDF, Word, hình ảnh — có thể tải nhiều file liên quan (bản PDF bài báo, minh chứng, …)"
+                  >
+                    <PublicationAttachmentUpload />
+                  </Form.Item>
+                </Col>
               </>
             )}
           </Row>
@@ -1167,6 +1362,9 @@ const MyProfilePage: React.FC = () => {
   const [suggestions, setSuggestions] = useState<PublicationSuggestion[]>([]);
   const [activeTab, setActiveTab] = useState<string>('general');
   const [languageEditableKeys, setLanguageEditableKeys] = useState<React.Key[]>([]);
+  const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
+  const [researchTreeLoading, setResearchTreeLoading] = useState(false);
+  const [pubRootTypeFilterId, setPubRootTypeFilterId] = useState<number | null>(null);
 
   /** Popup xem file chứng chỉ ngoại ngữ (ảnh/PDF) thay vì mở tab mới ngay. */
   const [popupChungChi, setPopupChungChi] = useState<{
@@ -1198,6 +1396,83 @@ const MyProfilePage: React.FC = () => {
   );
   const [catalogTuApi, setCatalogTuApi] = useState(false);
   const [catalogGhiChu, setCatalogGhiChu] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    (async () => {
+      setResearchTreeLoading(true);
+      try {
+        const res = await getResearchOutputTypesTree();
+        if (!cancelled && res.success && res.data) setResearchOutputTree(res.data);
+      } catch {
+        /* danh mục loại NCKH — tab vẫn dùng được nếu lỗi */
+      } finally {
+        if (!cancelled) setResearchTreeLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
+
+  /** Số KQNC theo nhóm gốc danh mục — hiển thị cuối dòng menu tab. */
+  const chonLocNhomGoc = useCallback((key: string) => {
+    setActiveTab('publications');
+    if (key === 'all') setPubRootTypeFilterId(null);
+    else setPubRootTypeFilterId(Number(key));
+  }, []);
+
+  const soLuongKqncTheoNhomGoc = useMemo(() => {
+    const theoNhom = new Map<number, number>();
+    const pubs = profile?.publications ?? [];
+    for (const pub of pubs) {
+      for (const n of researchOutputTree) {
+        if (publicationThuocNhomGoc(researchOutputTree, pub, n.id)) {
+          theoNhom.set(n.id, (theoNhom.get(n.id) ?? 0) + 1);
+        }
+      }
+    }
+    return { theoNhom, tong: pubs.length };
+  }, [profile?.publications, researchOutputTree]);
+
+  const menuNhomGocLoaiNckh = useMemo((): MenuProps => {
+    const { theoNhom, tong } = soLuongKqncTheoNhomGoc;
+    const taoNhanMenu = (key: string, ten: string, soLuong: number) => (
+      <span
+        className="publications-tab-menu-item"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          chonLocNhomGoc(key);
+        }}
+      >
+        {ten}{' '}
+        <span className="publications-tab-menu-count">({soLuong})</span>
+      </span>
+    );
+    const items: MenuProps['items'] = [
+      { key: 'all', label: taoNhanMenu('all', 'Tất cả nhóm', tong) },
+      ...(researchOutputTree.length
+        ? [
+            { type: 'divider' as const },
+            ...researchOutputTree.map((n) => ({
+              key: String(n.id),
+              label: taoNhanMenu(String(n.id), n.name, theoNhom.get(n.id) ?? 0),
+            })),
+          ]
+        : []),
+    ];
+    return {
+      items,
+      selectedKeys: pubRootTypeFilterId != null ? [String(pubRootTypeFilterId)] : ['all'],
+      onClick: ({ key, domEvent }) => {
+        domEvent?.preventDefault();
+        domEvent?.stopPropagation();
+        chonLocNhomGoc(String(key));
+      },
+    };
+  }, [researchOutputTree, soLuongKqncTheoNhomGoc, pubRootTypeFilterId, chonLocNhomGoc]);
 
   // Load profile data
   const loadProfile = useCallback(async () => {
@@ -1264,6 +1539,7 @@ const MyProfilePage: React.FC = () => {
     }
   }, [searchParams]);
 
+  /** Tổng giờ/điểm — BE: GET /api/kpis/teachers/:profileId (spec api-kpis-teacher-totals.md). */
   useEffect(() => {
     if (!profile?.id) return;
     let cancelled = false;
@@ -1293,7 +1569,7 @@ const MyProfilePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [profile?.id]);
+  }, [profile?.id, profile?.publications]);
 
   const dismissOnboarding = () => {
     history.replace('/profile/me');
@@ -1484,15 +1760,16 @@ const MyProfilePage: React.FC = () => {
                 size="small"
                 icon={<EyeOutlined />}
                 style={{ padding: 0 }}
-                onClick={() =>
+                onClick={() => {
+                  setLoiXemChungChi(null);
                   setPopupChungChi({
                     mo: true,
                     url: record.certificateUrl!,
                     tieuDe: record.language
                       ? `Xem chứng chỉ — ${record.language}`
                       : 'Xem chứng chỉ',
-                  })
-                }
+                  });
+                }}
               >
                 Xem chứng chỉ
               </Button>
@@ -2258,13 +2535,18 @@ const MyProfilePage: React.FC = () => {
                 {
                   key: 'publications',
                   label: (
-                    <span>
-                      <FileTextOutlined />
-                      Kết quả NCKH
-                      {suggestions.length > 0 && (
-                        <Tag color="red" className="tab-badge">{suggestions.length}</Tag>
-                      )}
-                    </span>
+                    <Dropdown menu={menuNhomGocLoaiNckh} trigger={['hover']} placement="bottomLeft">
+                      <span className="publications-tab-label">
+                        <FileTextOutlined />
+                        Kết quả NCKH
+                        <DownOutlined style={{ fontSize: 10, marginLeft: 4 }} />
+                        {suggestions.length > 0 && (
+                          <Tag color="red" className="tab-badge">
+                            {suggestions.length}
+                          </Tag>
+                        )}
+                      </span>
+                    </Dropdown>
                   ),
                   children: (
                     <PublicationsTab
@@ -2275,6 +2557,10 @@ const MyProfilePage: React.FC = () => {
                       onReloadPublications={loadProfile}
                       myProfileId={profile.id}
                       myFullName={profile.fullName || ''}
+                      researchOutputTree={researchOutputTree}
+                      researchTreeLoading={researchTreeLoading}
+                      rootTypeFilterId={pubRootTypeFilterId}
+                      onRootTypeFilterChange={setPubRootTypeFilterId}
                     />
                   ),
                 },
@@ -2351,12 +2637,16 @@ const MyProfilePage: React.FC = () => {
         title={popupChungChi.tieuDe}
         open={popupChungChi.mo}
         onCancel={() => setPopupChungChi((s) => ({ ...s, mo: false }))}
+        afterOpenChange={(open) => {
+          if (open) setLoiXemChungChi(null);
+        }}
         footer={
           <Space wrap>
             <Button
-              onClick={() =>
-                window.open(popupChungChi.url, '_blank', 'noopener,noreferrer')
-              }
+              onClick={() => {
+                const url = resolvePublicAssetUrl(popupChungChi.url);
+                if (url) window.open(url, '_blank', 'noopener,noreferrer');
+              }}
             >
               Mở tab mới
             </Button>
@@ -2369,59 +2659,65 @@ const MyProfilePage: React.FC = () => {
         centered
         destroyOnClose
       >
-        {popupChungChi.url ? (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            {loiXemChungChi && (
-              <Alert
-                type="warning"
-                showIcon
-                message="Không xem được chứng chỉ trong popup"
-                description={loiXemChungChi}
-              />
-            )}
+        {popupChungChi.url ? (() => {
+          const certificateViewUrl = resolvePublicAssetUrl(popupChungChi.url)!;
+          const handleImgLoad = () => setLoiXemChungChi(null);
+          const handleImgError = () => {
+            setLoiXemChungChi(
+              'Ảnh không tải được. Thử «Mở tab mới» hoặc tải lại chứng chỉ.',
+            );
+          };
 
-            {laDuongDanAnhChungChi(popupChungChi.url) ? (
-              <div style={{ textAlign: 'center', minHeight: 120 }}>
-                <img
-                  src={popupChungChi.url}
-                  alt="Ảnh chứng chỉ"
-                  style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' }}
-                  onError={() => {
-                    setLoiXemChungChi('Ảnh không tải được. Có thể link hết hạn hoặc máy chủ chặn truy cập từ trang này.');
-                  }}
+          return (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              {loiXemChungChi && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Không xem được chứng chỉ trong popup"
+                  description={loiXemChungChi}
                 />
-              </div>
-            ) : laDuongDanPdfChungChi(popupChungChi.url) ? (
-              <>
+              )}
+
+              {laDuongDanAnhChungChi(certificateViewUrl) ? (
+                <div style={{ textAlign: 'center', minHeight: 120 }}>
+                  <img
+                    key={certificateViewUrl}
+                    src={certificateViewUrl}
+                    alt="Ảnh chứng chỉ"
+                    style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain' }}
+                    onLoad={handleImgLoad}
+                    onError={handleImgError}
+                  />
+                </div>
+              ) : laDuongDanPdfChungChi(certificateViewUrl) ? (
                 <object
-                  data={popupChungChi.url}
+                  key={certificateViewUrl}
+                  data={certificateViewUrl}
                   type="application/pdf"
                   style={{ width: '100%', height: '75vh' }}
                 >
                   <iframe
                     title="Tệp PDF chứng chỉ"
-                    src={popupChungChi.url}
+                    src={certificateViewUrl}
                     style={{ width: '100%', height: '75vh', border: 'none' }}
-                    onError={() => {
-                      setLoiXemChungChi('Tệp PDF bị chặn nhúng (X-Frame-Options/CSP) hoặc link không truy cập được. Vui lòng bấm «Mở tab mới».');
-                    }}
                   />
                 </object>
-              </>
-            ) : (
-              <div style={{ textAlign: 'center' }}>
-                <img
-                  src={popupChungChi.url}
-                  alt="Chứng chỉ"
-                  style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }}
-                  onError={() => {
-                    setLoiXemChungChi('Không tải được nội dung. Nếu đây là PDF/ảnh dạng link ký tên, hãy bấm «Mở tab mới».');
-                  }}
-                />
-              </div>
-            )}
-          </Space>
-        ) : null}
+              ) : (
+                <div style={{ textAlign: 'center' }}>
+                  <img
+                    key={certificateViewUrl}
+                    src={certificateViewUrl}
+                    alt="Chứng chỉ"
+                    style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain' }}
+                    onLoad={handleImgLoad}
+                    onError={handleImgError}
+                  />
+                </div>
+              )}
+            </Space>
+          );
+        })() : null}
       </Modal>
     </PageContainer>
   );

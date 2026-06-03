@@ -130,3 +130,14 @@ export async function updatePersonalProfile(id: number, payload: UpdatePersonalP
 export async function updatePersonalProfileStatus(id: number, payload: UpdateStatusPayload): Promise<ApiResponse<PersonalProfileItem>> {
   return patch<ApiResponse<PersonalProfileItem>>(`/api/admin/personal-profiles/${id}/status`, payload);
 }
+
+/** Hồ sơ cá nhân của user đang đăng nhập */
+export async function getMyPersonalProfile(): Promise<ApiResponse<PersonalProfileItem>> {
+  return get<ApiResponse<PersonalProfileItem>>('/api/me/personal-profile');
+}
+
+export async function updateMyPersonalProfile(
+  payload: UpdatePersonalProfilePayload,
+): Promise<ApiResponse<PersonalProfileItem>> {
+  return put<ApiResponse<PersonalProfileItem>>('/api/me/personal-profile', payload);
+}

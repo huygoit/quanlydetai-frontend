@@ -3,6 +3,7 @@
  * Theo specs/scientific-profile.md.md Section 5.3
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import { history, useModel, useAccess } from '@umijs/max';
 import {
   Avatar,
@@ -130,7 +131,7 @@ const ProfileListPage: React.FC = () => {
         <div className="profile-cell">
           <Avatar
             size={40}
-            src={record.avatarUrl}
+            src={resolvePublicAssetUrl(record.avatarUrl)}
             icon={<UserOutlined />}
             className="profile-avatar"
           />
@@ -346,7 +347,11 @@ const ProfileListPage: React.FC = () => {
         {selectedProfile && (
           <div className="verify-drawer-content">
             <div className="profile-summary">
-              <Avatar size={48} src={selectedProfile.avatarUrl} icon={<UserOutlined />} />
+              <Avatar
+                size={48}
+                src={resolvePublicAssetUrl(selectedProfile.avatarUrl)}
+                icon={<UserOutlined />}
+              />
               <div>
                 <div className="name">{selectedProfile.fullName}</div>
                 <div className="info">{selectedProfile.faculty}</div>

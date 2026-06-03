@@ -77,6 +77,14 @@ export default defineConfig({
         },
       ],
     },
+    // Hồ sơ cán bộ của tôi (route ẩn, không lồng dưới /profile)
+    {
+      path: '/my-personal-profile',
+      name: 'Hồ sơ cán bộ của tôi',
+      component: '@/pages/my-personal-profile',
+      hideInMenu: true,
+      access: 'isLogin',
+    },
     // Chi tiết hồ sơ (hidden route)
     {
       path: '/profile/:id',

@@ -370,20 +370,53 @@ export function buildResearchOutputCascaderOptions(nodes: ResearchOutputTypeTree
   }));
 }
 
+function chuanHoaIdLoaiNckh(id: number | string | undefined | null): number | null {
+  if (id == null || id === '') return null;
+  const n = Number(id);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** ID loại NCKH trên bản ghi publication (ưu tiên cột, fallback object lồng). */
+export function layResearchOutputTypeId(pub: {
+  researchOutputTypeId?: number | string | null;
+  researchOutputType?: { id: number | string } | null;
+}): number | null {
+  return chuanHoaIdLoaiNckh(pub.researchOutputTypeId ?? pub.researchOutputType?.id ?? null);
+}
+
 export function findResearchOutputPathById(
   nodes: ResearchOutputTypeTreeNode[],
-  targetId: number,
+  targetId: number | string | undefined | null,
   acc: number[] = []
 ): number[] | null {
+  const target = chuanHoaIdLoaiNckh(targetId);
+  if (target == null) return null;
   for (const n of nodes) {
     const path = [...acc, n.id];
-    if (n.id === targetId) return path;
+    if (Number(n.id) === target) return path;
     if (n.children?.length) {
-      const sub = findResearchOutputPathById(n.children, targetId, path);
+      const sub = findResearchOutputPathById(n.children, target, path);
       if (sub) return sub;
     }
   }
   return null;
+}
+
+/** KQNC thuộc nhóm gốc `rootTypeId` (node gốc trên cây hoặc tổ tiên của loại lá). */
+export function publicationThuocNhomGoc(
+  tree: ResearchOutputTypeTreeNode[],
+  pub: {
+    researchOutputTypeId?: number | string | null;
+    researchOutputType?: { id: number | string } | null;
+  },
+  rootTypeId: number | string | null | undefined,
+): boolean {
+  const root = chuanHoaIdLoaiNckh(rootTypeId);
+  if (root == null) return true;
+  const typeId = layResearchOutputTypeId(pub);
+  if (typeId == null) return false;
+  const path = findResearchOutputPathById(tree, typeId);
+  return path != null && path.some((id) => Number(id) === root);
 }
 
 export function findResearchOutputNodeById(

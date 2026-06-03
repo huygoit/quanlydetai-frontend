@@ -37,6 +37,11 @@ export interface TeacherKpiResponseData {
   cachedAt: string | null;
 }
 
+/**
+ * Tổng giờ/điểm quy đổi NCV theo năm học (header hồ sơ).
+ * BE phải cộng mọi KQNC có tác giả gắn profile_id — không lọc theo người tạo bản ghi.
+ * @see specs/api-kpis-teacher-totals.md
+ */
 export async function getTeacherKpi(
   profileId: number,
   academicYear?: string

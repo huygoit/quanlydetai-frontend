@@ -296,7 +296,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
               {
                 key: 'personalProfile',
                 label: 'Hồ sơ cán bộ của tôi',
-                onClick: () => history.push('/admin/personal-profiles'),
+                onClick: () => history.push('/my-personal-profile'),
               },
               {
                 key: 'scientificProfile',
