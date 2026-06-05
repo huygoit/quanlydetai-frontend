@@ -16,7 +16,7 @@ import type { UploadProps } from 'antd';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import {
   CameraOutlined,
-  FilePdfOutlined,
+  DownloadOutlined,
   SafetyCertificateOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -64,6 +64,8 @@ export interface ProfileHeaderProps {
   researchHours: number | null;
   convertedPoint: number | null;
   metricsLoading?: boolean;
+  /** Thay khối giờ/điểm mặc định bằng panel tùy chỉnh (lọc kỳ + số liệu). */
+  metricsSlot?: React.ReactNode;
   avatarUploading?: boolean;
   verified?: boolean;
   onAvatarChange?: (file: File) => Promise<void> | void;
@@ -71,7 +73,7 @@ export interface ProfileHeaderProps {
   exportLoading?: boolean;
   /** Hiển thị thẻ thống kê giờ NCKH / điểm quy đổi */
   showMetrics?: boolean;
-  /** Vùng nút bên phải thay cho Xuất CV (trang chi tiết, quản trị) */
+  /** Vùng nút bên phải (trang chi tiết, quản trị) */
   extraActions?: React.ReactNode;
 }
 
@@ -94,6 +96,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   researchHours,
   convertedPoint,
   metricsLoading = false,
+  metricsSlot,
   avatarUploading = false,
   verified = false,
   onAvatarChange,
@@ -189,7 +192,9 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   };
 
   const thongKeNckh =
-    showMetrics ? (
+    showMetrics && metricsSlot ? (
+      metricsSlot
+    ) : showMetrics ? (
       <div className="profile-header-metricsCompact" aria-label="Thống kê giờ NCKH và điểm quy đổi">
         <div className="profile-header-metricItem">
           <Text type="secondary" className="profile-header-metricLabel">
@@ -295,21 +300,25 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     noiDungAvatar
   );
 
-  const actionPhai =
-    extraActions ??
-    (onExportCV ? (
-      <Button
-        type="primary"
-        icon={<FilePdfOutlined />}
-        loading={exportLoading}
-        onClick={onExportCV}
-        className="profile-header-exportBtn"
-      >
-        Xuất CV (PDF)
-      </Button>
-    ) : null);
+  const cotAvatar = (
+    <div className="profile-header-avatarCol">
+      {avatarBlock}
+      {onExportCV && (
+        <Button
+          type="primary"
+          block
+          icon={<DownloadOutlined />}
+          loading={exportLoading}
+          onClick={onExportCV}
+          className="profile-header-exportCvBtn"
+        >
+          Tải CV
+        </Button>
+      )}
+    </div>
+  );
 
-  const coCotPhai = showMetrics || !!actionPhai;
+  const coCotPhai = showMetrics || !!extraActions;
 
   return (
     <Card className="profile-header-card" bordered={false} style={styleVars}>
@@ -322,7 +331,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           className="profile-header-layout"
         >
           <Flex gap={24} align="flex-start" className="profile-header-main" flex={1}>
-            {avatarBlock}
+            {cotAvatar}
             <div className="profile-header-info">
               <Title level={3} className="profile-header-name">
                 {name}
@@ -358,7 +367,9 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               className="profile-header-aside"
             >
               {thongKeNckh}
-              {actionPhai && <div className="profile-header-actions">{actionPhai}</div>}
+              {extraActions && (
+                <div className="profile-header-actions">{extraActions}</div>
+              )}
             </Flex>
           )}
         </Flex>

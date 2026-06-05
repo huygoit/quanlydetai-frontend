@@ -1,34 +1,21 @@
 /**
- * KPI giờ NCKH (QĐ 1883) — NCV xem theo profileId + năm học.
+ * KPI giờ NCKH (QĐ 1883) — NCV xem theo profileId + khoảng thời gian (ngày xuất bản).
  */
 import { get, ApiResponse } from '../request';
 
-/** Năm học hiện tại (tháng 9 chuyển năm), khớp logic backend. */
-export function getDefaultAcademicYear(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth() + 1;
-  if (m >= 9) return `${y}-${y + 1}`;
-  return `${y - 1}-${y}`;
-}
-
-/** Danh sách năm học gần đây cho Select. */
-export function buildRecentAcademicYears(count = 8): string[] {
-  const base = getDefaultAcademicYear();
-  const startYear = parseInt(base.slice(0, 4), 10);
-  const list: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const y0 = startYear - i;
-    list.push(`${y0}-${y0 + 1}`);
-  }
-  return list;
+export interface TeacherKpiQuery {
+  fromDate: string;
+  toDate: string;
 }
 
 export interface TeacherKpiResponseData {
   profileId: number;
-  academicYear: string;
+  periodFrom: string;
+  periodTo: string;
+  fromDate?: string;
+  toDate?: string;
   totalHours: number;
-  /** Tổng điểm quy đổi theo danh mục KQNC / điểm HĐGSNN (cùng năm học với giờ) */
+  /** Tổng điểm quy đổi trong kỳ đã chọn */
   totalPoints: number;
   metQuota: boolean;
   quota: number;
@@ -38,15 +25,14 @@ export interface TeacherKpiResponseData {
 }
 
 /**
- * Tổng giờ/điểm quy đổi NCV theo năm học (header hồ sơ).
- * BE phải cộng mọi KQNC có tác giả gắn profile_id — không lọc theo người tạo bản ghi.
- * @see specs/api-kpis-teacher-totals.md
+ * Tổng giờ/điểm quy đổi NCV trong khoảng ngày (mặc định BE: năm tài chính hiện tại).
  */
 export async function getTeacherKpi(
   profileId: number,
-  academicYear?: string
+  period: TeacherKpiQuery
 ): Promise<ApiResponse<TeacherKpiResponseData>> {
   return get<ApiResponse<TeacherKpiResponseData>>(`/api/kpis/teachers/${profileId}`, {
-    academic_year: academicYear || getDefaultAcademicYear(),
+    from_date: period.fromDate,
+    to_date: period.toDate,
   });
 }

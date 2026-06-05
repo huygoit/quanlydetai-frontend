@@ -1,0 +1,191 @@
+.profile-nckh-metrics {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: 420px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(
+    145deg,
+    rgba(22, 119, 255, 0.06) 0%,
+    var(--nckh-fill, #fafafa) 50%,
+    rgba(114, 46, 209, 0.05) 100%
+  );
+  border: 1px solid var(--nckh-border, #f0f0f0);
+  box-shadow: 0 4px 14px rgba(22, 119, 255, 0.08);
+}
+
+.profile-nckh-metrics__filter {
+  width: 100%;
+}
+
+.profile-nckh-metrics__filterIcon {
+  color: var(--nckh-primary, #1677ff);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.profile-nckh-metrics__filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.profile-nckh-metrics__preset {
+  min-width: 168px;
+  flex: 1;
+}
+
+.profile-nckh-metrics__year {
+  width: 88px;
+}
+
+.profile-nckh-metrics__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  padding-top: 10px;
+  margin-top: 2px;
+  border-top: 1px solid var(--nckh-border, #f0f0f0);
+}
+
+/** Bọc Tooltip — cố định ô lưới, tránh nhảy layout khi hover */
+.profile-nckh-metrics__statCardWrap {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.profile-nckh-metrics__statCard {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--nckh-border, #f0f0f0);
+  background: rgba(255, 255, 255, 0.85);
+  cursor: help;
+  transition: box-shadow 0.2s ease;
+  text-align: right;
+  min-height: 0;
+  box-sizing: border-box;
+
+  &--hours {
+    border-color: rgba(22, 119, 255, 0.22);
+    background: linear-gradient(160deg, rgba(22, 119, 255, 0.1) 0%, #fff 55%);
+
+    &:hover {
+      box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.35), 0 4px 12px rgba(22, 119, 255, 0.12);
+    }
+
+    .profile-nckh-metrics__statIconWrap {
+      background: rgba(22, 119, 255, 0.12);
+      color: var(--nckh-primary, #1677ff);
+    }
+
+    .profile-nckh-metrics__statValue {
+      color: var(--nckh-primary, #1677ff);
+    }
+  }
+
+  &--points {
+    border-color: rgba(114, 46, 209, 0.22);
+    background: linear-gradient(160deg, rgba(114, 46, 209, 0.08) 0%, #fff 55%);
+
+    &:hover {
+      box-shadow: 0 0 0 1px rgba(114, 46, 209, 0.32), 0 4px 12px rgba(114, 46, 209, 0.1);
+    }
+
+    .profile-nckh-metrics__statIconWrap {
+      background: rgba(114, 46, 209, 0.12);
+      color: #722ed1;
+    }
+
+    .profile-nckh-metrics__statValue {
+      color: #531dab;
+    }
+  }
+}
+
+.profile-nckh-metrics__statIconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.profile-nckh-metrics__statIcon {
+  font-size: 18px;
+}
+
+.profile-nckh-metrics__statContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-nckh-metrics__statLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  color: rgba(0, 0, 0, 0.72);
+  margin-bottom: 4px;
+}
+
+.profile-nckh-metrics__statValue {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  min-height: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-nckh-metrics__statUnit {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.42);
+}
+
+@media (max-width: 992px) {
+  .profile-nckh-metrics {
+    max-width: none;
+    align-items: stretch;
+  }
+
+  .profile-nckh-metrics__filterRow {
+    justify-content: stretch;
+  }
+
+  .profile-nckh-metrics__preset {
+    flex: 1 1 100%;
+  }
+
+  .profile-nckh-metrics__statCard {
+    flex-direction: row;
+    text-align: right;
+  }
+
+  .profile-nckh-metrics__statValue {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-nckh-metrics__stats {
+    grid-template-columns: 1fr;
+  }
+}

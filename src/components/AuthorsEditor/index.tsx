@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { EditableProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Alert, Space, Typography, Tag, Modal, Input, List, Button, Spin } from 'antd';
+import { Alert, Space, Typography, Tag, Modal, Input, List, Button, Spin, Tabs } from 'antd';
 import type { PublicationAuthor, AffiliationType } from '@/services/api/profilePublications';
 import {
   AUTHOR_AFFILIATION_MULTI_OPTIONS,
@@ -11,12 +11,18 @@ import {
   UDN_AFFILIATION_UNITS,
   normalizePublicationAuthor,
   lookupAuthorProfiles,
+  lookupAuthorStudents,
   type AuthorProfileLookupItem,
+  type AuthorStudentLookupItem,
 } from '@/services/api/profilePublications';
 import {
   formatAuthorLookupSubtitle,
   formatAuthorLookupTitle,
 } from '@/utils/authorProfileLookupDisplay';
+import {
+  formatStudentLookupSubtitle,
+  formatStudentLookupTitle,
+} from '@/utils/authorStudentLookupDisplay';
 import './index.less';
 
 const { Text } = Typography;
@@ -52,7 +58,10 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerRowKey, setPickerRowKey] = useState<React.Key | null>(null);
   const [lookupQuery, setLookupQuery] = useState('');
-  const [lookupResults, setLookupResults] = useState<AuthorProfileLookupItem[]>([]);
+  const [pickerTab, setPickerTab] = useState<'staff' | 'student'>('staff');
+  const [lookupResults, setLookupResults] = useState<
+    AuthorProfileLookupItem[] | AuthorStudentLookupItem[]
+  >([]);
   const [lookupLoading, setLookupLoading] = useState(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Bản dataSource mới nhất — dùng khi merge chống Pro Table gọi onChange lần 2 với form rỗng (đặc biệt dòng mới). */
@@ -67,7 +76,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     setDataSource(mapped);
   }, [value]);
 
-  const runLookup = useCallback(async (q: string) => {
+  const runLookup = useCallback(async (q: string, tab: 'staff' | 'student') => {
     const t = q.trim();
     if (t.length < 2) {
       setLookupResults([]);
@@ -75,7 +84,8 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     }
     setLookupLoading(true);
     try {
-      const rows = await lookupAuthorProfiles(t, 25);
+      const rows =
+        tab === 'student' ? await lookupAuthorStudents(t, 25) : await lookupAuthorProfiles(t, 25);
       setLookupResults(rows);
     } catch {
       setLookupResults([]);
@@ -85,11 +95,11 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   }, []);
 
   const scheduleLookup = useCallback(
-    (q: string) => {
+    (q: string, tab: 'staff' | 'student') => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(() => {
         debounceTimerRef.current = null;
-        void runLookup(q);
+        void runLookup(q, tab);
       }, 320);
     },
     [runLookup]
@@ -135,7 +145,10 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     }
 
     const udnNoProfile = dataSource.filter(
-      (a) => a.affiliationType === 'UDN_ONLY' && (a.profileId == null || a.profileId === undefined)
+      (a) =>
+        a.affiliationType === 'UDN_ONLY' &&
+        (a.profileId == null || a.profileId === undefined) &&
+        (a.studentId == null || a.studentId === undefined)
     );
     if (udnNoProfile.length > 0) {
       warnings.push(
@@ -176,6 +189,9 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         if (next.profileId == null && prevRow.profileId != null) {
           next = { ...next, profileId: prevRow.profileId };
         }
+        if (next.studentId == null && prevRow.studentId != null) {
+          next = { ...next, studentId: prevRow.studentId };
+        }
       }
       const legacyAff: AffiliationType =
         next.affiliationType === 'UDN_ONLY' || next.affiliationType === 'MIXED' || next.affiliationType === 'OUTSIDE'
@@ -215,6 +231,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
 
   const openPicker = (record: AuthorEditableRow) => {
     setPickerRowKey(record.id);
+    setPickerTab('staff');
     setLookupQuery('');
     setLookupResults([]);
     setPickerOpen(true);
@@ -232,10 +249,45 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   const applyProfilePick = (item: AuthorProfileLookupItem) => {
     if (pickerRowKey == null) return;
     const hoTen = tenTuLookup(item);
-    editableFormRef.current?.setRowData?.(pickerRowKey, { fullName: hoTen, profileId: item.id });
-    /** Dùng ref để không bị state closure cũ khi bảng vừa thêm dòng / vừa đổi editable. */
+    editableFormRef.current?.setRowData?.(pickerRowKey, {
+      fullName: hoTen,
+      profileId: item.id,
+      studentId: null,
+    });
     const newData = dataSourceRef.current.map((r) =>
-      String(r.id) === String(pickerRowKey) ? { ...r, fullName: hoTen, profileId: item.id } : r
+      String(r.id) === String(pickerRowKey)
+        ? { ...r, fullName: hoTen, profileId: item.id, studentId: null }
+        : r
+    );
+    handleDataChange(newData);
+    setPickerOpen(false);
+    setPickerRowKey(null);
+  };
+
+  function tenTuStudentLookup(it: AuthorStudentLookupItem): string {
+    const fn = typeof it.fullName === 'string' ? it.fullName.trim() : '';
+    if (fn) return fn;
+    const ma = typeof it.studentCode === 'string' ? it.studentCode.trim() : '';
+    if (ma) return ma;
+    const mail =
+      (typeof it.schoolEmail === 'string' ? it.schoolEmail.trim() : '') ||
+      (typeof it.personalEmail === 'string' ? it.personalEmail.trim() : '');
+    if (mail) return mail;
+    return `Sinh viên #${it.id}`;
+  }
+
+  const applyStudentPick = (item: AuthorStudentLookupItem) => {
+    if (pickerRowKey == null) return;
+    const hoTen = tenTuStudentLookup(item);
+    editableFormRef.current?.setRowData?.(pickerRowKey, {
+      fullName: hoTen,
+      profileId: null,
+      studentId: item.id,
+    });
+    const newData = dataSourceRef.current.map((r) =>
+      String(r.id) === String(pickerRowKey)
+        ? { ...r, fullName: hoTen, profileId: null, studentId: item.id }
+        : r
     );
     handleDataChange(newData);
     setPickerOpen(false);
@@ -245,10 +297,72 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   const clearProfileLink = (record: AuthorEditableRow) => {
     if (rowMatchesOwner(record, ownerProfileId)) return;
     const newData = dataSource.map((r) =>
-      r.id === record.id ? { ...r, profileId: null } : r
+      r.id === record.id ? { ...r, profileId: null, studentId: null } : r
     );
     handleDataChange(newData);
   };
+
+  const renderLookupPanel = (tab: 'staff' | 'student') => (
+    <>
+      <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+        {tab === 'staff'
+          ? 'Gõ tối thiểu 2 ký tự (họ tên, email công tác, đơn vị…).'
+          : 'Gõ tối thiểu 2 ký tự (họ tên, mã SV, email, lớp, ngành…).'}
+      </Text>
+      <Input.Search
+        placeholder={
+          tab === 'staff' ? 'Ví dụ: Nguyễn, @udn, Khoa CNTT…' : 'Ví dụ: Nguyễn, 1022…, CNTT…'
+        }
+        allowClear
+        value={lookupQuery}
+        onChange={(e) => {
+          const v = e.target.value;
+          setLookupQuery(v);
+          scheduleLookup(v, tab);
+        }}
+        onSearch={(v) => void runLookup(v, tab)}
+        style={{ marginBottom: 12 }}
+      />
+      <Spin spinning={lookupLoading}>
+        {tab === 'staff' ? (
+          <List<AuthorProfileLookupItem>
+            dataSource={lookupResults as AuthorProfileLookupItem[]}
+            locale={{
+              emptyText:
+                lookupQuery.trim().length < 2 ? 'Nhập ít nhất 2 ký tự để tìm' : 'Không có kết quả',
+            }}
+            renderItem={(item) => (
+              <List.Item
+                style={{ cursor: 'pointer' }}
+                onClick={() => applyProfilePick(item)}
+              >
+                <List.Item.Meta
+                  title={formatAuthorLookupTitle(item)}
+                  description={formatAuthorLookupSubtitle(item)}
+                />
+              </List.Item>
+            )}
+          />
+        ) : (
+          <List<AuthorStudentLookupItem>
+            dataSource={lookupResults as AuthorStudentLookupItem[]}
+            locale={{
+              emptyText:
+                lookupQuery.trim().length < 2 ? 'Nhập ít nhất 2 ký tự để tìm' : 'Không có kết quả',
+            }}
+            renderItem={(item) => (
+              <List.Item style={{ cursor: 'pointer' }} onClick={() => applyStudentPick(item)}>
+                <List.Item.Meta
+                  title={formatStudentLookupTitle(item)}
+                  description={formatStudentLookupSubtitle(item)}
+                />
+              </List.Item>
+            )}
+          />
+        )}
+      </Spin>
+    </>
+  );
 
   const columns: ProColumns<AuthorEditableRow>[] = [
     {
@@ -281,8 +395,13 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         <Space direction="vertical" size={4} style={{ width: '100%' }}>
           {record.profileId != null ? (
             <Tag color="blue">
-              Nội bộ
+              Cán bộ/GV
               {record.fullName?.trim() ? ` · ${record.fullName.trim()}` : ''} · ID {record.profileId}
+            </Tag>
+          ) : record.studentId != null ? (
+            <Tag color="cyan">
+              Sinh viên
+              {record.fullName?.trim() ? ` · ${record.fullName.trim()}` : ''} · ID {record.studentId}
             </Tag>
           ) : (
             <Tag>Tác giả ngoài / nhập tay</Tag>
@@ -297,7 +416,8 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
             >
               Chọn từ hồ sơ NCV
             </Button>
-            {record.profileId != null && !rowMatchesOwner(record, ownerProfileId) && (
+            {(record.profileId != null || record.studentId != null) &&
+              !rowMatchesOwner(record, ownerProfileId) && (
               <Button
                 type="link"
                 size="small"
@@ -477,6 +597,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                     clientRowKey: key,
                     fullName: '',
                     profileId: null,
+                    studentId: null,
                     authorOrder: maxOrder + 1,
                     isTopAuthor: false,
                     isCorresponding: false,
@@ -501,49 +622,41 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       />
 
       <Modal
-        title="Chọn hồ sơ khoa học nội bộ"
+        title="Chọn liên kết nội bộ"
         open={pickerOpen}
         onCancel={() => {
           setPickerOpen(false);
           setPickerRowKey(null);
           setLookupResults([]);
+          setLookupQuery('');
         }}
         footer={null}
-        width={560}
+        width={580}
         destroyOnClose
       >
-        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          Gõ tối thiểu 2 ký tự (họ tên, email công tác, đơn vị…).
-        </Text>
-        <Input.Search
-          placeholder="Ví dụ: Nguyễn, @udn, Khoa CNTT…"
-          allowClear
-          value={lookupQuery}
-          onChange={(e) => {
-            const v = e.target.value;
-            setLookupQuery(v);
-            scheduleLookup(v);
+        <Tabs
+          activeKey={pickerTab}
+          onChange={(key) => {
+            const tab = key === 'student' ? 'student' : 'staff';
+            setPickerTab(tab);
+            setLookupResults([]);
+            if (lookupQuery.trim().length >= 2) {
+              void runLookup(lookupQuery, tab);
+            }
           }}
-          onSearch={(v) => void runLookup(v)}
-          style={{ marginBottom: 12 }}
+          items={[
+            {
+              key: 'staff',
+              label: 'Cán bộ/Giảng viên',
+              children: renderLookupPanel('staff'),
+            },
+            {
+              key: 'student',
+              label: 'Sinh viên',
+              children: renderLookupPanel('student'),
+            },
+          ]}
         />
-        <Spin spinning={lookupLoading}>
-          <List<AuthorProfileLookupItem>
-            dataSource={lookupResults}
-            locale={{ emptyText: lookupQuery.trim().length < 2 ? 'Nhập ít nhất 2 ký tự để tìm' : 'Không có kết quả' }}
-            renderItem={(item) => (
-              <List.Item
-                style={{ cursor: 'pointer' }}
-                onClick={() => applyProfilePick(item)}
-              >
-                <List.Item.Meta
-                  title={formatAuthorLookupTitle(item)}
-                  description={formatAuthorLookupSubtitle(item)}
-                />
-              </List.Item>
-            )}
-          />
-        </Spin>
       </Modal>
     </div>
   );

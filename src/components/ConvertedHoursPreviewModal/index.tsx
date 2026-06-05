@@ -5,6 +5,7 @@ import { FunctionOutlined, BarChartOutlined } from '@ant-design/icons';
 import {
   previewPublicationConvertedHours,
   getMyPublicationAuthors,
+  getProfilePublicationAuthors,
   normalizePublicationAuthor,
   type ConvertedHoursBreakdown,
 } from '@/services/api/profilePublications';
@@ -65,6 +66,8 @@ function tooltipHeSoDonViTheoPhanHoi(data: ConvertedHoursBreakdown | null): stri
 interface ConvertedHoursPreviewModalProps {
   open: boolean;
   publicationId: number | null;
+  /** Hồ sơ đang xem (trang chi tiết admin); không truyền = hồ sơ đăng nhập (me). */
+  profileId?: number;
   publicationTitle?: string;
   onClose: () => void;
 }
@@ -84,6 +87,7 @@ interface AuthorBreakdownRow {
 const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
   open,
   publicationId,
+  profileId,
   publicationTitle,
   onClose,
 }) => {
@@ -104,7 +108,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       setFormulaOpen(false);
       setMetricsOpen(false);
     }
-  }, [open, publicationId]);
+  }, [open, publicationId, profileId]);
 
   const loadData = async () => {
     if (!publicationId) return;
@@ -115,7 +119,10 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
     setData(null);
 
     try {
-      const authorsRes = await getMyPublicationAuthors(publicationId);
+      const authorsRes =
+        profileId != null && Number.isFinite(profileId)
+          ? await getProfilePublicationAuthors(profileId, publicationId)
+          : await getMyPublicationAuthors(publicationId);
       const authors = (authorsRes.success && authorsRes.data
         ? authorsRes.data.map(normalizePublicationAuthor)
         : []) as Array<{ isTopAuthor: boolean; isCorresponding: boolean }>;
@@ -125,7 +132,9 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
         return;
       }
 
-      const result = await previewPublicationConvertedHours(publicationId);
+      const result = await previewPublicationConvertedHours(publicationId, {
+        profileId: profileId != null && Number.isFinite(profileId) ? profileId : undefined,
+      });
       if (result.success && result.data) {
         setData(result.data);
       } else {

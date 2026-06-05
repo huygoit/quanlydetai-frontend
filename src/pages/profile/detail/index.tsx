@@ -132,7 +132,8 @@ const ProfileDetailPage: React.FC = () => {
   );
 
   const canVerify = access.canVerifyProfile;
-  const canViewHoursConversion = access.canVerifyProfile;
+  /** Xem quy đổi giờ: cần xem mọi hồ sơ hoặc quyền xác thực (khớp BE profile.view_all | profile.verify). */
+  const canViewHoursConversion = access.canViewProfileAll || access.canVerifyProfile;
 
   // Handle preview hours
   const handlePreviewHours = (pub: PublicationItem) => {
@@ -955,6 +956,7 @@ const ProfileDetailPage: React.FC = () => {
       <ConvertedHoursPreviewModal
         open={previewModalVisible}
         publicationId={previewPubId}
+        profileId={id ? Number(id) : undefined}
         publicationTitle={previewPubTitle}
         onClose={() => setPreviewModalVisible(false)}
       />

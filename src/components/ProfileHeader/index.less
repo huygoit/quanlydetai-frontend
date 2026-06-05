@@ -26,12 +26,34 @@
   min-width: 0;
 }
 
+.profile-header-avatarCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  width: 96px;
+}
+
+/** Cùng kiểu primary + icon như nút «Lưu thông tin» trên form hồ sơ */
+.profile-header-exportCvBtn {
+  width: 100%;
+  border-radius: 8px;
+  font-weight: 500;
+  height: 32px;
+  padding-inline: 8px;
+  font-size: 13px;
+  box-shadow: 0 2px 0 rgba(5, 145, 255, 0.1);
+}
+
 .profile-header-upload {
   flex-shrink: 0;
   cursor: pointer;
+  width: 100%;
 
   .ant-upload {
     display: block;
+    width: 100%;
   }
 }
 
@@ -126,6 +148,7 @@
 /* Thống kê NCKH — góc phải, một hàng ngang */
 .profile-header-aside {
   flex-shrink: 0;
+  max-width: min(460px, 100%);
 }
 
 .profile-header-metricsCompact {
@@ -189,13 +212,7 @@
 .profile-header-actions {
   display: flex;
   justify-content: flex-end;
-}
-
-.profile-header-exportBtn {
-  border-radius: 8px;
-  height: 40px;
-  font-weight: 500;
-  white-space: nowrap;
+  width: 100%;
 }
 
 @media (max-width: 992px) {
@@ -220,17 +237,13 @@
     justify-content: center;
   }
 
-  .profile-header-actions {
-    width: 100%;
-
-    .profile-header-exportBtn,
-    .ant-btn {
-      width: 100%;
-    }
-  }
-
   .profile-header-main {
     width: 100%;
+  }
+
+  .profile-header-avatarCol {
+    width: auto;
+    min-width: 96px;
   }
 }
 

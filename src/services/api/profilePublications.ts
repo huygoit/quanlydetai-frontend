@@ -77,7 +77,14 @@ export function normalizeAffiliationUnits(
 }
 
 /** Chuẩn hoá tác giả từ API về enum hợp lệ của FE, giữ nguyên MIXED để tính đúng điều 1.5. */
-export function normalizePublicationAuthor(a: PublicationAuthor): PublicationAuthor {
+export function normalizePublicationAuthor(a: PublicationAuthor & Record<string, unknown>): PublicationAuthor {
+  const rawStudent = a.studentId ?? (a as Record<string, unknown>).student_id;
+  const studentId =
+    rawStudent == null || rawStudent === ''
+      ? null
+      : Number.isFinite(Number(rawStudent))
+        ? Number(rawStudent)
+        : null;
   const aff: AffiliationType =
     a.affiliationType === 'UDN_ONLY' || a.affiliationType === 'MIXED' || a.affiliationType === 'OUTSIDE'
       ? a.affiliationType
@@ -86,6 +93,7 @@ export function normalizePublicationAuthor(a: PublicationAuthor): PublicationAut
   const derivedAff = deriveAffiliationTypeFromUnits(affiliationUnits);
   return {
     ...a,
+    studentId,
     affiliationUnits,
     affiliationType: derivedAff,
     isMultiAffiliationOutsideUdn: derivedAff === 'MIXED',
@@ -201,6 +209,8 @@ export interface PublicationAuthor {
   clientRowKey?: string;
   fullName: string;
   profileId?: number | null;
+  /** Liên kết bảng students (tác giả là sinh viên). */
+  studentId?: number | null;
   authorOrder: number;
   isTopAuthor: boolean;
   isCorresponding: boolean;
@@ -343,6 +353,73 @@ export async function lookupAuthorProfiles(
   }).filter((r) => r.id > 0);
 }
 
+/** Một sinh viên trả về từ lookup tác giả (API /api/profile/me/author-students-lookup) */
+export interface AuthorStudentLookupItem {
+  id: number;
+  fullName: string | null;
+  studentCode?: string | null;
+  schoolEmail?: string | null;
+  personalEmail?: string | null;
+  classCode?: string | null;
+  className?: string | null;
+  majorName?: string | null;
+  department?: string | null;
+  status?: string | null;
+}
+
+/**
+ * Tìm sinh viên nội bộ để gắn student_id cho dòng tác giả (từ 2 ký tự trở lên).
+ */
+export async function lookupAuthorStudents(
+  q: string,
+  limit = 20
+): Promise<AuthorStudentLookupItem[]> {
+  const trimmed = q.trim();
+  if (trimmed.length < 2) return [];
+  const res = await get<ApiResponse<AuthorStudentLookupItem[]>>(
+    '/api/profile/me/author-students-lookup',
+    { q: trimmed, limit }
+  );
+  if (!res.success || !Array.isArray(res.data)) return [];
+  return res.data
+    .map((row: Record<string, unknown>) => {
+      const hoTen =
+        [row.fullName, row.full_name, row.name, row.hoTen, row.ho_ten].find(
+          (v): v is string => typeof v === 'string' && v.trim().length > 0
+        )?.trim() ?? '';
+      return {
+        id: Number(row.id) || 0,
+        fullName: hoTen || null,
+        studentCode:
+          typeof (row.studentCode ?? row.student_code) === 'string'
+            ? String(row.studentCode ?? row.student_code)
+            : null,
+        schoolEmail: String(row.schoolEmail ?? row.school_email ?? '') || null,
+        personalEmail: String(row.personalEmail ?? row.personal_email ?? '') || null,
+        classCode:
+          typeof (row.classCode ?? row.class_code) === 'string'
+            ? String(row.classCode ?? row.class_code)
+            : null,
+        className:
+          typeof (row.className ?? row.class_name) === 'string'
+            ? String(row.className ?? row.class_name)
+            : null,
+        majorName:
+          typeof (row.majorName ?? row.major_name) === 'string'
+            ? String(row.majorName ?? row.major_name)
+            : null,
+        department:
+          typeof row.department === 'string'
+            ? row.department
+            : typeof (row.department as { name?: string } | null)?.name === 'string'
+              ? (row.department as { name: string }).name
+              : null,
+        status: typeof row.status === 'string' ? row.status : null,
+      };
+    })
+    .filter((r) => r.id > 0);
+}
+
 /**
  * Lấy danh sách công bố của tôi
  */
@@ -470,6 +547,16 @@ export async function getMyPublicationAuthors(
   );
 }
 
+/** Danh sách tác giả khi xem hồ sơ người khác (PHONG_KH / ADMIN). */
+export async function getProfilePublicationAuthors(
+  profileId: number,
+  pubId: number
+): Promise<ApiResponse<PublicationAuthor[]>> {
+  return get<ApiResponse<PublicationAuthor[]>>(
+    `/api/profiles/${profileId}/publications/${pubId}/authors`
+  );
+}
+
 /** Chuỗi số → id DB; tránh mất id khi Pro Table trả id kiểu string */
 function coerceAuthorRowId(id: PublicationAuthor['id']): number | undefined {
   if (typeof id === 'number' && Number.isFinite(id)) return id;
@@ -483,11 +570,18 @@ function coerceProfileId(v: PublicationAuthor['profileId']): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function coerceStudentId(v: PublicationAuthor['studentId']): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Body PUT authors theo schema Vine (snake_case) trên API. */
 function publicationAuthorToApiPayload(a: PublicationAuthor) {
   return {
     id: coerceAuthorRowId(a.id),
     profile_id: coerceProfileId(a.profileId),
+    student_id: coerceStudentId(a.studentId),
     full_name: a.fullName,
     affiliation_units: uniqueNonEmptyStrings(a.affiliationUnits),
     author_order: a.authorOrder,
@@ -515,10 +609,16 @@ export async function saveMyPublicationAuthors(
  * Xem trước quy đổi giờ NCKH của công bố
  */
 export async function previewPublicationConvertedHours(
-  pubId: number
+  pubId: number,
+  options?: { profileId?: number }
 ): Promise<ApiResponse<ConvertedHoursBreakdown>> {
+  const params =
+    options?.profileId != null && Number.isFinite(options.profileId)
+      ? { profile_id: options.profileId }
+      : undefined;
   return get<ApiResponse<ConvertedHoursBreakdown>>(
-    `/api/kpis/publications/${pubId}/breakdown`
+    `/api/kpis/publications/${pubId}/breakdown`,
+    params
   );
 }
 

@@ -101,6 +101,10 @@ import {
   tenFileTuUrl,
 } from '@/utils/publicationAttachments';
 import { getTeacherKpi } from '@/services/api/kpis';
+import ProfileNckhMetrics, {
+  taoKpiPeriodMacDinh,
+  type KpiPeriodState,
+} from '@/components/ProfileNckhMetrics';
 import { downloadBlob, downloadFromUrl } from '@/utils/download';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import { laDuongDanAnhChungChi, laDuongDanPdfChungChi } from '@/utils/certificatePreview';
@@ -1375,7 +1379,8 @@ const MyProfilePage: React.FC = () => {
   }>({ mo: false, url: '', tieuDe: 'Xem chứng chỉ' });
   const [loiXemChungChi, setLoiXemChungChi] = useState<string | null>(null);
 
-  /** Tổng giờ NCKH + điểm quy đổi (năm học mặc định theo API). */
+  /** Tổng giờ/điểm theo kỳ (mặc định: năm tài chính hiện tại). */
+  const [kpiPeriod, setKpiPeriod] = useState<KpiPeriodState>(() => taoKpiPeriodMacDinh());
   const [nckhHours, setNckhHours] = useState<number | null>(null);
   const [nckhPoints, setNckhPoints] = useState<number | null>(null);
   const [nckhLoading, setNckhLoading] = useState(false);
@@ -1539,12 +1544,27 @@ const MyProfilePage: React.FC = () => {
     }
   }, [searchParams]);
 
-  /** Tổng giờ/điểm — BE: GET /api/kpis/teachers/:profileId (spec api-kpis-teacher-totals.md). */
+  const namLocChiSo = useMemo(
+    () => layDanhSachNamLoc(profile?.publications ?? []),
+    [profile?.publications],
+  );
+
+  /** Tổng giờ/điểm — BE lọc theo from_date / to_date (publishedAt). */
   useEffect(() => {
     if (!profile?.id) return;
+    const from = kpiPeriod.dateRange?.[0];
+    const to = kpiPeriod.dateRange?.[1];
+    if (!coBoLocNgayDangBat(from, to)) {
+      setNckhHours(null);
+      setNckhPoints(null);
+      return;
+    }
     let cancelled = false;
     setNckhLoading(true);
-    getTeacherKpi(profile.id)
+    getTeacherKpi(profile.id, {
+      fromDate: from.format('YYYY-MM-DD'),
+      toDate: to.format('YYYY-MM-DD'),
+    })
       .then((res) => {
         if (cancelled) return;
         if (res.success && res.data) {
@@ -1569,7 +1589,7 @@ const MyProfilePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [profile?.id, profile?.publications]);
+  }, [profile?.id, kpiPeriod.dateRange, kpiPeriod.preset, kpiPeriod.refYear]);
 
   const dismissOnboarding = () => {
     history.replace('/profile/me');
@@ -1711,7 +1731,7 @@ const MyProfilePage: React.FC = () => {
         message.success('Đã tải CV thành công');
       }
     } catch (error) {
-      message.error('Không thể xuất CV. Vui lòng thử lại.');
+      message.error('Không thể tải CV. Vui lòng thử lại.');
     } finally {
       setExporting(false);
     }
@@ -2005,11 +2025,23 @@ const MyProfilePage: React.FC = () => {
         researchHours={profile.id != null ? nckhHours : null}
         convertedPoint={profile.id != null ? nckhPoints : null}
         metricsLoading={nckhLoading}
+        metricsSlot={
+          profile.id != null ? (
+            <ProfileNckhMetrics
+              researchHours={nckhHours}
+              convertedPoint={nckhPoints}
+              loading={nckhLoading}
+              period={kpiPeriod}
+              onPeriodChange={setKpiPeriod}
+              yearOptions={namLocChiSo}
+            />
+          ) : undefined
+        }
         verified={profile.status === 'VERIFIED'}
         avatarUploading={avatarUploading}
         onAvatarChange={handleAvatarChange}
-        exportLoading={exporting}
         onExportCV={handleExportCvPdf}
+        exportLoading={exporting}
       />
 
       {/* Need more info alert */}

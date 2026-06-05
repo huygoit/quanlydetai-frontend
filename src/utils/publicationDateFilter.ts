@@ -16,6 +16,32 @@ export type PublicationFilterPreset =
   | 'fiscal_year'
   | 'custom';
 
+/** Preset cho bộ lọc tổng giờ/điểm trên header (không có «Tất cả»). */
+export const PRESET_LOC_CHI_SO_NCKH: { value: PublicationFilterPreset; label: string }[] = [
+  { value: 'fiscal_year', label: 'Năm tài chính' },
+  { value: 'year', label: 'Cả năm dương lịch' },
+  { value: 'q1', label: 'Quý 1 (T1–T3)' },
+  { value: 'q2', label: 'Quý 2 (T4–T6)' },
+  { value: 'q3', label: 'Quý 3 (T7–T9)' },
+  { value: 'q4', label: 'Quý 4 (T10–T12)' },
+  { value: 'month_this', label: 'Tháng này' },
+  { value: 'month_prev', label: 'Tháng trước' },
+  { value: 'custom', label: 'Tùy chọn ngày' },
+];
+
+/** Năm gắn nhãn «Năm TC Y» — tháng 1–3 thuộc năm TC (Y-1). */
+export function namThamChieuNamTaiChinh(ref = dayjs()): number {
+  const m = ref.month() + 1;
+  if (m >= THANG_BAT_DAU_NAM_TAI_CHINH) return ref.year();
+  return ref.year() - 1;
+}
+
+/** Khoảng mặc định khi mở hồ sơ: năm tài chính hiện tại. */
+export function khoangMacDinhChiSoNckh(): [Dayjs, Dayjs] {
+  const refYear = namThamChieuNamTaiChinh();
+  return khoangNgayTheoPreset('fiscal_year', refYear) as [Dayjs, Dayjs];
+}
+
 export const PRESET_LOC_KQNC: { value: PublicationFilterPreset; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
   { value: 'month_this', label: 'Tháng này' },
