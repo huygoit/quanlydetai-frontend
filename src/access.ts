@@ -2,6 +2,7 @@
  * Access Control - CHỈ dùng IAM permission, không dùng role
  */
 import { hasPermission, hasAnyPermission as hasAnyPerm, PERM } from '@/utils/permission';
+import { isAdminKeKhaiUser } from '@/utils/adminKeKhai';
 
 export type UserRole =
   | 'NCV'
@@ -21,6 +22,7 @@ export interface AccessInitialState {
     roleLabel?: string;
     avatar?: string;
     permissions?: string[];
+    roles?: Array<{ code?: string }>;
   };
   permissions?: string[];
   loading?: boolean;
@@ -29,6 +31,10 @@ export interface AccessInitialState {
 export default function access(initialState: AccessInitialState | undefined) {
   const permissions = initialState?.permissions ?? initialState?.currentUser?.permissions ?? [];
   const hasWildcard = permissions.includes('*');
+  const currentUser = initialState?.currentUser;
+  const isAdminSystemAccount = isAdminKeKhaiUser(currentUser);
+  /** NCV/CNDT/… — không áp dụng cho tài khoản ADMIN/SUPER_ADMIN vận hành hệ thống. */
+  const canUsePersonalWorkspace = !!currentUser && !isAdminSystemAccount;
 
   const has = (code: string) => hasPermission(permissions, code) || hasWildcard;
   const hasAny = (codes: string[]) => hasAnyPerm(permissions, codes) || hasWildcard;
@@ -43,6 +49,8 @@ export default function access(initialState: AccessInitialState | undefined) {
 
   return {
     isLogin: !!initialState?.currentUser,
+    isAdminSystemAccount,
+    canUsePersonalWorkspace,
 
     hasPermission: (code: string) => has(code),
     hasAnyPermission: (codes: string[]) => hasAny(codes),
@@ -68,12 +76,15 @@ export default function access(initialState: AccessInitialState | undefined) {
 
     canViewHome: true,
     canViewProfile: hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
-    canViewProfileSelf: hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
-    canEditProfileSelf: has(PERM.profile.update_own),
+    canViewProfileSelf:
+      canUsePersonalWorkspace &&
+      hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
+    canEditProfileSelf: canUsePersonalWorkspace && has(PERM.profile.update_own),
     canViewProfileAll: has(PERM.profile.view_all),
     canVerifyProfile: has(PERM.profile.verify),
     canExportProfile: has(PERM.profile.export),
     canViewIdeaBank: has(PERM.idea.view),
+    canViewMyIdeas: canUsePersonalWorkspace && has(PERM.idea.view),
     canManageIdeaBank: has(PERM.idea.manage),
     canReviewIdea: has(PERM.idea.review),
     canScoreIdea: has(PERM.council.score),
@@ -82,6 +93,7 @@ export default function access(initialState: AccessInitialState | undefined) {
     canProposeOrder: has(PERM.council.propose_order),
     canApproveOrder: has(PERM.council.approve_order),
     canViewProjectRegister: hasAny([PERM.project.create, PERM.project.submit]),
+    canViewMyProjects: canUsePersonalWorkspace && has(PERM.project.view),
     canCreateProjectProposal: hasAny([PERM.project.create, PERM.project.submit]),
     canUnitReviewProjectProposal: has(PERM.project.unit_review),
     canReviewProjectProposal: has(PERM.project.review),

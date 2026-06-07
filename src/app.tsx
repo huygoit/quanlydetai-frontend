@@ -12,6 +12,7 @@ import type { UserRole } from '@/services/mock/homeMockService';
 import NotificationBell from '@/components/NotificationBell';
 import { getCurrentUser, logout as apiLogout, normalizePermissions } from '@/services/api/auth';
 import { getToken, removeToken } from '@/services/request';
+import { isAdminKeKhaiUser, isPersonalWorkspacePath } from '@/utils/adminKeKhai';
 import './global.less';
 
 // Custom Vietnamese locale với pagination text tùy chỉnh
@@ -201,6 +202,7 @@ function getRoleLabel(role: UserRole | string | undefined): string {
  */
 export const layout: RunTimeLayoutConfig = ({ initialState }) => {
   const currentUser = initialState?.currentUser;
+  const canUsePersonalWorkspace = !!currentUser && !isAdminKeKhaiUser(currentUser);
 
   // Helper function để lấy icon component từ tên
   const getIcon = (iconName?: string) => {
@@ -225,6 +227,15 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
       locale: false,
       defaultOpenAll: false,
       autoClose: false,
+    },
+    onPageChange: () => {
+      const { pathname } = history.location;
+      if (currentUser && isAdminKeKhaiUser(currentUser) && isPersonalWorkspacePath(pathname)) {
+        message.warning(
+          'Tài khoản quản trị không dùng chức năng cá nhân. Vui lòng dùng tài khoản NCV hoặc trang quản lý hệ thống.'
+        );
+        history.replace('/home');
+      }
     },
     token: {
       header: {
@@ -293,27 +304,31 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
                 disabled: true,
               },
               { type: 'divider' },
-              {
-                key: 'personalProfile',
-                label: 'Hồ sơ cán bộ của tôi',
-                onClick: () => history.push('/my-personal-profile'),
-              },
-              {
-                key: 'scientificProfile',
-                label: 'Hồ sơ khoa học của tôi',
-                onClick: () => history.push('/profile/me'),
-              },
-              {
-                key: 'myIdeas',
-                label: 'Ý tưởng của tôi',
-                onClick: () => history.push('/ideas/my'),
-              },
-              {
-                key: 'myProjects',
-                label: 'Đề tài của tôi',
-                onClick: () => history.push('/projects/my'),
-              },
-              { type: 'divider' },
+              ...(canUsePersonalWorkspace
+                ? [
+                    {
+                      key: 'personalProfile',
+                      label: 'Hồ sơ cán bộ của tôi',
+                      onClick: () => history.push('/my-personal-profile'),
+                    },
+                    {
+                      key: 'scientificProfile',
+                      label: 'Hồ sơ khoa học của tôi',
+                      onClick: () => history.push('/profile/me'),
+                    },
+                    {
+                      key: 'myIdeas',
+                      label: 'Ý tưởng của tôi',
+                      onClick: () => history.push('/ideas/my'),
+                    },
+                    {
+                      key: 'myProjects',
+                      label: 'Đề tài của tôi',
+                      onClick: () => history.push('/projects/my'),
+                    },
+                    { type: 'divider' as const },
+                  ]
+                : []),
               {
                 key: 'logout',
                 icon: <LogoutOutlined />,

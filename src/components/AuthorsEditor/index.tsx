@@ -5,9 +5,13 @@ import { Alert, Space, Typography, Tag, Modal, Input, List, Button, Spin, Tabs }
 import type { PublicationAuthor, AffiliationType } from '@/services/api/profilePublications';
 import {
   AUTHOR_AFFILIATION_MULTI_OPTIONS,
+  AUTHOR_GENDER_OPTIONS,
   AUTHOR_WORKPLACE_OTHER_UNIT,
   deriveAffiliationTypeFromUnits,
+  laTacGiaNhapTay,
   normalizeAffiliationUnits,
+  normalizeAuthorGender,
+  nhanGioiTinhTacGia,
   UDN_AFFILIATION_UNITS,
   normalizePublicationAuthor,
   lookupAuthorProfiles,
@@ -34,6 +38,14 @@ function rowMatchesOwner(
 ): boolean {
   if (ownerProfileId == null) return false;
   return record.profileId != null && Number(record.profileId) === Number(ownerProfileId);
+}
+
+/** Dòng tác giả là chủ hồ sơ đang đăng nhập — chỉ được đổi vai trò (tác giả đầu / liên hệ). */
+function laDongChuDangNhap(
+  record: { profileId?: number | null },
+  ownerProfileId?: number
+): boolean {
+  return rowMatchesOwner(record, ownerProfileId);
 }
 
 interface AuthorsEditorProps {
@@ -66,6 +78,8 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Bản dataSource mới nhất — dùng khi merge chống Pro Table gọi onChange lần 2 với form rỗng (đặc biệt dòng mới). */
   const dataSourceRef = useRef<AuthorEditableRow[]>([]);
+  /** Dòng vừa bấm "Bỏ liên kết" — không khôi phục profileId/studentId trong merge. */
+  const unlinkingRowIdsRef = useRef<Set<string>>(new Set());
   dataSourceRef.current = dataSource;
 
   useEffect(() => {
@@ -147,12 +161,20 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     const udnNoProfile = dataSource.filter(
       (a) =>
         a.affiliationType === 'UDN_ONLY' &&
-        (a.profileId == null || a.profileId === undefined) &&
-        (a.studentId == null || a.studentId === undefined)
+        laTacGiaNhapTay(a)
     );
     if (udnNoProfile.length > 0) {
       warnings.push(
         `Có ${udnNoProfile.length} dòng cơ quan ĐHĐN chưa liên kết hồ sơ nội bộ — nên bấm “Chọn từ hồ sơ NCV” để gắn profile_id (trừ tác giả ngoài thật sự không có trong hệ thống).`
+      );
+    }
+
+    const nhapTayThieuGioiTinh = dataSource.filter((a) => laTacGiaNhapTay(a) && !a.gender);
+    if (nhapTayThieuGioiTinh.length > 0) {
+      errors.push(
+        nhapTayThieuGioiTinh.length === 1
+          ? `Tác giả "${nhapTayThieuGioiTinh[0].fullName?.trim() || 'nhập tay'}" cần chọn giới tính`
+          : `Có ${nhapTayThieuGioiTinh.length} tác giả nhập tay chưa chọn giới tính`
       );
     }
 
@@ -182,15 +204,28 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     return incoming.map((row) => {
       const prevRow = timDongTuongUng(prevDs, row);
       let next = { ...row };
+      if (prevRow && laDongChuDangNhap(prevRow, ownerProfileId)) {
+        /** Dòng chủ hồ sơ: chỉ nhận thay đổi tác giả đầu / liên hệ. */
+        return {
+          ...prevRow,
+          isTopAuthor: next.isTopAuthor,
+          isCorresponding: next.isCorresponding,
+        };
+      }
       if (prevRow) {
+        const rowKey = String(prevRow.id);
+        const vuaBoLienKet = unlinkingRowIdsRef.current.has(rowKey);
         const tenMoi = String(next.fullName ?? '').trim();
         const tenCu = String(prevRow.fullName ?? '').trim();
         if (!tenMoi && tenCu) next = { ...next, fullName: prevRow.fullName };
-        if (next.profileId == null && prevRow.profileId != null) {
+        if (!vuaBoLienKet && next.profileId == null && prevRow.profileId != null) {
           next = { ...next, profileId: prevRow.profileId };
         }
-        if (next.studentId == null && prevRow.studentId != null) {
+        if (!vuaBoLienKet && next.studentId == null && prevRow.studentId != null) {
           next = { ...next, studentId: prevRow.studentId };
+        }
+        if (!vuaBoLienKet && next.gender == null && prevRow.gender != null) {
+          next = { ...next, gender: prevRow.gender };
         }
       }
       const legacyAff: AffiliationType =
@@ -230,6 +265,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   };
 
   const openPicker = (record: AuthorEditableRow) => {
+    if (laDongChuDangNhap(record, ownerProfileId)) return;
     setPickerRowKey(record.id);
     setPickerTab('staff');
     setLookupQuery('');
@@ -249,14 +285,16 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   const applyProfilePick = (item: AuthorProfileLookupItem) => {
     if (pickerRowKey == null) return;
     const hoTen = tenTuLookup(item);
+    const gender = normalizeAuthorGender(item.gender);
     editableFormRef.current?.setRowData?.(pickerRowKey, {
       fullName: hoTen,
       profileId: item.id,
       studentId: null,
+      gender,
     });
     const newData = dataSourceRef.current.map((r) =>
       String(r.id) === String(pickerRowKey)
-        ? { ...r, fullName: hoTen, profileId: item.id, studentId: null }
+        ? { ...r, fullName: hoTen, profileId: item.id, studentId: null, gender }
         : r
     );
     handleDataChange(newData);
@@ -279,14 +317,16 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   const applyStudentPick = (item: AuthorStudentLookupItem) => {
     if (pickerRowKey == null) return;
     const hoTen = tenTuStudentLookup(item);
+    const gender = normalizeAuthorGender(item.gender);
     editableFormRef.current?.setRowData?.(pickerRowKey, {
       fullName: hoTen,
       profileId: null,
       studentId: item.id,
+      gender,
     });
     const newData = dataSourceRef.current.map((r) =>
       String(r.id) === String(pickerRowKey)
-        ? { ...r, fullName: hoTen, profileId: null, studentId: item.id }
+        ? { ...r, fullName: hoTen, profileId: null, studentId: item.id, gender }
         : r
     );
     handleDataChange(newData);
@@ -296,10 +336,22 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
 
   const clearProfileLink = (record: AuthorEditableRow) => {
     if (rowMatchesOwner(record, ownerProfileId)) return;
-    const newData = dataSource.map((r) =>
-      r.id === record.id ? { ...r, profileId: null, studentId: null } : r
+    const rowKey = String(record.id);
+    unlinkingRowIdsRef.current.add(rowKey);
+    const newData = dataSourceRef.current.map((r) =>
+      String(r.id) === rowKey
+        ? { ...r, profileId: null, studentId: null, gender: null }
+        : r
     );
+    editableFormRef.current?.setRowData?.(record.id, {
+      profileId: null,
+      studentId: null,
+      gender: null,
+    });
     handleDataChange(newData);
+    queueMicrotask(() => {
+      unlinkingRowIdsRef.current.delete(rowKey);
+    });
   };
 
   const renderLookupPanel = (tab: 'staff' | 'student') => (
@@ -364,12 +416,41 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     </>
   );
 
+  const hienThiOGioiTinh = (record: AuthorEditableRow) => {
+    const label = nhanGioiTinhTacGia(record.gender);
+    if (label === '—') {
+      return laTacGiaNhapTay(record) ? (
+        <Text type="danger">Chưa chọn</Text>
+      ) : (
+        <Text type="secondary">—</Text>
+      );
+    }
+    const tuHeThong = !laTacGiaNhapTay(record);
+    return (
+      <Space direction="vertical" size={0}>
+        <Tag color={record.gender === 'FEMALE' ? 'magenta' : record.gender === 'MALE' ? 'blue' : 'default'}>
+          {label}
+        </Tag>
+        {tuHeThong && (
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            Từ hệ thống
+          </Text>
+        )}
+      </Space>
+    );
+  };
+
+  /** Cột thông tin cá nhân — khóa với dòng chủ hồ sơ đang đăng nhập. */
+  const choPhepSuaThongTin = (record: AuthorEditableRow) =>
+    !disabled && !laDongChuDangNhap(record, ownerProfileId);
+
   const columns: ProColumns<AuthorEditableRow>[] = [
     {
       title: 'STT',
       dataIndex: 'authorOrder',
       valueType: 'digit',
       width: 56,
+      editable: (_, record) => choPhepSuaThongTin(record),
       formItemProps: {
         rules: [{ required: true, message: 'Bắt buộc' }],
       },
@@ -379,6 +460,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       title: 'Họ tên',
       dataIndex: 'fullName',
       width: 170,
+      editable: (_, record) => choPhepSuaThongTin(record),
       formItemProps: {
         rules: [{ required: true, message: 'Bắt buộc' }],
       },
@@ -393,6 +475,11 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       editable: false,
       render: (_, record) => (
         <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          {laDongChuDangNhap(record, ownerProfileId) && (
+            <Tag color="purple" style={{ marginBottom: 2 }}>
+              Bạn (chỉ đổi vai trò)
+            </Tag>
+          )}
           {record.profileId != null ? (
             <Tag color="blue">
               Cán bộ/GV
@@ -410,7 +497,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
             <Button
               type="link"
               size="small"
-              disabled={disabled}
+              disabled={disabled || laDongChuDangNhap(record, ownerProfileId)}
               onClick={() => openPicker(record)}
               style={{ padding: 0 }}
             >
@@ -432,6 +519,36 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
           </Space>
         </Space>
       ),
+    },
+    {
+      title: 'Giới tính',
+      dataIndex: 'gender',
+      valueType: 'select',
+      width: 110,
+      editable: (_, record) => choPhepSuaThongTin(record) && laTacGiaNhapTay(record),
+      fieldProps: {
+        options: AUTHOR_GENDER_OPTIONS,
+        placeholder: 'Chọn',
+      },
+      formItemProps: (_form, { entity }) => ({
+        rules: [
+          {
+            validator: async (_, value) => {
+              const row = entity as AuthorEditableRow | undefined;
+              if (!row || !laTacGiaNhapTay(row)) return;
+              if (value) return;
+              throw new Error('Bắt buộc với tác giả nhập tay');
+            },
+          },
+        ],
+      }),
+      render: (_, record) => hienThiOGioiTinh(record),
+      renderFormItem: (_, { defaultRender, record }) => {
+        if (record && !laTacGiaNhapTay(record)) {
+          return hienThiOGioiTinh(record);
+        }
+        return defaultRender ? defaultRender(_) : null;
+      },
     },
     {
       title: 'Tác giả đầu',
@@ -462,6 +579,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       dataIndex: 'affiliationUnits',
       valueType: 'select',
       width: 260,
+      editable: (_, record) => choPhepSuaThongTin(record),
       fieldProps: {
         mode: 'multiple',
         options: AUTHOR_AFFILIATION_MULTI_OPTIONS,
@@ -598,6 +716,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                     fullName: '',
                     profileId: null,
                     studentId: null,
+                    gender: null,
                     authorOrder: maxOrder + 1,
                     isTopAuthor: false,
                     isCorresponding: false,
@@ -616,7 +735,23 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
           saveText: 'Lưu',
           cancelText: 'Hủy',
           actionRender: (_row, _config, defaultDom) => [defaultDom.save, defaultDom.cancel],
+          onSave: async (rowKey, row) => {
+            if (laDongChuDangNhap(row as AuthorEditableRow, ownerProfileId)) {
+              const prev = dataSourceRef.current.find((r) => String(r.id) === String(rowKey));
+              if (prev) {
+                return {
+                  ...prev,
+                  isTopAuthor: (row as AuthorEditableRow).isTopAuthor,
+                  isCorresponding: (row as AuthorEditableRow).isCorresponding,
+                };
+              }
+            }
+            return row;
+          },
         }}
+        rowClassName={(record) =>
+          laDongChuDangNhap(record, ownerProfileId) ? 'authors-editor-owner-row' : ''
+        }
         bordered
         size="small"
       />

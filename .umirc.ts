@@ -83,7 +83,7 @@ export default defineConfig({
       name: 'Hồ sơ cán bộ của tôi',
       component: '@/pages/my-personal-profile',
       hideInMenu: true,
-      access: 'isLogin',
+      access: 'canUsePersonalWorkspace',
     },
     // Chi tiết hồ sơ (hidden route)
     {
@@ -105,7 +105,7 @@ export default defineConfig({
           path: '/ideas/new',
           name: 'Tạo ý tưởng mới',
           component: '@/pages/ideas/new',
-          access: 'canViewIdeaBank',
+          access: 'canViewMyIdeas',
           hideInMenu: true,
         },
         {
@@ -120,7 +120,7 @@ export default defineConfig({
           name: 'Ý tưởng của tôi',
           icon: 'UserOutlined',
           component: '@/pages/ideas/my',
-          access: 'canViewIdeaBank',
+          access: 'canViewMyIdeas',
         },
         {
           path: '/ideas/review',
@@ -158,7 +158,7 @@ export default defineConfig({
           name: 'Đề tài của tôi',
           icon: 'FolderOpenOutlined',
           component: '@/pages/projects/my',
-          access: 'canViewProjectManage',
+          access: 'canViewMyProjects',
         },
         {
           path: '/projects/council',

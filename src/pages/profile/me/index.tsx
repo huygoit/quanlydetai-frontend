@@ -140,7 +140,9 @@ import {
   getMyPublicationAuthors,
   saveMyPublicationAuthors,
   normalizePublicationAuthor,
-  ensureOwnerAuthorInList,
+  chuanBiDanhSachTacGiaLuu,
+  laTacGiaNhapTay,
+  normalizeAuthorGender,
   reassignAuthorOrdersSequential,
   getResearchOutputTypesTree,
   buildResearchOutputCascaderOptions,
@@ -174,6 +176,7 @@ import {
   type LeafFormSchema,
 } from '@/services/researchOutputFormSchema';
 import AuthorsEditor from '@/components/AuthorsEditor';
+import { isAdminKeKhaiUser } from '@/utils/adminKeKhai';
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import ProfileCompletionBar, { type ChecklistItem } from '@/components/ProfileCompletionBar';
 import ProfileHeader from '@/components/ProfileHeader';
@@ -277,6 +280,9 @@ interface PublicationsTabProps {
   /** Hồ sơ khoa học hiện tại — bắt buộc có ít nhất một dòng tác giả là chính mình */
   myProfileId: number;
   myFullName: string;
+  myGender?: PublicationAuthor['gender'];
+  /** Admin/Super Admin kê khai hộ — không tự chèn admin vào bảng tác giả. */
+  isAdminKeKhai?: boolean;
   researchOutputTree: ResearchOutputTypeTreeNode[];
   researchTreeLoading?: boolean;
   rootTypeFilterId: number | null;
@@ -291,6 +297,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   onReloadPublications,
   myProfileId,
   myFullName,
+  myGender,
+  isAdminKeKhai = false,
   researchOutputTree,
   researchTreeLoading = false,
   rootTypeFilterId,
@@ -384,11 +392,19 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
     setDetailModalVisible(true);
   };
 
+  const chuanBiTacGia = (list: PublicationAuthor[]) =>
+    chuanBiDanhSachTacGiaLuu(list, {
+      ownerProfileId: myProfileId,
+      ownerFullName: myFullName,
+      ownerGender: myGender,
+      adminKeKhai: isAdminKeKhai,
+    });
+
   // Open drawer for create
   const handleCreate = () => {
     setEditingPub(null);
     setPendingOpenAlexSourceId(null);
-    setAuthors(ensureOwnerAuthorInList([], myProfileId, myFullName));
+    setAuthors(chuanBiTacGia([]));
     setSelectedLeafRuleKind(null);
     setSelectedLeafCode(null);
     setSelectedLeafSchema(laySchemaTheoMaLa(null, null));
@@ -441,17 +457,13 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       const res = await getMyPublicationAuthors(pub.id);
       if (res.success && res.data) {
         setAuthors(
-          ensureOwnerAuthorInList(
-            reassignAuthorOrdersSequential(res.data.map(normalizePublicationAuthor)),
-            myProfileId,
-            myFullName
-          )
+          chuanBiTacGia(reassignAuthorOrdersSequential(res.data.map(normalizePublicationAuthor)))
         );
       } else {
-        setAuthors(ensureOwnerAuthorInList([], myProfileId, myFullName));
+        setAuthors(chuanBiTacGia([]));
       }
     } catch (e) {
-      setAuthors(ensureOwnerAuthorInList([], myProfileId, myFullName));
+      setAuthors(chuanBiTacGia([]));
     }
     
     setDrawerVisible(true);
@@ -514,11 +526,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       researchOutputTypePath: path ?? undefined,
     });
     setAuthors(
-      ensureOwnerAuthorInList(
-        reassignAuthorOrdersSequential((draft.authors || []).map(normalizePublicationAuthor)),
-        myProfileId,
-        myFullName
-      )
+      chuanBiTacGia(reassignAuthorOrdersSequential((draft.authors || []).map(normalizePublicationAuthor)))
     );
     setDrawerVisible(true);
     if (!rotId) {
@@ -562,12 +570,13 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       const journalOrConference =
         editingPub?.journalOrConference?.trim() || '—';
       /** Chuẩn hoá STT 1..n (tránh trùng / khoảng trống do thêm dòng), rồi đảm bảo dòng chủ hồ sơ. */
-      const finalAuthors = ensureOwnerAuthorInList(
-        reassignAuthorOrdersSequential(authors),
-        myProfileId,
-        myFullName
-      );
+      const finalAuthors = chuanBiTacGia(reassignAuthorOrdersSequential(authors));
       setAuthors(finalAuthors);
+      const tacGiaNhapTayThieuGioiTinh = finalAuthors.filter((a) => laTacGiaNhapTay(a) && !a.gender);
+      if (tacGiaNhapTayThieuGioiTinh.length > 0) {
+        message.error('Vui lòng chọn giới tính cho các tác giả nhập tay (không chọn từ hệ thống).');
+        return;
+      }
       /** API bắt buộc chuỗi `authors` (cột DB); nếu chỉ nhập bảng chi tiết thì ghép họ tên. */
       const authorsFromTable = finalAuthors
         .slice()
@@ -1321,10 +1330,20 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
 
           <Divider>Danh sách tác giả chi tiết (để tính quy đổi giờ)</Divider>
 
+          {isAdminKeKhai && (
+            <Alert
+              type="info"
+              showIcon
+              message="Tài khoản quản trị không được thêm vào danh sách tác giả"
+              description="Vui lòng chọn NCV hoặc sinh viên thật qua lookup, hoặc nhập tay tác giả ngoài hệ thống."
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           <AuthorsEditor
             value={authors}
             onChange={setAuthors}
-            ownerProfileId={myProfileId}
+            ownerProfileId={isAdminKeKhai ? undefined : myProfileId}
           />
         </Form>
       </Drawer>
@@ -2589,6 +2608,8 @@ const MyProfilePage: React.FC = () => {
                       onReloadPublications={loadProfile}
                       myProfileId={profile.id}
                       myFullName={profile.fullName || ''}
+                      myGender={normalizeAuthorGender(profile.gender)}
+                      isAdminKeKhai={isAdminKeKhaiUser(currentUser)}
                       researchOutputTree={researchOutputTree}
                       researchTreeLoading={researchTreeLoading}
                       rootTypeFilterId={pubRootTypeFilterId}

@@ -9,6 +9,42 @@ export type PublicationRank = 'ISI' | 'SCOPUS' | 'DOMESTIC' | 'OTHER';
 export type Quartile = 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'NO_Q';
 export type DomesticRuleType = 'HDGSNN_SCORE' | 'CONFERENCE_ISBN';
 export type AffiliationType = 'UDN_ONLY' | 'MIXED' | 'OUTSIDE';
+/** Giới tính tác giả nhập tay (không chọn từ hồ sơ NCV/sinh viên). */
+export type AuthorGender = 'MALE' | 'FEMALE' | 'OTHER';
+
+export const AUTHOR_GENDER_OPTIONS: { value: AuthorGender; label: string }[] = [
+  { value: 'MALE', label: 'Nam' },
+  { value: 'FEMALE', label: 'Nữ' },
+  { value: 'OTHER', label: 'Khác' },
+];
+
+const AUTHOR_GENDER_VALUES = new Set<AuthorGender>(['MALE', 'FEMALE', 'OTHER']);
+
+/** Tác giả không liên kết profile_id / student_id — cần nhập giới tính trên form. */
+export function laTacGiaNhapTay(
+  a: Pick<PublicationAuthor, 'profileId' | 'studentId'>
+): boolean {
+  return (a.profileId == null || a.profileId === undefined) && (a.studentId == null || a.studentId === undefined);
+}
+
+function chuanHoaGioiTinhTacGia(raw: unknown): AuthorGender | null {
+  if (raw == null || raw === '') return null;
+  const s = String(raw).trim();
+  const upper = s.toUpperCase();
+  if (upper === 'MALE' || s === 'Nam') return 'MALE';
+  if (upper === 'FEMALE' || s === 'Nữ' || s === 'Nu') return 'FEMALE';
+  if (upper === 'OTHER' || s === 'Khác' || s === 'Khac') return 'OTHER';
+  if (AUTHOR_GENDER_VALUES.has(upper as AuthorGender)) return upper as AuthorGender;
+  return null;
+}
+
+/** Nhãn hiển thị giới tính trên bảng tác giả. */
+export function nhanGioiTinhTacGia(gender?: AuthorGender | null): string {
+  return AUTHOR_GENDER_OPTIONS.find((o) => o.value === gender)?.label ?? '—';
+}
+
+/** Chuẩn hoá raw gender từ API/lookup về enum FE. */
+export const normalizeAuthorGender = chuanHoaGioiTinhTacGia;
 
 /** Danh sách đơn vị trong ĐHĐN cho multi-select cơ quan công tác tác giả. */
 export const UDN_AFFILIATION_UNITS = [
@@ -91,9 +127,19 @@ export function normalizePublicationAuthor(a: PublicationAuthor & Record<string,
       : 'OUTSIDE';
   const affiliationUnits = normalizeAffiliationUnits(a.affiliationUnits, aff);
   const derivedAff = deriveAffiliationTypeFromUnits(affiliationUnits);
+  const profileId =
+    a.profileId == null || a.profileId === ''
+      ? null
+      : Number.isFinite(Number(a.profileId))
+        ? Number(a.profileId)
+        : null;
+  const rawGender = a.gender ?? (a as Record<string, unknown>).gioi_tinh;
+  const gender = chuanHoaGioiTinhTacGia(rawGender);
   return {
     ...a,
+    profileId,
     studentId,
+    gender,
     affiliationUnits,
     affiliationType: derivedAff,
     isMultiAffiliationOutsideUdn: derivedAff === 'MIXED',
@@ -136,18 +182,29 @@ function hasOwnerRepresentative(
 export function ensureOwnerAuthorInList(
   authors: PublicationAuthor[],
   ownerProfileId: number,
-  ownerFullName: string
+  ownerFullName: string,
+  ownerGender?: AuthorGender | null
 ): PublicationAuthor[] {
   const normalized = authors.map((a) => normalizePublicationAuthor(a));
+  const ownerGenderNorm = ownerGender != null ? chuanHoaGioiTinhTacGia(ownerGender) : null;
   if (hasOwnerRepresentative(normalized, ownerProfileId, ownerFullName)) {
     const ownerNorm = chuanHoaHoTen(ownerFullName);
     const ownerTrimLower = ownerFullName.trim().toLowerCase();
     return normalized.map((a) => {
+      if (a.profileId != null && Number(a.profileId) === Number(ownerProfileId)) {
+        return a.gender ? a : { ...a, gender: a.gender ?? ownerGenderNorm };
+      }
       if (a.profileId != null) return a;
       const nameMatch =
         (ownerNorm.length >= 2 && chuanHoaHoTen(a.fullName) === ownerNorm) ||
         (ownerTrimLower.length > 0 && a.fullName.trim().toLowerCase() === ownerTrimLower);
-      if (nameMatch) return { ...a, profileId: ownerProfileId };
+      if (nameMatch) {
+        return {
+          ...a,
+          profileId: ownerProfileId,
+          gender: a.gender ?? ownerGenderNorm,
+        };
+      }
       return a;
     });
   }
@@ -160,6 +217,7 @@ export function ensureOwnerAuthorInList(
   bumped.unshift({
     profileId: ownerProfileId,
     fullName: displayName,
+    gender: ownerGenderNorm,
     affiliationUnits: [UDN_AFFILIATION_UNITS[0]],
     authorOrder: 1,
     isTopAuthor: wasEmpty,
@@ -187,6 +245,38 @@ export function reassignAuthorOrdersSequential(authors: PublicationAuthor[]): Pu
   return withIdx.map(({ a }, j) => ({ ...a, authorOrder: j + 1 }));
 }
 
+/** Loại dòng tác giả gắn hồ sơ admin — tài khoản vận hành không phải NCV. */
+export function loaiBoTacGiaAdminKhoiDanhSach(
+  authors: PublicationAuthor[],
+  adminProfileId: number
+): PublicationAuthor[] {
+  return authors.filter(
+    (a) => a.profileId == null || Number(a.profileId) !== Number(adminProfileId)
+  );
+}
+
+/** Chuẩn bị danh sách tác giả trước lưu: NCV tự kê khai vs admin kê khai hộ. */
+export function chuanBiDanhSachTacGiaLuu(
+  authors: PublicationAuthor[],
+  options: {
+    ownerProfileId: number;
+    ownerFullName: string;
+    ownerGender?: AuthorGender | null;
+    adminKeKhai?: boolean;
+  }
+): PublicationAuthor[] {
+  const ordered = reassignAuthorOrdersSequential(authors);
+  if (options.adminKeKhai) {
+    return loaiBoTacGiaAdminKhoiDanhSach(ordered, options.ownerProfileId);
+  }
+  return ensureOwnerAuthorInList(
+    ordered,
+    options.ownerProfileId,
+    options.ownerFullName,
+    options.ownerGender
+  );
+}
+
 /** Node cây loại kết quả NCKH (GET /api/profile/me/research-output-types/tree) */
 export interface ResearchOutputTypeTreeNode {
   id: number;
@@ -211,6 +301,8 @@ export interface PublicationAuthor {
   profileId?: number | null;
   /** Liên kết bảng students (tác giả là sinh viên). */
   studentId?: number | null;
+  /** Bắt buộc khi nhập tay (không có profileId/studentId). */
+  gender?: AuthorGender | null;
   authorOrder: number;
   isTopAuthor: boolean;
   isCorresponding: boolean;
@@ -315,6 +407,7 @@ export interface AuthorProfileLookupItem {
   faculty: string | null;
   department: string | null;
   status: string;
+  gender?: AuthorGender | null;
 }
 
 /**
@@ -349,6 +442,7 @@ export async function lookupAuthorProfiles(
       faculty: (row.faculty as string | null) ?? null,
       department: (row.department as string | null) ?? null,
       status: String(row.status ?? ''),
+      gender: chuanHoaGioiTinhTacGia(row.gender ?? row.gioi_tinh),
     };
   }).filter((r) => r.id > 0);
 }
@@ -365,6 +459,7 @@ export interface AuthorStudentLookupItem {
   majorName?: string | null;
   department?: string | null;
   status?: string | null;
+  gender?: AuthorGender | null;
 }
 
 /**
@@ -415,6 +510,7 @@ export async function lookupAuthorStudents(
               ? (row.department as { name: string }).name
               : null,
         status: typeof row.status === 'string' ? row.status : null,
+        gender: chuanHoaGioiTinhTacGia(row.gender ?? row.gioi_tinh),
       };
     })
     .filter((r) => r.id > 0);
@@ -578,10 +674,12 @@ function coerceStudentId(v: PublicationAuthor['studentId']): number | null {
 
 /** Body PUT authors theo schema Vine (snake_case) trên API. */
 function publicationAuthorToApiPayload(a: PublicationAuthor) {
+  const nhapTay = laTacGiaNhapTay(a);
   return {
     id: coerceAuthorRowId(a.id),
     profile_id: coerceProfileId(a.profileId),
     student_id: coerceStudentId(a.studentId),
+    gender: nhapTay ? a.gender ?? null : null,
     full_name: a.fullName,
     affiliation_units: uniqueNonEmptyStrings(a.affiliationUnits),
     author_order: a.authorOrder,
