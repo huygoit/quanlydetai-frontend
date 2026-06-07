@@ -22,6 +22,7 @@ import {
 } from 'antd';
 import {
   BarChartOutlined,
+  BookOutlined,
   ExperimentOutlined,
   FundProjectionScreenOutlined,
   PieChartOutlined,
@@ -61,30 +62,42 @@ const DonutChartCard: React.FC<{
   title: string;
   icon?: React.ReactNode;
   data: Array<{ name: string; value: number }>;
-}> = ({ title, icon, data }) => {
+  /** Giữ cả mục value = 0 trong legend (không gom top 5). */
+  showZeroValues?: boolean;
+}> = ({ title, icon, data, showZeroValues = false }) => {
   const compactData = useMemo(() => {
+    if (showZeroValues) {
+      return [...data];
+    }
     const sorted = [...data].filter((d) => d.value > 0).sort((a, b) => b.value - a.value);
     const top = sorted.slice(0, 5);
     const otherTotal = sorted.slice(5).reduce((sum, item) => sum + item.value, 0);
     return otherTotal > 0 ? [...top, { name: 'Khác', value: otherTotal }] : top;
-  }, [data]);
+  }, [data, showZeroValues]);
 
-  const total = compactData.reduce((sum, item) => sum + item.value, 0);
+  const chartData = useMemo(
+    () => (showZeroValues ? compactData.filter((d) => d.value > 0) : compactData),
+    [compactData, showZeroValues],
+  );
+
+  const total = chartData.reduce((sum, item) => sum + item.value, 0);
+  const legendTotal = compactData.reduce((sum, item) => sum + item.value, 0);
   const safeData = compactData;
 
   const gradient = useMemo(() => {
-    if (safeData.length === 0 || total <= 0) return '#f5f5f5';
+    if (chartData.length === 0 || total <= 0) return '#f5f5f5';
     let cursor = 0;
-    const segments = safeData.map((item, index) => {
+    const segments = chartData.map((item, index) => {
       const ratio = (item.value / total) * 100;
       const start = cursor;
       const end = cursor + ratio;
       cursor = end;
-      const color = donutColors[index % donutColors.length];
+      const legendIndex = safeData.findIndex((d) => d.name === item.name);
+      const color = donutColors[(legendIndex >= 0 ? legendIndex : index) % donutColors.length];
       return `${color} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
     });
     return `conic-gradient(${segments.join(', ')})`;
-  }, [safeData, total]);
+  }, [chartData, safeData, total]);
 
   return (
     <Card
@@ -131,7 +144,7 @@ const DonutChartCard: React.FC<{
                     Tổng
                   </Text>
                   <Title level={5} style={{ margin: 0 }}>
-                    {total}
+                    {showZeroValues ? legendTotal : total}
                   </Title>
                 </div>
               </div>
@@ -140,7 +153,8 @@ const DonutChartCard: React.FC<{
           <Col xs={24} md={14}>
             <div style={{ maxHeight: 220, overflow: 'auto' }}>
               {safeData.map((item, index) => {
-                const percent = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0.0';
+                const baseTotal = showZeroValues ? legendTotal : total;
+                const percent = baseTotal > 0 ? ((item.value / baseTotal) * 100).toFixed(1) : '0.0';
                 return (
                   <div
                     key={`${item.name}-legend-${index}`}
@@ -441,6 +455,11 @@ const ReportsDashboardPage: React.FC = () => {
     [overview]
   );
 
+  const publicationsByRootType = useMemo(
+    () => (overview?.publicationsByRootType || []).map((x) => ({ name: x.name, value: x.count })),
+    [overview]
+  );
+
   return (
     <PageContainer
       header={{
@@ -518,11 +537,22 @@ const ReportsDashboardPage: React.FC = () => {
             <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
               <Col xs={24} lg={12}>
                 <DonutChartCard
+                  title="Kết quả nghiên cứu khoa học theo loại chính"
+                  icon={<BookOutlined style={{ color: '#722ed1' }} />}
+                  data={publicationsByRootType}
+                  showZeroValues
+                />
+              </Col>
+              <Col xs={24} lg={12}>
+                <DonutChartCard
                   title="Dự án sinh viên khởi nghiệp theo lĩnh vực"
                   icon={<RocketOutlined style={{ color: colorSet.startup }} />}
                   data={startupByField}
                 />
               </Col>
+            </Row>
+
+            <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
               <Col xs={24} lg={12}>
                 <DonutChartCard
                   title="Đề tài sinh viên thực hiện theo lĩnh vực"
@@ -530,9 +560,6 @@ const ReportsDashboardPage: React.FC = () => {
                   data={studentResearchByField}
                 />
               </Col>
-            </Row>
-
-            <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
               <Col xs={24} lg={12}>
                 <ResearchPieChart
                   title="Đề tài nghiên cứu khoa học theo đơn vị"
@@ -540,7 +567,10 @@ const ReportsDashboardPage: React.FC = () => {
                   data={researchByUnit}
                 />
               </Col>
-              <Col xs={24} lg={12}>
+            </Row>
+
+            <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
+              <Col span={24}>
                 <TrendColumnChart
                   title="Nghiên cứu khoa học, dự án khởi nghiệp theo năm"
                   icon={<BarChartOutlined style={{ color: '#722ed1' }} />}

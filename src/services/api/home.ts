@@ -148,6 +148,13 @@ export interface OverviewFieldStat {
   total: number;
 }
 
+/** Thống kê KQNC theo loại gốc (I, II, III, …). */
+export interface OverviewRootOutputTypeStat {
+  code: string;
+  name: string;
+  count: number;
+}
+
 export interface OverviewAlert {
   key: string;
   severity: 'HIGH' | 'MEDIUM' | 'LOW';
@@ -170,6 +177,7 @@ export interface HomeOverviewData {
   fieldStats: OverviewFieldStat[];
   topUnits: OverviewUnitStat[];
   topFields: OverviewFieldStat[];
+  publicationsByRootType: OverviewRootOutputTypeStat[];
   alerts: OverviewAlert[];
 }
 

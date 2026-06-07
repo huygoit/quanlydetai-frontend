@@ -25,16 +25,66 @@
   padding-left: 0;
 }
 
+/* Thanh thao tác xác thực — một hàng gọn dưới tag */
+.profile-detail-adminBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+
+  &__actions {
+    flex-shrink: 0;
+
+    .ant-btn {
+      border-radius: 6px;
+      font-weight: 500;
+    }
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__titleTag {
+    margin: 0;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+}
+
 .profile-detail-completeness {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-width: 160px;
-  max-width: 220px;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  max-width: 200px;
+
+  &__label {
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
 
   .ant-progress {
     flex: 1;
+    margin: 0;
+    min-width: 72px;
+    line-height: 1;
+
+    .ant-progress-text {
+      font-size: 12px;
+      font-weight: 600;
+    }
   }
 }
 
@@ -250,8 +300,13 @@
     position: static;
   }
 
+  .profile-detail-adminBar {
+    gap: 8px 12px;
+  }
+
   .profile-detail-completeness {
     max-width: 100%;
+    width: 100%;
   }
 }
 

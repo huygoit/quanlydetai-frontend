@@ -73,6 +73,8 @@ export interface ProfileHeaderProps {
   exportLoading?: boolean;
   /** Hiển thị thẻ thống kê giờ NCKH / điểm quy đổi */
   showMetrics?: boolean;
+  /** Thanh thao tác bên trái (xác thực, quản trị…) — dưới tag trạng thái */
+  leadingActions?: React.ReactNode;
   /** Vùng nút bên phải (trang chi tiết, quản trị) */
   extraActions?: React.ReactNode;
 }
@@ -103,6 +105,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   onExportCV,
   exportLoading = false,
   showMetrics = true,
+  leadingActions,
   extraActions,
 }) => {
   const { token } = theme.useToken();
@@ -356,6 +359,9 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                     ))}
                   </Space>
                 )}
+                {leadingActions ? (
+                  <div className="profile-header-leadingActions">{leadingActions}</div>
+                ) : null}
             </div>
           </Flex>
 

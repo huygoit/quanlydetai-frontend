@@ -2,7 +2,7 @@
  * Chi tiết hồ sơ khoa học - Xem (Read-only)
  * Theo specs/scientific-profile.md.md Section 5.4
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import { laDuongDanAnhChungChi, laDuongDanPdfChungChi } from '@/utils/certificatePreview';
 import { useParams, useModel, useAccess, history } from '@umijs/max';
@@ -87,6 +87,12 @@ const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
 };
 
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
+import ProfileNckhMetrics, {
+  taoKpiPeriodMacDinh,
+  type KpiPeriodState,
+} from '@/components/ProfileNckhMetrics';
+import { getTeacherKpi } from '@/services/api/kpis';
+import { coBoLocNgayDangBat, layDanhSachNamLoc } from '@/utils/publicationDateFilter';
 import './index.less';
 
 const { Title, Text, Paragraph } = Typography;
@@ -112,6 +118,12 @@ const ProfileDetailPage: React.FC = () => {
   const [previewPubId, setPreviewPubId] = useState<number | null>(null);
   const [previewPubTitle, setPreviewPubTitle] = useState<string>('');
 
+  /** Tổng giờ/điểm quy đổi — cùng logic trang hồ sơ cá nhân. */
+  const [kpiPeriod, setKpiPeriod] = useState<KpiPeriodState>(() => taoKpiPeriodMacDinh());
+  const [nckhHours, setNckhHours] = useState<number | null>(null);
+  const [nckhPoints, setNckhPoints] = useState<number | null>(null);
+  const [nckhLoading, setNckhLoading] = useState(false);
+
   /** Popup xem chứng chỉ ngoại ngữ (ảnh hoặc tệp PDF). */
   const [popupChungChi, setPopupChungChi] = useState<{
     mo: boolean;
@@ -132,8 +144,53 @@ const ProfileDetailPage: React.FC = () => {
   );
 
   const canVerify = access.canVerifyProfile;
-  /** Xem quy đổi giờ: cần xem mọi hồ sơ hoặc quyền xác thực (khớp BE profile.view_all | profile.verify). */
+  /** Xem quy đổi giờ và tổng điểm: quản trị / xác thực hồ sơ (khớp BE profile.view_all | profile.verify). */
   const canViewHoursConversion = access.canViewProfileAll || access.canVerifyProfile;
+  const canViewKpiMetrics = canViewHoursConversion;
+
+  const namLocChiSo = useMemo(
+    () => layDanhSachNamLoc(profile?.publications ?? []),
+    [profile?.publications],
+  );
+
+  useEffect(() => {
+    if (!canViewKpiMetrics || !profile?.id) return;
+    const from = kpiPeriod.dateRange?.[0];
+    const to = kpiPeriod.dateRange?.[1];
+    if (!coBoLocNgayDangBat(from, to)) {
+      setNckhHours(null);
+      setNckhPoints(null);
+      return;
+    }
+    let cancelled = false;
+    setNckhLoading(true);
+    getTeacherKpi(profile.id, {
+      fromDate: from.format('YYYY-MM-DD'),
+      toDate: to.format('YYYY-MM-DD'),
+    })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && res.data) {
+          setNckhHours(res.data.totalHours);
+          setNckhPoints(typeof res.data.totalPoints === 'number' ? res.data.totalPoints : null);
+        } else {
+          setNckhHours(null);
+          setNckhPoints(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNckhHours(null);
+          setNckhPoints(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setNckhLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canViewKpiMetrics, profile?.id, kpiPeriod.dateRange, kpiPeriod.preset, kpiPeriod.refYear]);
 
   // Handle preview hours
   const handlePreviewHours = (pub: PublicationItem) => {
@@ -235,6 +292,51 @@ const ProfileDetailPage: React.FC = () => {
 
   const statusConfig = PROFILE_STATUS_MAP[profile.status];
 
+  const adminToolbar = canVerify ? (
+    <div className="profile-detail-adminBar">
+      <Space wrap size={8} className="profile-detail-adminBar__actions">
+        {profile.status !== 'VERIFIED' && (
+          <Button
+            type="primary"
+            size="small"
+            icon={<CheckCircleOutlined />}
+            onClick={() => handleOpenVerify('verify')}
+          >
+            Xác thực
+          </Button>
+        )}
+        {profile.status !== 'NEED_MORE_INFO' && (
+          <Button
+            danger
+            size="small"
+            icon={<ExclamationCircleOutlined />}
+            onClick={() => handleOpenVerify('request')}
+          >
+            Yêu cầu bổ sung
+          </Button>
+        )}
+      </Space>
+      <div className="profile-detail-adminBar__meta">
+        <div className="profile-detail-completeness">
+          <Text type="secondary" className="profile-detail-completeness__label">
+            Hoàn thiện
+          </Text>
+          <Progress
+            percent={profile.completeness}
+            size="small"
+            status={profile.completeness >= 80 ? 'success' : 'normal'}
+            format={(pct) => `${pct}%`}
+          />
+        </div>
+        {profile.currentTitle && (
+          <Tag color="cyan" className="profile-detail-adminBar__titleTag">
+            {profile.currentTitle}
+          </Tag>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <PageContainer
       title={false}
@@ -268,47 +370,24 @@ const ProfileDetailPage: React.FC = () => {
         academicTitle={profile.academicTitle}
         academicTitleLabel={nhanNhanHocHam(academicTitleOptions, profile.academicTitle)}
         academicTitleYear={profile.academicTitleYear}
-        researchHours={null}
-        convertedPoint={null}
-        showMetrics={false}
-        verified={profile.status === 'VERIFIED'}
-        extraActions={
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            {canVerify && (
-              <Space wrap>
-                {profile.status !== 'VERIFIED' && (
-                  <Button
-                    type="primary"
-                    icon={<CheckCircleOutlined />}
-                    onClick={() => handleOpenVerify('verify')}
-                  >
-                    Xác thực
-                  </Button>
-                )}
-                {profile.status !== 'NEED_MORE_INFO' && (
-                  <Button
-                    danger
-                    icon={<ExclamationCircleOutlined />}
-                    onClick={() => handleOpenVerify('request')}
-                  >
-                    Yêu cầu bổ sung
-                  </Button>
-                )}
-              </Space>
-            )}
-            <div className="profile-detail-completeness">
-              <Text type="secondary">Hoàn thiện:</Text>
-              <Progress
-                percent={profile.completeness}
-                size="small"
-                status={profile.completeness >= 80 ? 'success' : 'normal'}
-              />
-            </div>
-            {profile.currentTitle && (
-              <Tag color="cyan">{profile.currentTitle}</Tag>
-            )}
-          </Space>
+        researchHours={canViewKpiMetrics ? nckhHours : null}
+        convertedPoint={canViewKpiMetrics ? nckhPoints : null}
+        metricsLoading={nckhLoading}
+        showMetrics={canViewKpiMetrics}
+        metricsSlot={
+          canViewKpiMetrics ? (
+            <ProfileNckhMetrics
+              researchHours={nckhHours}
+              convertedPoint={nckhPoints}
+              loading={nckhLoading}
+              period={kpiPeriod}
+              onPeriodChange={setKpiPeriod}
+              yearOptions={namLocChiSo}
+            />
+          ) : undefined
         }
+        verified={profile.status === 'VERIFIED'}
+        leadingActions={adminToolbar}
       />
 
       <Row gutter={24}>
