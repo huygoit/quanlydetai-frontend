@@ -109,5 +109,14 @@ export default function access(initialState: AccessInitialState | undefined) {
       PERM.dashboard.view_department,
       PERM.dashboard.view_all,
     ]),
+
+    /** Menu Kết quả nghiên cứu khoa học — admin vận hành hoặc user có quyền publication / xem toàn trường */
+    canViewResearchOutputs:
+      isAdminSystemAccount ||
+      has(PERM.publication.view) ||
+      has(PERM.profile.view_all),
+    canCreateResearchOutput: isAdminSystemAccount || has(PERM.publication.create),
+    canUpdateResearchOutput: isAdminSystemAccount || has(PERM.publication.update),
+    canDeleteResearchOutput: isAdminSystemAccount || has(PERM.publication.delete),
   };
 }

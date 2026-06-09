@@ -160,6 +160,7 @@ import {
   khoangNgayTheoPreset,
   layDanhSachNamLoc,
   moTaKhoangLoc,
+  namThamChieuBoLoc,
   presetCanChonNam,
   PRESET_LOC_KQNC,
   publicationTrongKhoangNgay,
@@ -176,6 +177,10 @@ import {
   type LeafFormSchema,
 } from '@/services/researchOutputFormSchema';
 import AuthorsEditor from '@/components/AuthorsEditor';
+import {
+  PublicationFormFields,
+  validateAndBuildPublicationPayload,
+} from '@/components/PublicationForm';
 import { isAdminKeKhaiUser } from '@/utils/adminKeKhai';
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import ProfileCompletionBar, { type ChecklistItem } from '@/components/ProfileCompletionBar';
@@ -191,72 +196,6 @@ const PUBLICATION_STATUS_MAP: Record<string, { text: string; color: string }> = 
 const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
   CHU_TRI: { text: 'Tác giả chính', color: 'gold' },
   DONG_TAC_GIA: { text: 'Đồng tác giả', color: 'blue' },
-};
-
-/** Thư mục upload file minh chứng bài báo / kết quả NCKH */
-const THU_MUC_FILE_CONG_BO = 'profile/publication-attachments';
-const DINH_DANG_FILE_CONG_BO = '.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp';
-
-type PublicationAttachmentUploadProps = {
-  value?: string[];
-  onChange?: (urls: string[]) => void;
-};
-
-/** Upload nhiều file đính kèm — giá trị form là mảng URL */
-const PublicationAttachmentUpload: React.FC<PublicationAttachmentUploadProps> = ({
-  value = [],
-  onChange,
-}) => {
-  const [dangTai, setDangTai] = useState(false);
-
-  const danhSachFile: UploadFile[] = value.map((url, i) => ({
-    uid: `att-${i}-${url}`,
-    name: tenFileTuUrl(url),
-    status: 'done',
-    url: resolvePublicAssetUrl(url),
-  }));
-
-  const xoaFile = (file: UploadFile) => {
-    const idx = danhSachFile.findIndex((f) => f.uid === file.uid);
-    if (idx < 0) return;
-    onChange?.(value.filter((_, i) => i !== idx));
-  };
-
-  return (
-    <Upload
-      multiple
-      accept={DINH_DANG_FILE_CONG_BO}
-      fileList={danhSachFile}
-      showUploadList={{ showRemoveIcon: true, showDownloadIcon: true }}
-      onRemove={(file) => {
-        xoaFile(file);
-        return true;
-      }}
-      onDownload={(file) => {
-        const href = file.url || resolvePublicAssetUrl(value.find((u) => tenFileTuUrl(u) === file.name));
-        if (href) downloadFromUrl(href, file.name);
-      }}
-      customRequest={async (options) => {
-        const file = options.file as File;
-        setDangTai(true);
-        try {
-          const kq = await uploadFileDon(file, { folder: THU_MUC_FILE_CONG_BO });
-          onChange?.([...value, kq.url]);
-          options.onSuccess?.(kq as any);
-          message.success(`Đã tải lên: ${file.name}`);
-        } catch (e: any) {
-          message.error(e?.message || 'Tải file lên thất bại');
-          options.onError?.(e);
-        } finally {
-          setDangTai(false);
-        }
-      }}
-    >
-      <Button icon={<UploadOutlined />} loading={dangTai}>
-        Chọn file đính kèm
-      </Button>
-    </Upload>
-  );
 };
 
 import './index.less';
@@ -363,7 +302,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       return;
     }
     if (preset === 'custom') return;
-    const range = khoangNgayTheoPreset(preset, filterRefYear);
+    const range = khoangNgayTheoPreset(preset, namThamChieuBoLoc(preset, filterRefYear));
     setFilterDateRange(range);
   };
 
@@ -543,84 +482,26 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   // Save publication
   const handleSave = async () => {
     try {
-      const values = await form.validateFields();
-      const rotPath = values.researchOutputTypePath as number[] | undefined;
-      if (!rotPath?.length) {
-        message.error('Vui lòng chọn loại kết quả NCKH (danh mục) đến mục lá.');
-        return;
-      }
-      const researchOutputTypeId = rotPath[rotPath.length - 1];
-      const leafNode = layNodeTheoPath(researchOutputTree, rotPath);
-      const schema = laySchemaTheoMaLa(leafNode?.code ?? null, leafNode?.ruleKind ?? null);
-      const batBuocThieu: string[] = [];
-      if (schema.batBuocForm.includes('hdgsnnScore') && !(Number(values.hdgsnnScore) > 0)) {
-        batBuocThieu.push('Điểm HĐGSNN');
-      }
-      if (
-        schema.batBuocForm.includes('isbn') &&
-        !(typeof values.isbn === 'string' && values.isbn.trim().length > 0)
-      ) {
-        batBuocThieu.push('ISBN');
-      }
-      if (batBuocThieu.length) {
-        message.error(`Thiếu trường bắt buộc cho ${schema.tenHienThi}: ${batBuocThieu.join(', ')}`);
-        return;
-      }
-      const publicationStatus = (values.publicationStatus || 'PUBLISHED') as Publication['publicationStatus'];
-      const journalOrConference =
-        editingPub?.journalOrConference?.trim() || '—';
-      /** Chuẩn hoá STT 1..n (tránh trùng / khoảng trống do thêm dòng), rồi đảm bảo dòng chủ hồ sơ. */
-      const finalAuthors = chuanBiTacGia(reassignAuthorOrdersSequential(authors));
+      await form.validateFields();
+      const built = validateAndBuildPublicationPayload({
+        form,
+        authors,
+        researchOutputTree,
+        ownerProfileId: myProfileId,
+        ownerFullName: myFullName,
+        isAdminKeKhai,
+        editingPub,
+        pendingOpenAlexSourceId,
+      });
+      if (!built) return;
+
+      const { finalAuthors, ...apiBody } = built;
       setAuthors(finalAuthors);
-      const tacGiaNhapTayThieuGioiTinh = finalAuthors.filter((a) => laTacGiaNhapTay(a) && !a.gender);
-      if (tacGiaNhapTayThieuGioiTinh.length > 0) {
-        message.error('Vui lòng chọn giới tính cho các tác giả nhập tay (không chọn từ hệ thống).');
-        return;
-      }
-      /** API bắt buộc chuỗi `authors` (cột DB); nếu chỉ nhập bảng chi tiết thì ghép họ tên. */
-      const authorsFromTable = finalAuthors
-        .slice()
-        .sort((a, b) => a.authorOrder - b.authorOrder)
-        .map((a) => a.fullName.trim())
-        .filter(Boolean)
-        .join(', ');
-      if (!authorsFromTable) {
-        message.error('Vui lòng nhập họ tên đầy đủ trong bảng tác giả chi tiết.');
-        return;
-      }
-      const apiBody = {
-        researchOutputTypeId,
-        title: values.title,
-        authors: authorsFromTable,
-        academicYear: values.academicYear,
-        publishedAt: dayjsRaPublishedAt(values.publishedAt),
-        publicationStatus,
-        hdgsnnScore: values.hdgsnnScore,
-        volume: values.volume,
-        issue: values.issue,
-        pages: values.pages,
-        doi: values.doi,
-        issn: values.issn,
-        isbn: values.isbn,
-        url: values.url,
-        attachmentUrl: serializePublicationAttachmentUrls(values.attachmentUrls),
-        publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
-        journalOrConference,
-        source: (pendingOpenAlexSourceId && !editingPub
-          ? 'OPENALEX'
-          : editingPub?.source ?? 'INTERNAL') as Publication['source'],
-        sourceId:
-          pendingOpenAlexSourceId && !editingPub
-            ? pendingOpenAlexSourceId
-            : editingPub?.sourceId,
-        verifiedByNcv: false,
-      };
       setSaving(true);
 
       let pubId: number;
-      
+
       if (editingPub) {
-        // Update
         const res = await updateMyPublication(editingPub.id, apiBody);
         if (!res.success) {
           throw new Error('Cập nhật thất bại');
@@ -628,7 +509,6 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         pubId = editingPub.id;
         message.success('Đã cập nhật kết quả NCKH');
       } else {
-        // Create
         const res = await createMyPublication(apiBody);
         if (!res.success || !res.data) {
           throw new Error('Tạo mới thất bại');
@@ -1171,181 +1051,24 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           </Space>
         }
       >
-        <Form form={form} layout="vertical">
-          <Row gutter={16}>
-            <Col span={24}>
-              <Form.Item
-                name="researchOutputTypePath"
-                label="Loại kết quả NCKH (danh mục — chọn đến mục lá)"
-                rules={[{ required: true, message: 'Vui lòng chọn mục lá trong cây danh mục' }]}
-              >
-                <Cascader
-                  options={buildResearchOutputCascaderOptions(researchOutputTree)}
-                  placeholder="Chọn nhóm → … → mục lá"
-                  showSearch
-                  changeOnSelect={false}
-                  loading={researchTreeLoading}
-                  style={{ width: '100%' }}
-                  onChange={(_val, selectedOptions) => {
-                    const last = selectedOptions?.[selectedOptions.length - 1] as
-                      | { ruleKind?: string | null; code?: string | null }
-                      | undefined;
-                    const nextRuleKind = last?.ruleKind ?? null;
-                    const nextLeafCode = (last?.code as string | undefined) ?? null;
-                    const nextSchema = laySchemaTheoMaLa(nextLeafCode, nextRuleKind);
-                    setSelectedLeafRuleKind(nextRuleKind);
-                    setSelectedLeafCode(nextLeafCode);
-                    setSelectedLeafSchema(nextSchema);
-                    // Đổi lá xong thì dọn giá trị field ẩn để không gửi nhầm payload.
-                    if (!nextSchema.batBuocForm.includes('isbn')) {
-                      form.setFieldValue('isbn', undefined);
-                    }
-                    if (!nextSchema.batBuocForm.includes('hdgsnnScore')) {
-                      form.setFieldValue('hdgsnnScore', undefined);
-                    }
-                  }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item
-                name="title"
-                label="Tiêu đề kết quả NCKH"
-                rules={[{ required: true, message: 'Vui lòng nhập tiêu đề kết quả NCKH' }]}
-              >
-                <Input.TextArea rows={2} placeholder="Nhập tiêu đề đầy đủ" />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item name="publishedAt" label="Ngày xuất bản">
-                <DatePicker
-                  style={{ width: '100%' }}
-                  format="DD/MM/YYYY"
-                  placeholder="Chọn ngày xuất bản"
-                />
-              </Form.Item>
-            </Col>
-
-            <Col span={12}>
-              <Form.Item name="publicationStatus" label="Trạng thái">
-                <Select
-                  options={[
-                    { label: 'Đã xuất bản', value: 'PUBLISHED' },
-                    { label: 'Đã chấp nhận', value: 'ACCEPTED' },
-                    { label: 'Đang review', value: 'UNDER_REVIEW' },
-                  ]}
-                  placeholder="Chọn trạng thái"
-                />
-              </Form.Item>
-            </Col>
-
-            {(selectedLeafRuleKind === 'HDGSNN_POINTS_TO_HOURS' ||
-              selectedLeafSchema.batBuocForm.includes('hdgsnnScore')) && (
-              <Col span={12}>
-                <Form.Item
-                  name="hdgsnnScore"
-                  label="Điểm HĐGSNN (quy đổi giờ)"
-                  rules={[{ required: true, message: 'Vui lòng nhập điểm HĐGSNN' }]}
-                >
-                  <InputNumber
-                    style={{ width: '100%' }}
-                    min={0}
-                    max={10}
-                    step={0.25}
-                    placeholder="VD: 0.75"
-                  />
-                </Form.Item>
-              </Col>
-            )}
-
-            <Col span={24}>
-              <Button type="link" style={{ paddingLeft: 0 }} onClick={() => setShowAdvancedPubFields((v) => !v)}>
-                {showAdvancedPubFields ? 'Ẩn thông tin bài báo mở rộng' : 'Hiện thông tin bài báo mở rộng'}
-              </Button>
-            </Col>
-
-            {selectedLeafSchema.batBuocForm.includes('isbn') && (
-              <Col span={12}>
-                <Form.Item
-                  name="isbn"
-                  label="ISBN"
-                  rules={[{ required: true, message: 'Vui lòng nhập ISBN cho loại kết quả này' }]}
-                >
-                  <Input placeholder="VD: 978-..." />
-                </Form.Item>
-              </Col>
-            )}
-
-            {showAdvancedPubFields && (
-              <>
-                <Col span={8}>
-                  <Form.Item name="volume" label="Volume">
-                    <Input placeholder="VD: 15" />
-                  </Form.Item>
-                </Col>
-
-                <Col span={8}>
-                  <Form.Item name="issue" label="Issue">
-                    <Input placeholder="VD: 3" />
-                  </Form.Item>
-                </Col>
-
-                <Col span={8}>
-                  <Form.Item name="pages" label="Trang">
-                    <Input placeholder="VD: 123-145" />
-                  </Form.Item>
-                </Col>
-
-                <Col span={12}>
-                  <Form.Item name="doi" label="DOI">
-                    <Input placeholder="VD: 10.1234/example" />
-                  </Form.Item>
-                </Col>
-
-                <Col span={12}>
-                  <Form.Item name="issn" label="ISSN">
-                    <Input placeholder="VD: 1234-5678" />
-                  </Form.Item>
-                </Col>
-
-                <Col span={24}>
-                  <Form.Item name="url" label="Link (URL)">
-                    <Input placeholder="https://..." />
-                  </Form.Item>
-                </Col>
-
-                <Col span={24}>
-                  <Form.Item
-                    name="attachmentUrls"
-                    label="File đính kèm bài báo"
-                    extra="PDF, Word, hình ảnh — có thể tải nhiều file liên quan (bản PDF bài báo, minh chứng, …)"
-                  >
-                    <PublicationAttachmentUpload />
-                  </Form.Item>
-                </Col>
-              </>
-            )}
-          </Row>
-
-          <Divider>Danh sách tác giả chi tiết (để tính quy đổi giờ)</Divider>
-
-          {isAdminKeKhai && (
-            <Alert
-              type="info"
-              showIcon
-              message="Tài khoản quản trị không được thêm vào danh sách tác giả"
-              description="Vui lòng chọn NCV hoặc sinh viên thật qua lookup, hoặc nhập tay tác giả ngoài hệ thống."
-              style={{ marginBottom: 16 }}
-            />
-          )}
-
-          <AuthorsEditor
-            value={authors}
-            onChange={setAuthors}
-            ownerProfileId={isAdminKeKhai ? undefined : myProfileId}
-          />
-        </Form>
+        <PublicationFormFields
+          form={form}
+          researchOutputTree={researchOutputTree}
+          researchTreeLoading={researchTreeLoading}
+          authors={authors}
+          onAuthorsChange={setAuthors}
+          ownerProfileId={myProfileId}
+          isAdminKeKhai={isAdminKeKhai}
+          selectedLeafRuleKind={selectedLeafRuleKind}
+          selectedLeafSchema={selectedLeafSchema}
+          showAdvancedPubFields={showAdvancedPubFields}
+          onShowAdvancedPubFieldsChange={setShowAdvancedPubFields}
+          onLeafSelect={(nextRuleKind, nextLeafCode, nextSchema) => {
+            setSelectedLeafRuleKind(nextRuleKind);
+            setSelectedLeafCode(nextLeafCode);
+            setSelectedLeafSchema(nextSchema);
+          }}
+        />
       </Drawer>
 
       {/* Converted Hours Preview Modal */}

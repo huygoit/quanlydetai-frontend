@@ -134,4 +134,11 @@ export const PERM = {
     update: 'personal_profile.update',
     change_status: 'personal_profile.change_status',
   },
+  /** Kết quả nghiên cứu khoa học — khớp module publication trên IAM */
+  publication: {
+    view: 'publication.view',
+    create: 'publication.create',
+    update: 'publication.update',
+    delete: 'publication.delete',
+  },
 } as const;

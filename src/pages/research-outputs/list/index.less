@@ -1,0 +1,255 @@
+/**
+ * Bộ lọc KQNC — căn giữa dọc giống Ant Design Pro table-list
+ * https://preview.pro.ant.design/list/table-list
+ */
+.research-outputs-list-page {
+  .research-outputs-pro-table {
+    // Gỡ style compact filter toàn cục (global.less) làm lệch căn dọc
+    .ant-pro-table-search,
+    .ant-pro-query-filter.kqnc-query-filter {
+      padding: 24px 24px 0 !important;
+      margin-bottom: 16px !important;
+      background: #fff;
+      border-radius: 8px;
+
+      .ant-form-item {
+        margin-bottom: 16px !important;
+      }
+
+      // antd horizontal form mặc định baseline → đổi center như Pro demo
+      .ant-form-item-row {
+        display: flex !important;
+        flex-wrap: nowrap;
+        align-items: center !important;
+      }
+
+      .ant-form-item-label {
+        flex: 0 0 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        padding-bottom: 0 !important;
+        align-self: center !important;
+
+        &,
+        &[style] {
+          flex: 0 0 auto !important;
+          width: auto !important;
+        }
+
+        > label {
+          display: inline-flex !important;
+          align-items: center !important;
+          height: 32px !important;
+          line-height: 32px !important;
+          font-size: 14px !important;
+          color: rgba(0, 0, 0, 0.88) !important;
+          font-weight: 400 !important;
+          white-space: nowrap;
+        }
+
+        > label::after {
+          line-height: 32px !important;
+          margin-inline: 2px 8px !important;
+        }
+      }
+
+      .ant-form-item-control {
+        flex: 1 1 0 !important;
+        min-width: 0;
+        align-self: center !important;
+      }
+
+      .ant-form-item-control-input {
+        min-height: 32px !important;
+        align-items: center !important;
+      }
+
+      .ant-form-item-control-input-content {
+        min-height: 32px;
+        display: flex;
+        align-items: center;
+      }
+
+      .ant-select-single .ant-select-selector,
+      .ant-picker {
+        height: 32px !important;
+        align-items: center;
+      }
+
+      .ant-select,
+      .ant-select-selector,
+      .ant-picker,
+      .ant-picker-input > input {
+        font-size: 14px;
+      }
+
+      // Hàng bộ lọc — các cột và nút cùng căn giữa dọc
+      .ant-pro-query-filter-row {
+        align-items: center !important;
+      }
+
+      // Không ép display:flex lên .ant-col — sẽ phá cơ chế ẩn/hiện khi Thu gọn
+      .ant-pro-query-filter-row > .ant-col[style*='display: none'],
+      .ant-pro-query-filter-row > .ant-col[style*='display:none'] {
+        display: none !important;
+      }
+
+      .kqnc-filter-date-range {
+        .ant-form-item-label {
+          display: none !important;
+          width: 0 !important;
+          flex: 0 0 0 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+
+        .ant-form-item-control {
+          flex: 1 1 100% !important;
+          max-width: 100%;
+        }
+
+        .ant-picker-range {
+          width: 100%;
+        }
+      }
+
+      .kqnc-filter-preset-item {
+        width: 100%;
+      }
+
+      .kqnc-filter-preset {
+        width: 100%;
+        min-width: 142px;
+
+        .ant-select-selector {
+          .ant-select-selection-item,
+          .ant-select-selection-placeholder {
+            line-height: 30px !important;
+          }
+        }
+      }
+
+      .kqnc-filter-root-type-item {
+        width: 100%;
+      }
+
+      .kqnc-filter-root-type {
+        width: 100%;
+        min-width: 380px;
+
+        .ant-select-selector {
+          .ant-select-selection-item,
+          .ant-select-selection-placeholder {
+            line-height: 30px !important;
+          }
+        }
+      }
+
+      .ant-pro-query-filter-actions {
+        display: flex !important;
+        align-items: center !important;
+        align-self: center !important;
+        margin-bottom: 16px !important;
+        padding: 0 !important;
+        min-height: 32px;
+
+        .ant-form-item {
+          margin-bottom: 0 !important;
+        }
+
+        .ant-space,
+        .ant-space-item,
+        .ant-btn,
+        .ant-btn-link {
+          display: inline-flex;
+          align-items: center;
+        }
+      }
+    }
+
+    .ant-pro-card {
+      border-radius: 8px;
+    }
+
+    .ant-pro-table-list-toolbar {
+      padding-inline: 0;
+    }
+
+    .ant-pro-table-list-toolbar-container {
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    .ant-pro-table-list-toolbar-left {
+      flex: 1;
+      justify-content: flex-start;
+      min-width: 0;
+    }
+
+    .ant-pro-table-list-toolbar-title {
+      flex: 0 0 auto;
+    }
+
+    .ant-pro-table-list-toolbar-right {
+      flex: 0 0 auto;
+      justify-content: flex-end;
+    }
+
+    .kqnc-quick-search {
+      width: 320px;
+      max-width: 100%;
+
+      .ant-input {
+        border-radius: 6px;
+      }
+    }
+
+    .kqnc-loai-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      line-height: 1.35;
+    }
+
+    .kqnc-loai-cell__level2 {
+      font-size: 13px;
+      font-weight: 400;
+      color: rgba(0, 0, 0, 0.75);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .kqnc-loai-cell__leaf {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(0, 0, 0, 0.88);
+    }
+  }
+}
+
+.kqnc-loai-tooltip {
+  max-width: none;
+
+  .ant-tooltip-inner {
+    min-width: 400px;
+    max-width: 640px;
+    width: max-content;
+    padding: 10px 14px;
+  }
+}
+
+.kqnc-loai-tooltip__body {
+  max-width: none;
+  min-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.5;
+  font-size: 13px;
+  white-space: normal;
+  word-break: break-word;
+}

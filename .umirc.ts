@@ -201,6 +201,40 @@ export default defineConfig({
       ],
     },
 
+    // Kết quả NCKH — menu con sinh động từ nhóm gốc danh mục loại KQNC
+    {
+      path: '/research-outputs',
+      name: 'Kết quả NCKH',
+      icon: 'ExperimentOutlined',
+      access: 'canViewResearchOutputs',
+      routes: [
+        {
+          path: '/research-outputs',
+          redirect: '/research-outputs/all',
+        },
+        {
+          path: '/research-outputs/new',
+          name: 'Thêm kết quả NCKH',
+          component: '@/pages/research-outputs/form',
+          access: 'canCreateResearchOutput',
+          hideInMenu: true,
+        },
+        {
+          path: '/research-outputs/edit/:id',
+          name: 'Sửa kết quả NCKH',
+          component: '@/pages/research-outputs/form',
+          access: 'canUpdateResearchOutput',
+          hideInMenu: true,
+        },
+        {
+          path: '/research-outputs/:rootTypeKey',
+          component: '@/pages/research-outputs/list',
+          access: 'canViewResearchOutputs',
+          hideInMenu: true,
+        },
+      ],
+    },
+
     // Báo cáo & thống kê
     {
       path: '/reports',

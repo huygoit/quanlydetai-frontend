@@ -13,6 +13,12 @@ import NotificationBell from '@/components/NotificationBell';
 import { getCurrentUser, logout as apiLogout, normalizePermissions } from '@/services/api/auth';
 import { getToken, removeToken } from '@/services/request';
 import { isAdminKeKhaiUser, isPersonalWorkspacePath } from '@/utils/adminKeKhai';
+import {
+  ganMenuConKetQuaNckh,
+  taiNhomGocMenuKqnc,
+  taiSoLuongKqncTheoNhom,
+  type ResearchOutputMenuRoot,
+} from '@/utils/researchOutputMenu';
 import './global.less';
 
 // Custom Vietnamese locale với pagination text tùy chỉnh
@@ -84,6 +90,8 @@ export interface CurrentUser {
 export interface InitialState {
   currentUser?: CurrentUser;
   permissions?: string[];
+  /** Nhóm gốc danh mục loại KQNC — dùng sinh menu con */
+  researchOutputMenuRoots?: ResearchOutputMenuRoot[];
   fetchUserInfo?: () => Promise<CurrentUser | undefined>;
   loading?: boolean;
 }
@@ -147,11 +155,15 @@ export async function getInitialState(): Promise<InitialState> {
   };
 
   try {
-    const currentUser = await fetchUserInfo();
+    const [currentUser, researchOutputMenuRoots] = await Promise.all([
+      fetchUserInfo(),
+      taiNhomGocMenuKqnc(),
+    ]);
     if (currentUser) {
       return {
         currentUser,
         permissions: currentUser.permissions ?? [],
+        researchOutputMenuRoots,
         fetchUserInfo,
       };
     }
@@ -165,9 +177,11 @@ export async function getInitialState(): Promise<InitialState> {
   if (cached) {
     try {
       const user = JSON.parse(cached) as CurrentUser;
+      const researchOutputMenuRoots = await taiNhomGocMenuKqnc();
       return {
         currentUser: user,
         permissions: user.permissions ?? [],
+        researchOutputMenuRoots,
         fetchUserInfo,
       };
     } catch (e) {
@@ -227,6 +241,15 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
       locale: false,
       defaultOpenAll: false,
       autoClose: false,
+      /** Tải lại nhóm gốc khi render menu — đảm bảo admin vẫn có menu con */
+      request: async (_params: Record<string, unknown>, defaultMenuData: any[]) => {
+        let roots = initialState?.researchOutputMenuRoots ?? [];
+        if (!roots.length) {
+          roots = await taiNhomGocMenuKqnc();
+        }
+        const soLuong = roots.length > 0 ? await taiSoLuongKqncTheoNhom(roots) : undefined;
+        return ganMenuConKetQuaNckh(defaultMenuData, roots, soLuong);
+      },
     },
     onPageChange: () => {
       const { pathname } = history.location;
@@ -275,13 +298,20 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
         </Link>
       );
     },
-    // Menu item render
+    // Menu item render — menu cha có con thì không bọc Link (để hiện dropdown)
     menuItemRender: (item: any, dom: React.ReactNode) => {
+      const coMenuCon =
+        (Array.isArray(item.children) && item.children.length > 0) ||
+        (Array.isArray(item.routes) && item.routes.length > 0);
+      if (item.isUrl || coMenuCon) {
+        return dom;
+      }
       return <Link to={item.path || '/'}>{dom}</Link>;
     },
-    // Submenu item render với icon
+    // Submenu item render — mục lá trong dropdown cần Link
     subMenuItemRender: (item: any, dom: React.ReactNode) => {
-      return dom;
+      if (!item.path || item.isUrl) return dom;
+      return <Link to={item.path}>{dom}</Link>;
     },
     // Header bên phải: Chuông thông báo + User info + Logout
     actionsRender: () => {

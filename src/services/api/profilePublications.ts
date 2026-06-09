@@ -516,6 +516,92 @@ export async function lookupAuthorStudents(
     .filter((r) => r.id > 0);
 }
 
+/** Lookup tác giả NCV — module quản lý KQNC (không qua /api/profile/me) */
+export async function lookupAdminAuthorProfiles(
+  q: string,
+  limit = 20
+): Promise<AuthorProfileLookupItem[]> {
+  const trimmed = q.trim();
+  if (trimmed.length < 2) return [];
+  const res = await get<ApiResponse<AuthorProfileLookupItem[]>>(
+    '/api/admin/publications/lookup/author-profiles',
+    { q: trimmed, limit }
+  );
+  if (!res.success || !Array.isArray(res.data)) return [];
+  return res.data.map((row: Record<string, unknown>) => {
+    const hoTen =
+      [row.fullName, row.full_name, row.name, row.displayName, row.display_name, row.hoTen, row.ho_ten].find(
+        (v): v is string => typeof v === 'string' && v.trim().length > 0
+      )?.trim() ?? '';
+    const degreeRaw = row.degree ?? row.hoc_vi;
+    const academicTitleRaw = row.academicTitle ?? row.academic_title ?? row.hoc_ham;
+    return {
+      id: Number(row.id) || 0,
+      fullName: hoTen,
+      workEmail: String(row.workEmail ?? row.work_email ?? ''),
+      degree: typeof degreeRaw === 'string' ? degreeRaw : null,
+      academicTitle: typeof academicTitleRaw === 'string' ? academicTitleRaw : null,
+      organization: String(row.organization ?? row.co_quan_cong_tac ?? ''),
+      faculty: (row.faculty as string | null) ?? null,
+      department: (row.department as string | null) ?? null,
+      status: String(row.status ?? ''),
+      gender: chuanHoaGioiTinhTacGia(row.gender ?? row.gioi_tinh),
+    };
+  }).filter((r) => r.id > 0);
+}
+
+/** Lookup tác giả sinh viên — module quản lý KQNC */
+export async function lookupAdminAuthorStudents(
+  q: string,
+  limit = 20
+): Promise<AuthorStudentLookupItem[]> {
+  const trimmed = q.trim();
+  if (trimmed.length < 2) return [];
+  const res = await get<ApiResponse<AuthorStudentLookupItem[]>>(
+    '/api/admin/publications/lookup/author-students',
+    { q: trimmed, limit }
+  );
+  if (!res.success || !Array.isArray(res.data)) return [];
+  return res.data
+    .map((row: Record<string, unknown>) => {
+      const hoTen =
+        [row.fullName, row.full_name, row.name, row.hoTen, row.ho_ten].find(
+          (v): v is string => typeof v === 'string' && v.trim().length > 0
+        )?.trim() ?? '';
+      return {
+        id: Number(row.id) || 0,
+        fullName: hoTen || null,
+        studentCode:
+          typeof (row.studentCode ?? row.student_code) === 'string'
+            ? String(row.studentCode ?? row.student_code)
+            : null,
+        schoolEmail: String(row.schoolEmail ?? row.school_email ?? '') || null,
+        personalEmail: String(row.personalEmail ?? row.personal_email ?? '') || null,
+        classCode:
+          typeof (row.classCode ?? row.class_code) === 'string'
+            ? String(row.classCode ?? row.class_code)
+            : null,
+        className:
+          typeof (row.className ?? row.class_name) === 'string'
+            ? String(row.className ?? row.class_name)
+            : null,
+        majorName:
+          typeof (row.majorName ?? row.major_name) === 'string'
+            ? String(row.majorName ?? row.major_name)
+            : null,
+        department:
+          typeof row.department === 'string'
+            ? row.department
+            : typeof (row.department as { name?: string } | null)?.name === 'string'
+              ? (row.department as { name: string }).name
+              : null,
+        status: typeof row.status === 'string' ? row.status : null,
+        gender: chuanHoaGioiTinhTacGia(row.gender ?? row.gioi_tinh),
+      };
+    })
+    .filter((r) => r.id > 0);
+}
+
 /**
  * Lấy danh sách công bố của tôi
  */
@@ -604,6 +690,51 @@ export function findResearchOutputNodeById(
     }
   }
   return null;
+}
+
+/** Nhãn loại KQNC theo cấp — cột: level 2 + lá; tooltip: đủ 3 cấp. */
+export type NhanLoaiKqncTheoCap = {
+  level1: string | null;
+  level2: string | null;
+  leaf: string;
+};
+
+export function layNhanLoaiKqncTheoCap(
+  tree: ResearchOutputTypeTreeNode[],
+  pub: {
+    researchOutputTypeId?: number | string | null;
+    researchOutputType?: { id?: number | string; name?: string; level?: number } | null;
+  },
+): NhanLoaiKqncTheoCap | null {
+  const typeId = layResearchOutputTypeId(pub);
+  const leafFallback = pub.researchOutputType?.name?.trim();
+  if (typeId == null) {
+    return leafFallback ? { level1: null, level2: null, leaf: leafFallback } : null;
+  }
+
+  const path = findResearchOutputPathById(tree, typeId);
+  if (!path?.length) {
+    return leafFallback ? { level1: null, level2: null, leaf: leafFallback } : null;
+  }
+
+  const chain: ResearchOutputTypeTreeNode[] = [];
+  let siblings = tree;
+  for (const id of path) {
+    const node = siblings.find((n) => Number(n.id) === Number(id));
+    if (!node) break;
+    chain.push(node);
+    siblings = node.children ?? [];
+  }
+
+  const leafNode = chain[chain.length - 1];
+  const level1Node = chain.find((n) => n.level === 1) ?? (chain.length >= 1 ? chain[0] : undefined);
+  const level2Node = chain.find((n) => n.level === 2) ?? (chain.length >= 2 ? chain[1] : undefined);
+
+  return {
+    level1: level1Node?.name ?? null,
+    level2: level2Node?.name ?? null,
+    leaf: leafNode?.name ?? leafFallback ?? '—',
+  };
 }
 
 /**

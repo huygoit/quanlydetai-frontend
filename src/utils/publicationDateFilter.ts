@@ -19,7 +19,7 @@ export type PublicationFilterPreset =
 /** Preset cho bộ lọc tổng giờ/điểm trên header (không có «Tất cả»). */
 export const PRESET_LOC_CHI_SO_NCKH: { value: PublicationFilterPreset; label: string }[] = [
   { value: 'fiscal_year', label: 'Năm tài chính' },
-  { value: 'year', label: 'Cả năm dương lịch' },
+  { value: 'year', label: 'Năm dương lịch' },
   { value: 'q1', label: 'Quý 1 (T1–T3)' },
   { value: 'q2', label: 'Quý 2 (T4–T6)' },
   { value: 'q3', label: 'Quý 3 (T7–T9)' },
@@ -50,15 +50,28 @@ export const PRESET_LOC_KQNC: { value: PublicationFilterPreset; label: string }[
   { value: 'q2', label: 'Quý 2 (T4–T6)' },
   { value: 'q3', label: 'Quý 3 (T7–T9)' },
   { value: 'q4', label: 'Quý 4 (T10–T12)' },
-  { value: 'year', label: 'Cả năm dương lịch' },
+  { value: 'year', label: 'Năm dương lịch' },
   { value: 'fiscal_year', label: 'Năm tài chính' },
   { value: 'custom', label: 'Tùy chọn (khoảng ngày)' },
 ];
 
-const PRESET_CAN_NAM: PublicationFilterPreset[] = ['q1', 'q2', 'q3', 'q4', 'year', 'fiscal_year'];
+/** Quý / cả năm dương lịch cần chọn năm; «Năm tài chính» luôn lấy kỳ TC hiện tại — không hiện bộ lọc năm. */
+const PRESET_CAN_NAM: PublicationFilterPreset[] = ['q1', 'q2', 'q3', 'q4', 'year'];
 
 export function presetCanChonNam(preset: PublicationFilterPreset): boolean {
   return PRESET_CAN_NAM.includes(preset);
+}
+
+/** Năm tham chiếu khi tính khoảng ngày theo preset. */
+export function namThamChieuBoLoc(
+  preset: PublicationFilterPreset,
+  filterRefYear?: number | null,
+): number {
+  if (preset === 'fiscal_year') return namThamChieuNamTaiChinh();
+  if (filterRefYear != null && Number.isFinite(Number(filterRefYear))) {
+    return Number(filterRefYear);
+  }
+  return dayjs().year();
 }
 
 /** Khoảng ngày [đầu, cuối] theo preset; `refYear` dùng cho quý / năm / năm TC. */

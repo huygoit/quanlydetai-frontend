@@ -9,6 +9,7 @@ import {
   normalizePublicationAuthor,
   type ConvertedHoursBreakdown,
 } from '@/services/api/profilePublications';
+import { getAdminPublicationAuthors } from '@/services/api/adminPublications';
 import {
   coNhomChinhTacGia,
   HINT_KHONG_QUY_DOI_THIEU_NHOM_CHINH,
@@ -68,6 +69,8 @@ interface ConvertedHoursPreviewModalProps {
   publicationId: number | null;
   /** Hồ sơ đang xem (trang chi tiết admin); không truyền = hồ sơ đăng nhập (me). */
   profileId?: number;
+  /** Module quản lý KQNC — tải tác giả qua API admin, không gắn dòng «Đang xem». */
+  adminScope?: boolean;
   publicationTitle?: string;
   onClose: () => void;
 }
@@ -88,6 +91,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
   open,
   publicationId,
   profileId,
+  adminScope = false,
   publicationTitle,
   onClose,
 }) => {
@@ -108,7 +112,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       setFormulaOpen(false);
       setMetricsOpen(false);
     }
-  }, [open, publicationId, profileId]);
+  }, [open, publicationId, profileId, adminScope]);
 
   const loadData = async () => {
     if (!publicationId) return;
@@ -119,8 +123,9 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
     setData(null);
 
     try {
-      const authorsRes =
-        profileId != null && Number.isFinite(profileId)
+      const authorsRes = adminScope
+        ? await getAdminPublicationAuthors(publicationId)
+        : profileId != null && Number.isFinite(profileId)
           ? await getProfilePublicationAuthors(profileId, publicationId)
           : await getMyPublicationAuthors(publicationId);
       const authors = (authorsRes.success && authorsRes.data
@@ -133,7 +138,8 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       }
 
       const result = await previewPublicationConvertedHours(publicationId, {
-        profileId: profileId != null && Number.isFinite(profileId) ? profileId : undefined,
+        profileId:
+          !adminScope && profileId != null && Number.isFinite(profileId) ? profileId : undefined,
       });
       if (result.success && result.data) {
         setData(result.data);

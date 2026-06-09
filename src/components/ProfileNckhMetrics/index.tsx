@@ -8,6 +8,7 @@ import {
   type PublicationFilterPreset,
   khoangNgayTheoPreset,
   moTaKhoangLoc,
+  namThamChieuBoLoc,
   namThamChieuNamTaiChinh,
   presetCanChonNam,
 } from '@/utils/publicationDateFilter';
@@ -60,8 +61,9 @@ const ProfileNckhMetrics: React.FC<ProfileNckhMetricsProps> = ({
       onPeriodChange({ ...period, preset });
       return;
     }
-    const range = khoangNgayTheoPreset(preset, period.refYear);
-    onPeriodChange({ preset, refYear: period.refYear, dateRange: range });
+    const refYear = namThamChieuBoLoc(preset, period.refYear);
+    const range = khoangNgayTheoPreset(preset, refYear);
+    onPeriodChange({ preset, refYear, dateRange: range });
   };
 
   const doiNam = (year: number) => {

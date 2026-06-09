@@ -16,6 +16,8 @@ import {
   normalizePublicationAuthor,
   lookupAuthorProfiles,
   lookupAuthorStudents,
+  lookupAdminAuthorProfiles,
+  lookupAdminAuthorStudents,
   type AuthorProfileLookupItem,
   type AuthorStudentLookupItem,
 } from '@/services/api/profilePublications';
@@ -54,6 +56,8 @@ interface AuthorsEditorProps {
   disabled?: boolean;
   /** Bắt buộc có trong danh sách; không cho xóa dòng này (chỉ đổi vai trò sau). */
   ownerProfileId?: number;
+  /** profile = /api/profile/me; admin = /api/admin/publications/lookup (SUPER_ADMIN) */
+  authorLookupScope?: 'profile' | 'admin';
 }
 
 type AuthorEditableRow = PublicationAuthor & { id: React.Key };
@@ -63,6 +67,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   onChange,
   disabled = false,
   ownerProfileId,
+  authorLookupScope = 'profile',
 }) => {
   const editableFormRef = useRef<any>();
   const [editableKeys, setEditableRowKeys] = useState<React.Key[]>([]);
@@ -99,14 +104,20 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     setLookupLoading(true);
     try {
       const rows =
-        tab === 'student' ? await lookupAuthorStudents(t, 25) : await lookupAuthorProfiles(t, 25);
+        tab === 'student'
+          ? authorLookupScope === 'admin'
+            ? await lookupAdminAuthorStudents(t, 25)
+            : await lookupAuthorStudents(t, 25)
+          : authorLookupScope === 'admin'
+            ? await lookupAdminAuthorProfiles(t, 25)
+            : await lookupAuthorProfiles(t, 25);
       setLookupResults(rows);
     } catch {
       setLookupResults([]);
     } finally {
       setLookupLoading(false);
     }
-  }, []);
+  }, [authorLookupScope]);
 
   const scheduleLookup = useCallback(
     (q: string, tab: 'staff' | 'student') => {
