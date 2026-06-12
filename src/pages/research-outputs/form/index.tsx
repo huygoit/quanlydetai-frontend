@@ -2,8 +2,9 @@
  * Thêm / sửa KQNC — Drawer full màn hình, view riêng module quản lý
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { history, useParams, useSearchParams } from '@umijs/max';
-import { Button, Drawer, Form, Space, Spin, message } from 'antd';
+import { history, useAccess, useParams, useSearchParams } from '@umijs/max';
+import { Alert, Button, Drawer, Form, Input, Modal, Space, Spin, Tag, message } from 'antd';
+import { CheckOutlined, EditOutlined } from '@ant-design/icons';
 import AdminPublicationFormFields from './AdminPublicationFormFields';
 import { validateAndBuildAdminPublicationPayload } from './validateAdminPublicationForm';
 import {
@@ -16,12 +17,18 @@ import {
   type ResearchOutputTypeTreeNode,
 } from '@/services/api/profilePublications';
 import {
+  approveAdminPublication,
   createAdminPublication,
   getAdminPublicationAuthors,
   getAdminPublicationById,
+  requestAdminPublicationCorrection,
   saveAdminPublicationAuthors,
   updateAdminPublication,
 } from '@/services/api/adminPublications';
+import {
+  PUBLICATION_REVIEW_STATUS_MAP,
+  type PublicationReviewStatus,
+} from '@/utils/publicationReviewStatus';
 import { publishedAtRaDayjs } from '@/utils/publicationDate';
 import { laySchemaTheoMaLa, type LeafFormSchema } from '@/services/researchOutputFormSchema';
 import { parsePublicationAttachmentUrls } from '@/utils/publicationAttachments';
@@ -35,11 +42,15 @@ import {
 const ResearchOutputFormPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
+  const access = useAccess();
   const isEdit = Boolean(id && /^\d+$/.test(id));
 
   const [form] = Form.useForm();
+  const [correctionForm] = Form.useForm<{ reason: string }>();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reviewActionLoading, setReviewActionLoading] = useState(false);
+  const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
   const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
   const [authors, setAuthors] = useState<PublicationAuthor[]>([]);
@@ -142,6 +153,50 @@ const ResearchOutputFormPage: React.FC = () => {
     if (researchOutputTree.length) napDuLieu();
   }, [isEdit, id, researchOutputTree, form, quayVeDanhSach]);
 
+  const reviewStatus = (editingPub?.reviewStatus ?? 'NEW') as PublicationReviewStatus;
+  const reviewMeta = PUBLICATION_REVIEW_STATUS_MAP[reviewStatus] ?? PUBLICATION_REVIEW_STATUS_MAP.NEW;
+
+  const handleApprove = async () => {
+    if (!id) return;
+    setReviewActionLoading(true);
+    try {
+      const res = await approveAdminPublication(Number(id));
+      if (!res.success || !res.data) throw new Error('Duyệt thất bại');
+      setEditingPub(res.data as unknown as Publication);
+      message.success('Đã duyệt kết quả NCKH');
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      message.error(err?.message || 'Không thể duyệt kết quả NCKH');
+    } finally {
+      setReviewActionLoading(false);
+    }
+  };
+
+  const handleOpenCorrectionModal = () => {
+    correctionForm.setFieldsValue({ reason: editingPub?.correctionReason ?? '' });
+    setCorrectionModalOpen(true);
+  };
+
+  const handleRequestCorrection = async () => {
+    if (!id) return;
+    try {
+      const values = await correctionForm.validateFields();
+      setReviewActionLoading(true);
+      const res = await requestAdminPublicationCorrection(Number(id), values.reason.trim());
+      if (!res.success || !res.data) throw new Error('Gửi yêu cầu hiệu chỉnh thất bại');
+      setEditingPub(res.data as unknown as Publication);
+      setCorrectionModalOpen(false);
+      correctionForm.resetFields();
+      message.success('Đã gửi yêu cầu hiệu chỉnh');
+    } catch (e: unknown) {
+      const err = e as { errorFields?: unknown; message?: string };
+      if (err?.errorFields) return;
+      message.error(err?.message || 'Không thể gửi yêu cầu hiệu chỉnh');
+    } finally {
+      setReviewActionLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     try {
       await form.validateFields();
@@ -197,14 +252,42 @@ const ResearchOutputFormPage: React.FC = () => {
   };
 
   return (
+    <>
     <Drawer
-      title={isEdit ? 'Chỉnh sửa kết quả NCKH' : 'Thêm kết quả NCKH'}
+      title={
+        <Space wrap>
+          <span>{isEdit ? 'Chỉnh sửa kết quả NCKH' : 'Thêm kết quả NCKH'}</span>
+          {isEdit && (
+            <Tag color={reviewMeta.color}>{reviewMeta.text}</Tag>
+          )}
+        </Space>
+      }
       open
       onClose={quayVeDanhSach}
       width="100vw"
       destroyOnHidden
       extra={
-        <Space>
+        <Space wrap>
+          {isEdit && access.canReviewResearchOutput && (
+            <Button
+              icon={<EditOutlined />}
+              loading={reviewActionLoading}
+              onClick={handleOpenCorrectionModal}
+            >
+              Yêu cầu hiệu chỉnh
+            </Button>
+          )}
+          {isEdit && access.canApproveResearchOutput && (
+            <Button
+              type="primary"
+              ghost
+              icon={<CheckOutlined />}
+              loading={reviewActionLoading}
+              onClick={handleApprove}
+            >
+              Duyệt
+            </Button>
+          )}
           <Button onClick={quayVeDanhSach}>Hủy</Button>
           <Button type="primary" loading={saving} onClick={handleSave}>
             Lưu
@@ -213,6 +296,15 @@ const ResearchOutputFormPage: React.FC = () => {
       }
     >
       <Spin spinning={loading || treeLoading}>
+        {editingPub?.correctionReason && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Lý do hiệu chỉnh gần nhất"
+            description={editingPub.correctionReason}
+          />
+        )}
         <AdminPublicationFormFields
           form={form}
           researchOutputTree={researchOutputTree}
@@ -230,6 +322,34 @@ const ResearchOutputFormPage: React.FC = () => {
         />
       </Spin>
     </Drawer>
+
+    <Modal
+      title="Yêu cầu hiệu chỉnh kết quả NCKH"
+      open={correctionModalOpen}
+      onCancel={() => {
+        setCorrectionModalOpen(false);
+        correctionForm.resetFields();
+      }}
+      onOk={handleRequestCorrection}
+      confirmLoading={reviewActionLoading}
+      okText="Gửi yêu cầu"
+      cancelText="Hủy"
+      destroyOnHidden
+    >
+      <Form form={correctionForm} layout="vertical">
+        <Form.Item
+          name="reason"
+          label="Lý do hiệu chỉnh"
+          rules={[
+            { required: true, message: 'Vui lòng nhập lý do hiệu chỉnh' },
+            { max: 2000, message: 'Tối đa 2000 ký tự' },
+          ]}
+        >
+          <Input.TextArea rows={4} placeholder="Mô tả nội dung cần hiệu chỉnh..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+    </>
   );
 };
 

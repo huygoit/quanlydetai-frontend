@@ -337,6 +337,9 @@ export interface Publication {
   isbn?: string;
   url?: string;
   publicationStatus: 'PUBLISHED' | 'ACCEPTED' | 'UNDER_REVIEW';
+  /** Trạng thái duyệt nội bộ */
+  reviewStatus?: 'NEW' | 'CORRECTION_REQUESTED' | 'CORRECTED' | 'APPROVED';
+  correctionReason?: string | null;
   source: 'INTERNAL' | 'GOOGLE_SCHOLAR' | 'SCV_DHDN' | 'OPENALEX';
   sourceId?: string;
   needsIndexConfirmation?: boolean;

@@ -79,6 +79,8 @@ export interface PublicationItem {
   isbn?: string;
   url?: string;
   publicationStatus: PublicationStatus;
+  reviewStatus?: 'NEW' | 'CORRECTION_REQUESTED' | 'CORRECTED' | 'APPROVED';
+  correctionReason?: string | null;
   source: PublicationSource;
   sourceId?: string;
   needsIndexConfirmation?: boolean;

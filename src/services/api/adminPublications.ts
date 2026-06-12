@@ -24,6 +24,8 @@ export interface AdminPublicationQueryParams {
   publishedFrom?: string;
   /** Lọc ngày xuất bản đến (YYYY-MM-DD) */
   publishedTo?: string;
+  /** Lọc trạng thái duyệt */
+  reviewStatus?: string;
   q?: string;
 }
 
@@ -98,6 +100,24 @@ export async function updateAdminPublication(
 /** Xóa KQNC */
 export async function deleteAdminPublication(id: number): Promise<ApiResponse<null>> {
   return del<ApiResponse<null>>(`/api/admin/publications/${id}`);
+}
+
+/** Yêu cầu hiệu chỉnh KQNC */
+export async function requestAdminPublicationCorrection(
+  id: number,
+  reason: string
+): Promise<ApiResponse<AdminPublicationListItem>> {
+  return post<ApiResponse<AdminPublicationListItem>>(
+    `/api/admin/publications/${id}/request-correction`,
+    { reason }
+  );
+}
+
+/** Duyệt KQNC */
+export async function approveAdminPublication(
+  id: number
+): Promise<ApiResponse<AdminPublicationListItem>> {
+  return post<ApiResponse<AdminPublicationListItem>>(`/api/admin/publications/${id}/approve`);
 }
 
 /** Lấy danh sách tác giả */

@@ -172,6 +172,10 @@ import {
   laLoiThieuNhomChinh,
 } from '@/utils/authorValidationMessages';
 import {
+  PUBLICATION_REVIEW_STATUS_MAP,
+  type PublicationReviewStatus,
+} from '@/utils/publicationReviewStatus';
+import {
   layNodeTheoPath,
   laySchemaTheoMaLa,
   type LeafFormSchema,
@@ -226,6 +230,9 @@ interface PublicationsTabProps {
   researchTreeLoading?: boolean;
   rootTypeFilterId: number | null;
   onRootTypeFilterChange: (id: number | null) => void;
+  /** Mở form sửa từ thông báo (deep link ?pubId=) */
+  openPubId?: number | null;
+  onOpenPubIdHandled?: () => void;
 }
 
 const PublicationsTab: React.FC<PublicationsTabProps> = ({
@@ -242,6 +249,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   researchTreeLoading = false,
   rootTypeFilterId,
   onRootTypeFilterChange,
+  openPubId,
+  onOpenPubIdHandled,
 }) => {
   const [form] = Form.useForm();
   const [filterPreset, setFilterPreset] = useState<PublicationFilterPreset>('all');
@@ -267,8 +276,14 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   const [selectedLeafSchema, setSelectedLeafSchema] = useState<LeafFormSchema>(() =>
     laySchemaTheoMaLa(null, null)
   );
+  const [daMoPubTuThongBao, setDaMoPubTuThongBao] = useState(false);
 
   const filterYears = useMemo(() => layDanhSachNamLoc(publications), [publications]);
+
+  const kqncCanHieuChinh = useMemo(
+    () => publications.filter((p) => p.reviewStatus === 'CORRECTION_REQUESTED'),
+    [publications]
+  );
 
   const tenNhomGocDangLoc = useMemo(() => {
     if (!rootTypeFilterId) return null;
@@ -407,6 +422,15 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
     
     setDrawerVisible(true);
   };
+
+  useEffect(() => {
+    if (!openPubId || daMoPubTuThongBao || !publications.length) return;
+    const pub = publications.find((p) => p.id === openPubId);
+    if (!pub) return;
+    setDaMoPubTuThongBao(true);
+    void handleEdit(pub);
+    onOpenPubIdHandled?.();
+  }, [openPubId, publications, daMoPubTuThongBao, onOpenPubIdHandled]);
 
   useEffect(() => {
     if (!drawerVisible || !editingPub || !researchOutputTree.length) return;
@@ -601,6 +625,38 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
         </div>
       )}
 
+      {kqncCanHieuChinh.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`Có ${kqncCanHieuChinh.length} kết quả NCKH cần hiệu chỉnh`}
+          description={
+            <Space direction="vertical" size={4}>
+              {kqncCanHieuChinh.map((p) => (
+                <div key={p.id}>
+                  <Text strong>{p.title}</Text>
+                  {p.correctionReason ? (
+                    <div>
+                      <Text type="secondary">Lý do: {p.correctionReason}</Text>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </Space>
+          }
+          action={
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => kqncCanHieuChinh[0] && handleEdit(kqncCanHieuChinh[0])}
+            >
+              Hiệu chỉnh ngay
+            </Button>
+          }
+        />
+      )}
+
       {/* Section A: Publications attached to profile */}
       <div className="publications-main-section">
         <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -746,6 +802,21 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                       )}
                       {record.needsIndexConfirmation && (
                         <Tag color="orange">Cần xác nhận chỉ mục/Q</Tag>
+                      )}
+                      {record.reviewStatus && record.reviewStatus !== 'NEW' && (
+                        <Tag
+                          color={
+                            PUBLICATION_REVIEW_STATUS_MAP[
+                              record.reviewStatus as PublicationReviewStatus
+                            ]?.color
+                          }
+                        >
+                          {
+                            PUBLICATION_REVIEW_STATUS_MAP[
+                              record.reviewStatus as PublicationReviewStatus
+                            ]?.text
+                          }
+                        </Tag>
                       )}
                     </Space>
                   ),
@@ -1051,6 +1122,15 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           </Space>
         }
       >
+        {editingPub?.reviewStatus === 'CORRECTION_REQUESTED' && editingPub.correctionReason && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Yêu cầu hiệu chỉnh"
+            description={editingPub.correctionReason}
+          />
+        )}
         <PublicationFormFields
           form={form}
           researchOutputTree={researchOutputTree}
@@ -1111,6 +1191,7 @@ const MyProfilePage: React.FC = () => {
   const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
   const [researchTreeLoading, setResearchTreeLoading] = useState(false);
   const [pubRootTypeFilterId, setPubRootTypeFilterId] = useState<number | null>(null);
+  const [pendingOpenPubId, setPendingOpenPubId] = useState<number | null>(null);
 
   /** Popup xem file chứng chỉ ngoại ngữ (ảnh/PDF) thay vì mở tab mới ngay. */
   const [popupChungChi, setPopupChungChi] = useState<{
@@ -1258,6 +1339,17 @@ const MyProfilePage: React.FC = () => {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const pubIdRaw = searchParams.get('pubId');
+    if (tab === 'publications') {
+      setActiveTab('publications');
+    }
+    if (pubIdRaw && /^\d+$/.test(pubIdRaw)) {
+      setPendingOpenPubId(Number(pubIdRaw));
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadProfileKhoaPhongBanOptions().then(({ khoaPhongOptions: opts }) => {
@@ -2337,6 +2429,11 @@ const MyProfilePage: React.FC = () => {
                       researchTreeLoading={researchTreeLoading}
                       rootTypeFilterId={pubRootTypeFilterId}
                       onRootTypeFilterChange={setPubRootTypeFilterId}
+                      openPubId={pendingOpenPubId}
+                      onOpenPubIdHandled={() => {
+                        setPendingOpenPubId(null);
+                        history.replace('/profile/me?tab=publications');
+                      }}
                     />
                   ),
                 },

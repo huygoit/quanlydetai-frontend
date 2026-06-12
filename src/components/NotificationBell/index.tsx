@@ -41,6 +41,10 @@ const ICON_MAP: Record<NotificationType, React.ReactNode> = {
   PROFILE_VERIFIED: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
   PROFILE_NEED_INFO: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
   PUBLICATION_SYNC: <FileSearchOutlined style={{ color: '#722ed1' }} />,
+  PUBLICATION_CORRECTION_REQUESTED: (
+    <ExclamationCircleOutlined style={{ color: '#fa8c16' }} />
+  ),
+  PUBLICATION_CORRECTED: <CheckCircleOutlined style={{ color: '#1890ff' }} />,
   IDEA_SUBMITTED: <BulbOutlined style={{ color: '#eb2f96' }} />,
   IDEA_STATUS_CHANGED: <BulbOutlined style={{ color: '#eb2f96' }} />,
   PROJECT_UPDATE: <ProjectOutlined style={{ color: '#13c2c2' }} />,

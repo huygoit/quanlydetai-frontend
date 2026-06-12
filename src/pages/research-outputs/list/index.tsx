@@ -3,7 +3,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { history, useAccess, useParams } from '@umijs/max';
-import { Button, Input, Popconfirm, Tooltip, Typography, message } from 'antd';
+import { Button, Input, Popconfirm, Tag, Tooltip, Typography, message } from 'antd';
 import type { FormItemProps } from 'antd/es/form';
 import { DeleteOutlined, EditOutlined, PlusOutlined, CalculatorOutlined } from '@ant-design/icons';
 import {
@@ -39,6 +39,11 @@ import {
 } from '@/utils/publicationDateFilter';
 import { duongDanMenuNhomGoc } from '@/utils/researchOutputMenu';
 import { hienThiNgayXuatBan } from '@/utils/publicationDate';
+import {
+  PUBLICATION_REVIEW_STATUS_MAP,
+  PUBLICATION_REVIEW_STATUS_OPTIONS,
+  type PublicationReviewStatus,
+} from '@/utils/publicationReviewStatus';
 import ConvertedHoursPreviewModal from '@/components/ConvertedHoursPreviewModal';
 import './index.less';
 
@@ -53,6 +58,7 @@ const FORM_ITEM_GAN_NHAN: FormItemProps = {
 type TimKiemKqnc = {
   keyword?: string;
   rootTypeId?: number;
+  reviewStatus?: PublicationReviewStatus;
   filterPreset?: PublicationFilterPreset;
   filterRefYear?: number;
   publishedAtRange?: [string, string] | [Dayjs, Dayjs];
@@ -233,6 +239,27 @@ const ResearchOutputsListPage: React.FC = () => {
       },
     },
     {
+      title: 'Trạng thái',
+      dataIndex: 'reviewStatus',
+      hideInTable: true,
+      valueType: 'select',
+      order: 29,
+      colSize: 1,
+      formItemProps: {
+        ...FORM_ITEM_GAN_NHAN,
+        className: 'kqnc-filter-review-status-item',
+      },
+      fieldProps: {
+        allowClear: true,
+        className: 'kqnc-filter-review-status',
+        placeholder: 'Tất cả',
+        popupMatchSelectWidth: false,
+        dropdownStyle: { minWidth: 200 },
+        options: PUBLICATION_REVIEW_STATUS_OPTIONS,
+        onChange: () => actionRef.current?.reload(),
+      },
+    },
+    {
       title: 'Năm',
       dataIndex: 'filterRefYear',
       hideInTable: true,
@@ -286,6 +313,17 @@ const ResearchOutputsListPage: React.FC = () => {
           formRef.current?.setFieldsValue({ rootTypeId: id });
           history.replace(duongDanMenuNhomGoc(id ?? 'all'));
         },
+      },
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'reviewStatus',
+      width: 130,
+      hideInSearch: true,
+      render: (_, r) => {
+        const status = (r.reviewStatus ?? 'NEW') as PublicationReviewStatus;
+        const meta = PUBLICATION_REVIEW_STATUS_MAP[status] ?? PUBLICATION_REVIEW_STATUS_MAP.NEW;
+        return <Tag color={meta.color}>{meta.text}</Tag>;
       },
     },
     {
@@ -352,7 +390,7 @@ const ResearchOutputsListPage: React.FC = () => {
       width: 200,
     },
     {
-      title: 'Xem điểm quy đổi',
+      title: 'Điểm/giờ NCKH',
       dataIndex: 'convertedPointsPreview',
       width: 150,
       hideInSearch: true,
@@ -364,7 +402,7 @@ const ResearchOutputsListPage: React.FC = () => {
           icon={<CalculatorOutlined />}
           onClick={() => handleXemDiemQuyDoi(record)}
         >
-          Xem điểm quy đổi
+          Điểm/giờ NCKH
         </Button>
       ),
     },
@@ -386,7 +424,7 @@ const ResearchOutputsListPage: React.FC = () => {
               )
             }
           >
-            Sửa
+            Kiểm tra
           </Button>
         ),
         access.canDeleteResearchOutput && (
@@ -447,8 +485,12 @@ const ResearchOutputsListPage: React.FC = () => {
         search={{
           className: 'kqnc-query-filter',
           labelWidth: 'auto',
-          defaultCollapsed: false,
-          defaultColsNumber: 3,
+          /**
+           * Thu gọn mặc định. defaultColsNumber tính theo colSize (không phải số ô):
+           * Lọc theo(1) + Khoảng thời gian(2) + Trạng thái(1) = 4
+           */
+          defaultCollapsed: true,
+          defaultColsNumber: 4,
           span: { xs: 24, sm: 12, md: 8, lg: 4, xl: 4 },
           collapseRender: (collapsed) => (collapsed ? 'Mở rộng' : 'Thu gọn'),
         }}
@@ -488,6 +530,7 @@ const ResearchOutputsListPage: React.FC = () => {
               perPage: params.pageSize,
               keyword: params.keyword,
               rootTypeId,
+              reviewStatus: params.reviewStatus,
               publishedFrom:
                 coBoLocNgayDangBat(from, to) && from ? from.format('YYYY-MM-DD') : undefined,
               publishedTo:

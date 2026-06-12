@@ -140,5 +140,7 @@ export const PERM = {
     create: 'publication.create',
     update: 'publication.update',
     delete: 'publication.delete',
+    review: 'publication.review',
+    approve: 'publication.approve',
   },
 } as const;

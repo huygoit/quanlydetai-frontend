@@ -118,5 +118,7 @@ export default function access(initialState: AccessInitialState | undefined) {
     canCreateResearchOutput: isAdminSystemAccount || has(PERM.publication.create),
     canUpdateResearchOutput: isAdminSystemAccount || has(PERM.publication.update),
     canDeleteResearchOutput: isAdminSystemAccount || has(PERM.publication.delete),
+    canReviewResearchOutput: isAdminSystemAccount || has(PERM.publication.review),
+    canApproveResearchOutput: isAdminSystemAccount || has(PERM.publication.approve),
   };
 }
