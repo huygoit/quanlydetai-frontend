@@ -392,6 +392,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
     form.setFieldsValue({
       title: pub.title,
       academicYear: pub.academicYear,
+      journalOrConference: pub.journalOrConference,
       publishedAt: publishedAtRaDayjs(pub),
       hdgsnnScore: pub.hdgsnnScore ?? undefined,
       isbn: pub.isbn,
@@ -402,6 +403,8 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       doi: pub.doi,
       issn: pub.issn,
       url: pub.url,
+      qRankUrl: pub.qRankUrl ?? undefined,
+      reputableListUrl: pub.reputableListUrl ?? undefined,
       attachmentUrls: parsePublicationAttachmentUrls(pub.attachmentUrl),
       researchOutputTypePath: path ?? undefined,
     });

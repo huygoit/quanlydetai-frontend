@@ -6,7 +6,10 @@ import { history, useAccess, useParams, useSearchParams } from '@umijs/max';
 import { Alert, Button, Drawer, Form, Input, Modal, Space, Spin, Tag, message } from 'antd';
 import { CheckOutlined, EditOutlined } from '@ant-design/icons';
 import AdminPublicationFormFields from './AdminPublicationFormFields';
-import { validateAndBuildAdminPublicationPayload } from './validateAdminPublicationForm';
+import {
+  validateAndBuildAdminPublicationPayload,
+  kiemTraDayDuDeDuyet,
+} from './validateAdminPublicationForm';
 import {
   findResearchOutputNodeById,
   findResearchOutputPathById,
@@ -127,6 +130,7 @@ const ResearchOutputFormPage: React.FC = () => {
         form.setFieldsValue({
           researchOutputTypePath: path ?? undefined,
           title: pub.title,
+          journalOrConference: pub.journalOrConference,
           publishedAt: publishedAtRaDayjs(pub),
           publicationStatus: pub.publicationStatus ?? 'PUBLISHED',
           hdgsnnScore: pub.hdgsnnScore ?? undefined,
@@ -137,6 +141,8 @@ const ResearchOutputFormPage: React.FC = () => {
           doi: pub.doi,
           issn: pub.issn,
           url: pub.url,
+          qRankUrl: pub.qRankUrl ?? undefined,
+          reputableListUrl: pub.reputableListUrl ?? undefined,
           attachmentUrls: parsePublicationAttachmentUrls(pub.attachmentUrl),
         });
 
@@ -158,6 +164,20 @@ const ResearchOutputFormPage: React.FC = () => {
 
   const handleApprove = async () => {
     if (!id) return;
+    // Chặn duyệt khi chưa đủ trường bắt buộc theo loại KQNC (QĐ 1883).
+    const values = form.getFieldsValue(true) as Record<string, unknown>;
+    const thieu = kiemTraDayDuDeDuyet(
+      values,
+      authors,
+      selectedLeafSchema.leafCode,
+      selectedLeafRuleKind
+    );
+    if (thieu.length > 0) {
+      message.error(
+        `Chưa đủ điều kiện duyệt. Vui lòng bổ sung và lưu: ${thieu.join(', ')}.`
+      );
+      return;
+    }
     setReviewActionLoading(true);
     try {
       const res = await approveAdminPublication(Number(id));
@@ -200,6 +220,18 @@ const ResearchOutputFormPage: React.FC = () => {
   const handleSave = async () => {
     try {
       await form.validateFields();
+      // Validate đủ tất cả trường bắt buộc theo loại KQNC (QĐ 1883) ngay khi Lưu.
+      const values = form.getFieldsValue(true) as Record<string, unknown>;
+      const thieu = kiemTraDayDuDeDuyet(
+        values,
+        authors,
+        selectedLeafSchema.leafCode,
+        selectedLeafRuleKind
+      );
+      if (thieu.length > 0) {
+        message.error(`Vui lòng nhập đủ thông tin bắt buộc: ${thieu.join(', ')}.`);
+        return;
+      }
       const payload = validateAndBuildAdminPublicationPayload({
         form,
         authors,

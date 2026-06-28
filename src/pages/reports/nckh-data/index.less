@@ -1,0 +1,90 @@
+// Biểu mẫu DỮ LIỆU NCKH theo Khoa - hiển thị web + in PDF (Cách B)
+.nckh-data-scroll {
+  overflow-x: auto;
+}
+
+.nckh-data-doc {
+  color: #000;
+  font-family: 'Times New Roman', Times, serif;
+  background: #fff;
+
+  .nckh-data-title {
+    text-align: center;
+    margin: 4px 0 14px;
+
+    .nckh-data-title-main {
+      font-size: 16px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .nckh-data-title-sub {
+      font-weight: 700;
+      margin-top: 2px;
+    }
+  }
+
+  .c {
+    text-align: center;
+  }
+  .b {
+    font-weight: 700;
+  }
+}
+
+.nckh-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  th,
+  td {
+    border: 1px solid #000;
+    padding: 3px 5px;
+    vertical-align: top;
+  }
+  th {
+    text-align: center;
+    font-weight: 700;
+    background: #fbf4cf; // vàng nhạt giống mẫu
+    line-height: 1.25;
+  }
+  // Cột số liệu hẹp lại cho gọn
+  thead tr:nth-child(2) th {
+    min-width: 56px;
+  }
+  .nckh-data-total td {
+    background: #f2f2f2;
+  }
+}
+
+// In: chỉ in vùng biểu mẫu, ẩn layout/menu; xoay ngang để vừa nhiều cột
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #nckh-print-area,
+  #nckh-print-area * {
+    visibility: visible !important;
+  }
+  #nckh-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+  }
+  .nckh-data-table th {
+    background: #fbf4cf !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .nckh-data-total td {
+    background: #f2f2f2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+}

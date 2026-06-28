@@ -2,7 +2,7 @@
  * Quản lý đơn vị (Departments)
  * Trang quản trị danh sách các đơn vị trong hệ thống
  */
-import { PageContainer, ProTable, ModalForm, ProFormText, ProFormSelect, ProFormDigit, ProFormTextArea } from '@ant-design/pro-components';
+import { ProTable, ModalForm, ProFormText, ProFormSelect, ProFormDigit, ProFormTextArea } from '@ant-design/pro-components';
 import type { ProColumns, ActionType, ProFormInstance } from '@ant-design/pro-components';
 import { Badge, Button, message, Popconfirm, Space, Tag, Typography } from 'antd';
 import { PlusOutlined, EditOutlined, SwapOutlined } from '@ant-design/icons';
@@ -249,7 +249,7 @@ const DepartmentsPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer>
+    <>
       <ProTable<Department>
         headerTitle="Danh sách đơn vị"
         actionRef={actionRef}
@@ -411,7 +411,7 @@ const DepartmentsPage: React.FC = () => {
         <ProFormText name="short_name" hidden />
         <ProFormTextArea name="note" hidden />
       </ModalForm>
-    </PageContainer>
+    </>
   );
 };
 

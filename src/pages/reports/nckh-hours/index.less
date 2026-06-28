@@ -1,0 +1,130 @@
+// Biểu mẫu thống kê giờ NCKH - style cho cả xem trên web và khi in (Cách B)
+.nckh-doc {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  color: #000;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background: #fff;
+
+  .nckh-bold {
+    font-weight: 700;
+  }
+  .nckh-center {
+    text-align: center;
+  }
+  .nckh-right {
+    text-align: right;
+  }
+
+  // Quốc hiệu
+  .nckh-header {
+    display: flex;
+    justify-content: space-between;
+    text-align: center;
+
+    .nckh-header-left,
+    .nckh-header-right {
+      flex: 1;
+    }
+    .nckh-line-short {
+      width: 60%;
+      margin: 4px auto 0;
+      border-bottom: 1px solid #000;
+    }
+  }
+
+  // Tiêu đề
+  .nckh-title {
+    text-align: center;
+    margin: 18px 0 16px;
+
+    .nckh-title-main {
+      font-size: 17px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .nckh-title-sub {
+      font-style: italic;
+      margin-top: 4px;
+    }
+  }
+
+  // Bảng theo đơn vị
+  .nckh-unit {
+    margin-bottom: 18px;
+
+    .nckh-unit-name {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+  }
+
+  .nckh-table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th,
+    td {
+      border: 1px solid #000;
+      padding: 4px 8px;
+      vertical-align: top;
+    }
+    th {
+      text-align: center;
+      font-weight: 700;
+      background: #f2f2f2;
+    }
+    .nckh-subtotal td {
+      background: #fafafa;
+    }
+  }
+
+  .nckh-grand {
+    margin-top: 12px;
+    font-size: 15px;
+  }
+
+  .nckh-sign {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 32px;
+
+    .nckh-sign-box {
+      text-align: center;
+      min-width: 220px;
+    }
+    .nckh-sign-space {
+      height: 80px;
+    }
+  }
+}
+
+// CSS riêng cho khi in: chỉ in vùng biểu mẫu, ẩn toàn bộ layout/menu
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #nckh-print-area,
+  #nckh-print-area * {
+    visibility: visible !important;
+  }
+  #nckh-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+  }
+  .nckh-table th {
+    background: #f2f2f2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}

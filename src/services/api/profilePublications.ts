@@ -135,6 +135,12 @@ export function normalizePublicationAuthor(a: PublicationAuthor & Record<string,
         : null;
   const rawGender = a.gender ?? (a as Record<string, unknown>).gioi_tinh;
   const gender = chuanHoaGioiTinhTacGia(rawGender);
+  const rawContribution =
+    a.contributionPercent ?? (a as Record<string, unknown>).contribution_percent;
+  const contributionPercent =
+    rawContribution == null || rawContribution === '' || !Number.isFinite(Number(rawContribution))
+      ? null
+      : Number(rawContribution);
   return {
     ...a,
     profileId,
@@ -143,6 +149,7 @@ export function normalizePublicationAuthor(a: PublicationAuthor & Record<string,
     affiliationUnits,
     affiliationType: derivedAff,
     isMultiAffiliationOutsideUdn: derivedAff === 'MIXED',
+    contributionPercent,
   };
 }
 
@@ -287,6 +294,8 @@ export interface ResearchOutputTypeTreeNode {
   isActive: boolean;
   hasRule: boolean;
   ruleKind: string | null;
+  /** QĐ 1883: yêu cầu minh chứng cho loại này (text nhiều dòng, từ rule của mục lá). */
+  evidenceRequirements?: string | null;
   children: ResearchOutputTypeTreeNode[];
 }
 
@@ -309,6 +318,8 @@ export interface PublicationAuthor {
   affiliationUnits: string[];
   affiliationType: AffiliationType;
   isMultiAffiliationOutsideUdn: boolean;
+  /** Tỉ lệ % đóng góp (QĐ 1883 điều 1.4) — dùng cho sách/đề tài/sáng kiến. */
+  contributionPercent?: number | null;
 }
 
 export interface Publication {
@@ -336,6 +347,10 @@ export interface Publication {
   issn?: string;
   isbn?: string;
   url?: string;
+  /** Link minh chứng mức xếp hạng Q (Scimago/WoS) */
+  qRankUrl?: string | null;
+  /** Link danh mục tạp chí uy tín (HĐGSNN/WoS/Scopus) */
+  reputableListUrl?: string | null;
   publicationStatus: 'PUBLISHED' | 'ACCEPTED' | 'UNDER_REVIEW';
   /** Trạng thái duyệt nội bộ */
   reviewStatus?: 'NEW' | 'CORRECTION_REQUESTED' | 'CORRECTED' | 'APPROVED';

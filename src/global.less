@@ -193,7 +193,9 @@
     padding: 8px !important;
     border-radius: 10px !important;
     background: #fff !important;
-    min-width: 220px !important;
+    min-width: 240px !important;
+    width: max-content !important;
+    max-width: 420px !important;
     box-shadow: 0 6px 16px 0 rgba(0, 0, 0, 0.12), 
                 0 3px 6px -4px rgba(0, 0, 0, 0.15), 
                 0 9px 28px 8px rgba(0, 0, 0, 0.08);
@@ -224,6 +226,10 @@
       .ant-menu-title-content {
         color: rgba(0, 0, 0, 0.88) !important;
         font-weight: 400;
+        // Hiện đầy đủ text trong dropdown, không cắt bằng dấu ...
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
       }
       
       &:hover {
@@ -251,6 +257,22 @@
         .anticon {
           color: #1890ff !important;
         }
+      }
+    }
+
+    // Gạch phân cách giữa nhóm "Người dùng & phân quyền" và nhóm "Danh mục / Nhật ký / Cấu hình"
+    .ant-menu-item[data-menu-id$="/admin/catalog"] {
+      position: relative;
+      margin-top: 16px !important;
+      padding-top: 16px !important;
+      // Đường kẻ kéo dài hết bề ngang popup (bù lại padding 8px của .ant-menu)
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -8px;
+        right: -8px;
+        border-top: 1px solid #e8e8e8;
       }
     }
     
@@ -283,7 +305,9 @@
 .ant-menu-submenu-popup.ant-menu-submenu-placement-bottomRight {
   .ant-menu {
     background: #fff !important;
-    min-width: 200px !important;
+    min-width: 240px !important;
+    width: max-content !important;
+    max-width: 420px !important;
     padding: 6px !important;
     border-radius: 10px !important;
     
@@ -302,6 +326,9 @@
       a,
       .ant-menu-title-content {
         color: inherit !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
       }
       
       &.ant-menu-item-selected {

@@ -148,10 +148,9 @@ const ProfileListPage: React.FC = () => {
       ),
     },
     {
-      title: 'Khoa/Bộ môn',
+      title: 'Đơn vị công tác',
       dataIndex: 'faculty',
-      width: 180,
-      ellipsis: true,
+      width: 200,
       valueType: 'select',
       fieldProps: {
         options: FACULTIES.map(f => ({ label: f, value: f })),
@@ -188,8 +187,7 @@ const ProfileListPage: React.FC = () => {
     {
       title: 'Hướng NC chính',
       dataIndex: 'mainResearchArea',
-      width: 150,
-      ellipsis: true,
+      width: 180,
       valueType: 'select',
       fieldProps: {
         options: RESEARCH_AREAS.map(r => ({ label: r, value: r })),

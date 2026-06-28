@@ -54,36 +54,41 @@ export default defineConfig({
       access: 'canViewHome',
     },
 
-    // Hồ sơ khoa học - NCV thấy "Hồ sơ của tôi", PHONG_KH/ADMIN thấy "Danh sách hồ sơ"
+    // Hồ sơ - cha chung: user thấy 2 mục cá nhân, admin thấy 2 mục quản lý (tự lọc theo quyền)
     {
-      path: '/profile',
-      name: 'Hồ sơ khoa học',
+      name: 'Hồ sơ',
       icon: 'IdcardOutlined',
-      access: 'canViewProfile',
+      access: 'canViewProfileMenu',
       routes: [
         {
           path: '/profile/me',
-          name: 'Hồ sơ của tôi',
-          icon: 'UserOutlined',
+          name: 'Hồ sơ khoa học của tôi',
+          icon: 'SolutionOutlined',
           component: '@/pages/profile/me',
           access: 'canViewProfileSelf',
         },
         {
+          path: '/my-personal-profile',
+          name: 'Hồ sơ cán bộ của tôi',
+          icon: 'UserOutlined',
+          component: '@/pages/my-personal-profile',
+          access: 'canUsePersonalWorkspace',
+        },
+        {
           path: '/profile/list',
-          name: 'Danh sách hồ sơ',
+          name: 'Danh sách Hồ sơ khoa học',
           icon: 'TeamOutlined',
           component: '@/pages/profile/list',
           access: 'canViewProfileAll',
         },
+        {
+          path: '/admin/personal-profiles',
+          name: 'Danh sách hồ sơ nhân sự',
+          icon: 'IdcardOutlined',
+          component: '@/pages/admin/personal-profiles',
+          access: 'canViewPersonalProfiles',
+        },
       ],
-    },
-    // Hồ sơ cán bộ của tôi (route ẩn, không lồng dưới /profile)
-    {
-      path: '/my-personal-profile',
-      name: 'Hồ sơ cán bộ của tôi',
-      component: '@/pages/my-personal-profile',
-      hideInMenu: true,
-      access: 'canUsePersonalWorkspace',
     },
     // Chi tiết hồ sơ (hidden route)
     {
@@ -97,7 +102,7 @@ export default defineConfig({
     // Ngân hàng ý tưởng
     {
       path: '/ideas',
-      name: 'Ngân hàng ý tưởng',
+      name: 'Ý tưởng',
       icon: 'BulbOutlined',
       access: 'canViewIdeaBank',
       routes: [
@@ -142,7 +147,7 @@ export default defineConfig({
     // Đề tài nghiên cứu (quy trình)
     {
       path: '/projects',
-      name: 'Đề tài nghiên cứu',
+      name: 'Đề tài',
       icon: 'ProjectOutlined',
       access: 'canViewProjectManage',
       routes: [
@@ -248,12 +253,28 @@ export default defineConfig({
           icon: 'ClusterOutlined',
           component: '@/pages/reports/by-unit',
           access: 'canViewReports',
+          hideInMenu: true,
         },
         {
           path: '/reports/by-level',
           name: 'Theo cấp đề tài',
           icon: 'SlidersOutlined',
           component: '@/pages/reports/by-level',
+          access: 'canViewReports',
+          hideInMenu: true,
+        },
+        {
+          path: '/reports/nckh-hours',
+          name: 'Thống kê giờ NCKH',
+          icon: 'FieldTimeOutlined',
+          component: '@/pages/reports/nckh-hours',
+          access: 'canViewReports',
+        },
+        {
+          path: '/reports/nckh-data',
+          name: 'Thống kê kết quả NCKH',
+          icon: 'TableOutlined',
+          component: '@/pages/reports/nckh-data',
           access: 'canViewReports',
         },
       ],
@@ -271,13 +292,7 @@ export default defineConfig({
       icon: 'SettingOutlined',
       access: 'canViewAdmin',
       routes: [
-        {
-          path: '/admin/departments',
-          name: 'Quản lý đơn vị',
-          icon: 'ClusterOutlined',
-          component: '@/pages/admin/departments',
-          access: 'canViewDepartments',
-        },
+        // --- Nhóm 1: Người dùng & phân quyền ---
         {
           path: '/admin/users',
           name: 'Quản lý người dùng',
@@ -313,19 +328,36 @@ export default defineConfig({
           component: '@/pages/admin/iam/user-roles',
           access: 'canViewUsers',
         },
+        // --- Nhóm 2: Danh mục / Nhật ký / Cấu hình (cách nhóm trên bằng gạch phân cách qua CSS) ---
         {
-          path: '/admin/personal-profiles',
-          name: 'Hồ sơ cá nhân',
-          icon: 'IdcardOutlined',
-          component: '@/pages/admin/personal-profiles',
-          access: 'canViewPersonalProfiles',
+          path: '/admin/catalog',
+          name: 'Danh mục hệ thống',
+          icon: 'AppstoreOutlined',
+          component: '@/pages/admin/catalog',
+          access: 'canViewAdmin',
         },
+        {
+          path: '/admin/audit-log',
+          name: 'Nhật ký hệ thống',
+          icon: 'FileSearchOutlined',
+          component: '@/pages/admin/audit-log',
+          access: 'canViewAdmin',
+        },
+        {
+          path: '/admin/config',
+          name: 'Cấu hình hệ thống',
+          icon: 'ControlOutlined',
+          component: '@/pages/admin/config',
+          access: 'canViewAdmin',
+        },
+        // Route ẩn (truy cập qua nút bấm, không hiện trên menu)
         {
           path: '/admin/staffs',
           name: 'Danh mục nhân sự',
-          icon: 'TeamOutlined',
+          icon: 'ContactsOutlined',
           component: '@/pages/admin/staffs',
           access: 'canViewDepartments',
+          hideInMenu: true,
         },
         {
           path: '/admin/personal-profiles/new',
@@ -338,27 +370,6 @@ export default defineConfig({
           component: '@/pages/admin/personal-profiles/edit',
           access: 'canViewPersonalProfiles',
           hideInMenu: true,
-        },
-        {
-          path: '/admin/config',
-          name: 'Cấu hình hệ thống',
-          icon: 'ControlOutlined',
-          component: '@/pages/admin/config',
-          access: 'canViewAdmin',
-        },
-        {
-          path: '/admin/audit-log',
-          name: 'Nhật ký hệ thống',
-          icon: 'FileSearchOutlined',
-          component: '@/pages/admin/audit-log',
-          access: 'canViewAdmin',
-        },
-        {
-          path: '/admin/catalog',
-          name: 'Danh mục hệ thống',
-          icon: 'AppstoreOutlined',
-          component: '@/pages/admin/catalog',
-          access: 'canViewAdmin',
         },
       ],
     },

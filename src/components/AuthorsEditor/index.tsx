@@ -58,6 +58,8 @@ interface AuthorsEditorProps {
   ownerProfileId?: number;
   /** profile = /api/profile/me; admin = /api/admin/publications/lookup (SUPER_ADMIN) */
   authorLookupScope?: 'profile' | 'admin';
+  /** Hiện cột Tỉ lệ % đóng góp (sách/đề tài/sáng kiến — QĐ 1883 điều 1.4). */
+  showContribution?: boolean;
 }
 
 type AuthorEditableRow = PublicationAuthor & { id: React.Key };
@@ -68,6 +70,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   disabled = false,
   ownerProfileId,
   authorLookupScope = 'profile',
+  showContribution = false,
 }) => {
   const editableFormRef = useRef<any>();
   const [editableKeys, setEditableRowKeys] = useState<React.Key[]>([]);
@@ -631,6 +634,24 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         );
       },
     },
+    ...(showContribution
+      ? ([
+          {
+            title: 'Tỉ lệ % đóng góp',
+            dataIndex: 'contributionPercent',
+            valueType: 'digit',
+            width: 130,
+            editable: (_, record) => choPhepSuaThongTin(record),
+            fieldProps: { min: 0, max: 100, step: 1, precision: 2, placeholder: 'VD: 50' },
+            render: (_, record) =>
+              record.contributionPercent != null ? (
+                <Tag color="gold">{record.contributionPercent}%</Tag>
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
+          },
+        ] as ProColumns<AuthorEditableRow>[])
+      : []),
     {
       title: 'Thao tác',
       valueType: 'option',
@@ -734,6 +755,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                     affiliationUnits: [UDN_AFFILIATION_UNITS[0]],
                     affiliationType: 'UDN_ONLY' as AffiliationType,
                     isMultiAffiliationOutsideUdn: false,
+                    contributionPercent: null,
                   };
                 },
                 creatorButtonText: 'Thêm tác giả',

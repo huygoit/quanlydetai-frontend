@@ -41,6 +41,8 @@ export type PublicationSavePayload = {
   issn?: string;
   isbn?: string;
   url?: string;
+  qRankUrl?: string | null;
+  reputableListUrl?: string | null;
   attachmentUrl?: string;
   publicationType: Publication['publicationType'];
   journalOrConference: string;
@@ -74,15 +76,31 @@ export function validateAndBuildPublicationPayload(
   const researchOutputTypeId = rotPath[rotPath.length - 1];
   const leafNode = layNodeTheoPath(researchOutputTree, rotPath);
   const schema = laySchemaTheoMaLa(leafNode?.code ?? null, leafNode?.ruleKind ?? null);
+
+  // Validate đủ tất cả trường bắt buộc theo loại KQNC (QĐ 1883) ngay khi Lưu.
+  const coChuoi = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
+  const req = (k: Parameters<typeof schema.batBuocForm.includes>[0]) =>
+    schema.batBuocForm.includes(k);
   const batBuocThieu: string[] = [];
-  if (schema.batBuocForm.includes('hdgsnnScore') && !(Number(values.hdgsnnScore) > 0)) {
-    batBuocThieu.push('Điểm HĐGSNN');
+  if (req('journalName') && !coChuoi(values.journalOrConference))
+    batBuocThieu.push('Tên tạp chí / hội thảo');
+  if (req('doi') && !coChuoi(values.doi)) batBuocThieu.push('Link DOI');
+  if (req('qRankUrl') && !coChuoi(values.qRankUrl)) batBuocThieu.push('Link mức xếp hạng Q');
+  if (req('reputableListUrl') && !coChuoi(values.reputableListUrl))
+    batBuocThieu.push('Link danh mục tạp chí uy tín');
+  if (req('hdgsnnScore') && !(Number(values.hdgsnnScore) > 0)) batBuocThieu.push('Điểm HĐGSNN');
+  if (req('isbn') && !coChuoi(values.isbn)) batBuocThieu.push('ISBN');
+  if (req('publishedAt') && values.publishedAt == null) batBuocThieu.push('Ngày xuất bản');
+  if (req('attachment')) {
+    const att = values.attachmentUrls;
+    const coFile = Array.isArray(att) ? att.length > 0 : coChuoi(att);
+    if (!coFile) batBuocThieu.push('File minh chứng');
   }
-  if (
-    schema.batBuocForm.includes('isbn') &&
-    !(typeof values.isbn === 'string' && values.isbn.trim().length > 0)
-  ) {
-    batBuocThieu.push('ISBN');
+  if (req('contributionRate')) {
+    const thieuTacGia = authors.some(
+      (a) => a.contributionPercent == null || !(Number(a.contributionPercent) > 0)
+    );
+    if (authors.length === 0 || thieuTacGia) batBuocThieu.push('Tỉ lệ % đóng góp của tác giả');
   }
   if (batBuocThieu.length) {
     message.error(`Thiếu trường bắt buộc cho ${schema.tenHienThi}: ${batBuocThieu.join(', ')}`);
@@ -113,7 +131,12 @@ export function validateAndBuildPublicationPayload(
   }
 
   const publicationStatus = (values.publicationStatus || 'PUBLISHED') as Publication['publicationStatus'];
-  const journalOrConference = editingPub?.journalOrConference?.trim() || '—';
+  const journalOrConference =
+    (typeof values.journalOrConference === 'string' && values.journalOrConference.trim()) ||
+    editingPub?.journalOrConference?.trim() ||
+    '—';
+  const chuanHoaLink = (v: unknown): string | null =>
+    typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
 
   return {
     researchOutputTypeId,
@@ -130,6 +153,8 @@ export function validateAndBuildPublicationPayload(
     issn: values.issn,
     isbn: values.isbn,
     url: values.url,
+    qRankUrl: chuanHoaLink(values.qRankUrl),
+    reputableListUrl: chuanHoaLink(values.reputableListUrl),
     attachmentUrl: serializePublicationAttachmentUrls(values.attachmentUrls),
     publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
     journalOrConference,

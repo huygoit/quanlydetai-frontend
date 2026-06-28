@@ -49,6 +49,20 @@ export const PERM = {
     update: 'department.update',
     delete: 'department.delete',
   },
+  /** Lĩnh vực (danh mục lĩnh vực khoa học) - khớp backend */
+  field: {
+    view: 'field.view',
+    create: 'field.create',
+    update: 'field.update',
+    delete: 'field.delete',
+  },
+  /** Chuyên ngành (danh mục chuyên ngành) - khớp backend */
+  specialization: {
+    view: 'specialization.view',
+    create: 'specialization.create',
+    update: 'specialization.update',
+    delete: 'specialization.delete',
+  },
   user: {
     view: 'user.view',
     create: 'user.create',

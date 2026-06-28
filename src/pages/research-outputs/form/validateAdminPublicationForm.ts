@@ -13,7 +13,7 @@ import {
 } from '@/services/api/profilePublications';
 import { dayjsRaPublishedAt } from '@/utils/publicationDate';
 import { serializePublicationAttachmentUrls } from '@/utils/publicationAttachments';
-import { layNodeTheoPath, laySchemaTheoMaLa } from '@/services/researchOutputFormSchema';
+import { laySchemaTheoMaLa } from '@/services/researchOutputFormSchema';
 
 export type ValidateAdminPublicationOptions = {
   form: FormInstance;
@@ -37,6 +37,8 @@ export type AdminPublicationSavePayload = {
   issn?: string;
   isbn?: string;
   url?: string;
+  qRankUrl?: string | null;
+  reputableListUrl?: string | null;
   attachmentUrl?: string;
   publicationType: Publication['publicationType'];
   journalOrConference: string;
@@ -54,7 +56,7 @@ export function coItNhatMotTacGiaLinkNcv(authors: PublicationAuthor[]): boolean 
 export function validateAndBuildAdminPublicationPayload(
   options: ValidateAdminPublicationOptions
 ): AdminPublicationSavePayload | null {
-  const { form, authors, researchOutputTree, editingPub = null } = options;
+  const { form, authors, editingPub = null } = options;
 
   const values = form.getFieldsValue(true);
   const rotPath = values.researchOutputTypePath as number[] | undefined;
@@ -63,23 +65,8 @@ export function validateAndBuildAdminPublicationPayload(
     return null;
   }
 
+  // Lưu yêu cầu đủ trường bắt buộc theo loại KQNC — kiểm tra đầy đủ chạy ở handleSave (kiemTraDayDuDeDuyet).
   const researchOutputTypeId = rotPath[rotPath.length - 1];
-  const leafNode = layNodeTheoPath(researchOutputTree, rotPath);
-  const schema = laySchemaTheoMaLa(leafNode?.code ?? null, leafNode?.ruleKind ?? null);
-  const batBuocThieu: string[] = [];
-  if (schema.batBuocForm.includes('hdgsnnScore') && !(Number(values.hdgsnnScore) > 0)) {
-    batBuocThieu.push('Điểm HĐGSNN');
-  }
-  if (
-    schema.batBuocForm.includes('isbn') &&
-    !(typeof values.isbn === 'string' && values.isbn.trim().length > 0)
-  ) {
-    batBuocThieu.push('ISBN');
-  }
-  if (batBuocThieu.length) {
-    message.error(`Thiếu trường bắt buộc cho ${schema.tenHienThi}: ${batBuocThieu.join(', ')}`);
-    return null;
-  }
 
   const finalAuthors = reassignAuthorOrdersSequential(authors);
 
@@ -108,7 +95,12 @@ export function validateAndBuildAdminPublicationPayload(
   }
 
   const publicationStatus = (values.publicationStatus || 'PUBLISHED') as Publication['publicationStatus'];
-  const journalOrConference = editingPub?.journalOrConference?.trim() || '—';
+  const journalOrConference =
+    (typeof values.journalOrConference === 'string' && values.journalOrConference.trim()) ||
+    editingPub?.journalOrConference?.trim() ||
+    '—';
+  const chuanHoaLink = (v: unknown): string | null =>
+    typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
 
   return {
     researchOutputTypeId,
@@ -125,6 +117,8 @@ export function validateAndBuildAdminPublicationPayload(
     issn: values.issn,
     isbn: values.isbn,
     url: values.url,
+    qRankUrl: chuanHoaLink(values.qRankUrl),
+    reputableListUrl: chuanHoaLink(values.reputableListUrl),
     attachmentUrl: serializePublicationAttachmentUrls(values.attachmentUrls),
     publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
     journalOrConference,
@@ -133,4 +127,46 @@ export function validateAndBuildAdminPublicationPayload(
     verifiedByNcv: false,
     finalAuthors,
   };
+}
+
+/**
+ * Kiểm tra đủ điều kiện DUYỆT theo schema loại KQNC (QĐ 1883).
+ * Trả về danh sách nhãn trường còn thiếu — rỗng nghĩa là đủ điều kiện.
+ */
+export function kiemTraDayDuDeDuyet(
+  values: Record<string, unknown>,
+  authors: PublicationAuthor[],
+  leafCode?: string | null,
+  ruleKind?: string | null
+): string[] {
+  const schema = laySchemaTheoMaLa(leafCode ?? null, ruleKind ?? null);
+  const thieu: string[] = [];
+  const coChuoi = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
+  const req = (k: Parameters<typeof schema.batBuocForm.includes>[0]) =>
+    schema.batBuocForm.includes(k);
+
+  if (req('journalName') && !coChuoi(values.journalOrConference)) thieu.push('Tên tạp chí / hội thảo');
+  if (req('doi') && !coChuoi(values.doi)) thieu.push('Link DOI');
+  if (req('qRankUrl') && !coChuoi(values.qRankUrl)) thieu.push('Link mức xếp hạng Q');
+  if (req('reputableListUrl') && !coChuoi(values.reputableListUrl))
+    thieu.push('Link danh mục tạp chí uy tín');
+  if (req('hdgsnnScore') && !(Number(values.hdgsnnScore) > 0)) thieu.push('Điểm HĐGSNN');
+  if (req('isbn') && !coChuoi(values.isbn)) thieu.push('ISBN');
+  if (req('publishedAt') && values.publishedAt == null) thieu.push('Ngày xuất bản');
+  if (req('attachment')) {
+    const att = values.attachmentUrls;
+    const coFile = Array.isArray(att) ? att.length > 0 : coChuoi(att);
+    if (!coFile) thieu.push('File minh chứng');
+  }
+  if (req('contributionRate')) {
+    const tong = authors.reduce(
+      (s, a) => s + (a.contributionPercent != null ? Number(a.contributionPercent) : 0),
+      0
+    );
+    const thieuTacGia = authors.some(
+      (a) => a.contributionPercent == null || !(Number(a.contributionPercent) > 0)
+    );
+    if (authors.length === 0 || thieuTacGia || tong <= 0) thieu.push('Tỉ lệ % đóng góp của tác giả');
+  }
+  return thieu;
 }

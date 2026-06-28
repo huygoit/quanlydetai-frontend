@@ -53,6 +53,10 @@ function publicationAuthorToApiPayload(a: PublicationAuthor) {
     is_corresponding: a.isCorresponding,
     affiliation_type: a.affiliationType,
     is_multi_affiliation_outside_udn: a.isMultiAffiliationOutsideUdn,
+    contribution_percent:
+      a.contributionPercent != null && Number.isFinite(Number(a.contributionPercent))
+        ? Number(a.contributionPercent)
+        : null,
   };
 }
 

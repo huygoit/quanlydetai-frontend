@@ -13,6 +13,7 @@ import NotificationBell from '@/components/NotificationBell';
 import { getCurrentUser, logout as apiLogout, normalizePermissions } from '@/services/api/auth';
 import { getToken, removeToken } from '@/services/request';
 import { isAdminKeKhaiUser, isPersonalWorkspacePath } from '@/utils/adminKeKhai';
+import { hasAnyPermission, PERM } from '@/utils/permission';
 import {
   ganMenuConKetQuaNckh,
   taiNhomGocMenuKqnc,
@@ -20,6 +21,17 @@ import {
   type ResearchOutputMenuRoot,
 } from '@/utils/researchOutputMenu';
 import './global.less';
+
+/**
+ * Chỉ tài khoản có quyền xem KQNC mới gọi API admin để dựng menu con /research-outputs.
+ * NCV thường không có quyền publication.view → tránh gọi gây 403 (mirror access.canViewResearchOutputs).
+ */
+function coTheXemMenuKqnc(user?: { permissions?: string[] } | null): boolean {
+  const perms = user?.permissions ?? [];
+  if (perms.includes('*')) return true;
+  if (isAdminKeKhaiUser(user as never)) return true;
+  return hasAnyPermission(perms, [PERM.publication.view, PERM.profile.view_all]);
+}
 
 // Custom Vietnamese locale với pagination text tùy chỉnh
 const customViVN = {
@@ -155,11 +167,11 @@ export async function getInitialState(): Promise<InitialState> {
   };
 
   try {
-    const [currentUser, researchOutputMenuRoots] = await Promise.all([
-      fetchUserInfo(),
-      taiNhomGocMenuKqnc(),
-    ]);
+    const currentUser = await fetchUserInfo();
     if (currentUser) {
+      const researchOutputMenuRoots = coTheXemMenuKqnc(currentUser)
+        ? await taiNhomGocMenuKqnc()
+        : [];
       return {
         currentUser,
         permissions: currentUser.permissions ?? [],
@@ -177,7 +189,9 @@ export async function getInitialState(): Promise<InitialState> {
   if (cached) {
     try {
       const user = JSON.parse(cached) as CurrentUser;
-      const researchOutputMenuRoots = await taiNhomGocMenuKqnc();
+      const researchOutputMenuRoots = coTheXemMenuKqnc(user)
+        ? await taiNhomGocMenuKqnc()
+        : [];
       return {
         currentUser: user,
         permissions: user.permissions ?? [],
@@ -243,11 +257,14 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
       autoClose: false,
       /** Tải lại nhóm gốc khi render menu — đảm bảo admin vẫn có menu con */
       request: async (_params: Record<string, unknown>, defaultMenuData: any[]) => {
+        // Chỉ user có quyền xem KQNC mới gọi API admin (tránh 403 với NCV thường).
+        const coQuyen = coTheXemMenuKqnc(currentUser);
         let roots = initialState?.researchOutputMenuRoots ?? [];
-        if (!roots.length) {
+        if (!roots.length && coQuyen) {
           roots = await taiNhomGocMenuKqnc();
         }
-        const soLuong = roots.length > 0 ? await taiSoLuongKqncTheoNhom(roots) : undefined;
+        const soLuong =
+          roots.length > 0 && coQuyen ? await taiSoLuongKqncTheoNhom(roots) : undefined;
         return ganMenuConKetQuaNckh(defaultMenuData, roots, soLuong);
       },
     },

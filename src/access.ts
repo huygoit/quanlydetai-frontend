@@ -41,6 +41,8 @@ export default function access(initialState: AccessInitialState | undefined) {
 
   const hasAdminPermission = hasAny([
     PERM.department.view,
+    PERM.field.view,
+    PERM.specialization.view,
     PERM.user.view,
     PERM.role.view,
     PERM.permission.view,
@@ -59,6 +61,12 @@ export default function access(initialState: AccessInitialState | undefined) {
     canViewDepartments: has(PERM.department.view),
     canCreateDepartment: has(PERM.department.create),
     canEditDepartment: has(PERM.department.update),
+    canViewFields: has(PERM.field.view),
+    canCreateField: has(PERM.field.create),
+    canEditField: has(PERM.field.update),
+    canViewSpecializations: has(PERM.specialization.view),
+    canCreateSpecialization: has(PERM.specialization.create),
+    canEditSpecialization: has(PERM.specialization.update),
     canViewUsers: has(PERM.user.view),
     canCreateUser: has(PERM.user.create),
     canEditUser: has(PERM.user.update),
@@ -76,6 +84,9 @@ export default function access(initialState: AccessInitialState | undefined) {
 
     canViewHome: true,
     canViewProfile: hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
+    // Menu cha "Hồ sơ": hiện cho user thường (mục cá nhân) lẫn admin (mục quản lý)
+    canViewProfileMenu:
+      canUsePersonalWorkspace || has(PERM.profile.view_all) || has(PERM.personal_profile.view),
     canViewProfileSelf:
       canUsePersonalWorkspace &&
       hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
