@@ -311,56 +311,128 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
       ) : null}
 
       <Modal
-        title="Công thức quy đổi giờ/điểm"
+        title={
+          <span>
+            <FunctionOutlined /> Công thức quy đổi giờ/điểm (QĐ 1883)
+          </span>
+        }
         open={formulaOpen}
         onCancel={() => setFormulaOpen(false)}
         footer={null}
-        width={760}
+        width={780}
       >
-        <Alert
-          type="info"
-          message="Quy tắc tính cho công bố khoa học"
-          description={
-            <div>
-              <p style={{ margin: '4px 0' }}>
-                {(data?.ruleKind || '').toUpperCase() === 'MULTIPLY_A' ? (
-                  <>
-                    <strong>B</strong> = tổng giờ công trình sau hệ số <strong>a</strong> (quy định 1.1):{' '}
-                    <strong>B = B0 × a</strong>.
-                  </>
-                ) : (data?.ruleKind || '').toUpperCase() === 'HDGSNN_POINTS_TO_HOURS' ? (
-                  <>
-                    <strong>B</strong> = giờ suy từ điểm HĐGSNN (không nhân thêm hệ số <strong>a</strong> mục 1.1):{' '}
-                    <strong>B = B0</strong>.
-                  </>
-                ) : (
-                  <>
-                    Với loại <strong>{data?.ruleKind ?? '…'}</strong>, tổng giờ công trình{' '}
-                    <strong>B = B0</strong> (không nhân hệ số <strong>a</strong> mục 1.1). Chỉ rule{' '}
-                    <strong>MULTIPLY_A</strong> mới dùng <strong>B = B0 × a</strong>.
-                  </>
-                )}
-              </p>
-              <p style={{ margin: '4px 0' }}>
-                <strong>Điểm quy đổi:</strong>{' '}
-                <Text strong style={{ color: '#722ed1' }}>
-                  1 điểm
-                </Text>{' '}
-                = 600 giờ.
-              </p>
-              <p style={{ margin: '4px 0' }}>
-                Tác giả nhóm chính (chính hoặc liên hệ): <strong>B/(3n) + 2B/(3p)</strong>.
-              </p>
-              <p style={{ margin: '4px 0' }}>
-                Đồng tác giả còn lại: <strong>2B/(3p)</strong>.
-              </p>
-              <p style={{ margin: '4px 0' }}>
-                Trong đó: <strong>n</strong> là số người thuộc nhóm chính, <strong>p</strong> là tổng số tác giả.
-              </p>
-              <p style={{ margin: '4px 0' }}>Điều chỉnh giờ: nữ nhân 1.2; kiêm nhiệm ngoài ĐHĐN chia 2.</p>
+        {(() => {
+          const kind = (data?.ruleKind || '').toUpperCase();
+          const head: React.CSSProperties = {
+            fontWeight: 700,
+            marginBottom: 6,
+            color: '#1677ff',
+          };
+          const box: React.CSSProperties = {
+            background: '#fafafa',
+            border: '1px solid #f0f0f0',
+            borderRadius: 8,
+            padding: '10px 12px',
+          };
+          const sec: React.CSSProperties = { marginBottom: 14 };
+          const Dong = ({ on, children }: { on?: boolean; children: React.ReactNode }) => (
+            <div style={{ padding: '3px 0', lineHeight: 1.7 }}>
+              {on && (
+                <Tag color="blue" style={{ marginRight: 6 }}>
+                  Đang áp dụng
+                </Tag>
+              )}
+              {children}
             </div>
-          }
-        />
+          );
+          return (
+            <div style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: 4 }}>
+              <div style={sec}>
+                <div style={head}>1 · Tổng giờ công trình (B)</div>
+                <div style={box}>
+                  <Dong on={kind === 'MULTIPLY_A'}>
+                    Bài báo mục 1–3: <strong>B = B0 × a</strong>
+                  </Dong>
+                  <Dong on={kind === 'MULTIPLY_C'}>
+                    Đề tài / nhiệm vụ KHCN: <strong>B = B0 × c</strong>
+                  </Dong>
+                  <Dong on={kind === 'HDGSNN_POINTS_TO_HOURS'}>
+                    Bài báo HĐGSNN (mục 4): <strong>B = 600 × điểm</strong>
+                  </Dong>
+                  <Dong on={kind === 'FIXED' || kind === 'BONUS_ADD' || kind === 'RANGE_REVENUE'}>
+                    Sách, kỷ yếu, SHTT, sáng kiến, khen thưởng…: <strong>B = B0</strong> (theo bảng QĐ)
+                  </Dong>
+                </div>
+              </div>
+
+              <div style={sec}>
+                <div style={head}>2 · Hệ số đơn vị a (chỉ mục 1, 2, 3)</div>
+                <div style={box}>
+                  <Dong>
+                    Tất cả tác giả thuộc ĐHĐN → <Tag color="green">a = 2</Tag>
+                  </Dong>
+                  <Dong>
+                    Mục 1, 2: có cả tác giả trong &amp; ngoài ĐHĐN → <Tag color="gold">a = 1.5</Tag>
+                  </Dong>
+                  <Dong>
+                    Các trường hợp còn lại (mục 3 có tác giả ngoài…) → <Tag>a = 1</Tag>
+                  </Dong>
+                </div>
+              </div>
+
+              <div style={sec}>
+                <div style={head}>3 · Hệ số nghiệm thu c (đề tài KHCN)</div>
+                <div style={box}>
+                  <Space wrap>
+                    <Tag color="green">Xuất sắc: c = 1.1</Tag>
+                    <Tag color="blue">Đạt, đúng hạn: c = 1.0</Tag>
+                    <Tag color="orange">Đạt, trễ hạn: c = 0.5</Tag>
+                  </Space>
+                </div>
+              </div>
+
+              <div style={sec}>
+                <div style={head}>4 · Chia giờ cho từng tác giả</div>
+                <div style={box}>
+                  <div style={{ marginBottom: 8 }}>
+                    <strong>a) Bài báo / báo cáo (mục 1, 2, 3)</strong> — công thức n/p:
+                    <div style={{ paddingLeft: 12, lineHeight: 1.8 }}>
+                      • Tác giả chính (đầu / liên hệ): <strong>B/(3n) + 2B/(3p)</strong>
+                      <br />• Đồng tác giả: <strong>2B/(3p)</strong>
+                      <br />
+                      <Text type="secondary">n = số tác giả chính, p = tổng số tác giả</Text>
+                    </div>
+                  </div>
+                  <div>
+                    <strong>b) Sản phẩm khác (mục 4 trở đi — điều 1.4)</strong> — theo % đóng góp:
+                    <div style={{ paddingLeft: 12, lineHeight: 1.8 }}>
+                      • Giờ mỗi tác giả = <strong>B × (% đóng góp / 100)</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={sec}>
+                <div style={head}>5 · Điều chỉnh giờ từng tác giả</div>
+                <div style={box}>
+                  <Dong>
+                    Cán bộ <strong>nữ</strong>: nhân <Tag color="magenta">× 1.2</Tag>
+                  </Dong>
+                  <Dong>
+                    Kiêm nhiệm <strong>trong &amp; ngoài ĐHĐN</strong>: chia <Tag>÷ 2</Tag>
+                  </Dong>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 0 }}>
+                <div style={head}>6 · Điểm quy đổi</div>
+                <div style={box}>
+                  <strong style={{ color: '#722ed1' }}>1 điểm = 600 giờ</strong> → P = B / 600
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
       <Modal
         title="Thông tin các thông số"

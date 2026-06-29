@@ -43,6 +43,7 @@ export type PublicationSavePayload = {
   url?: string;
   qRankUrl?: string | null;
   reputableListUrl?: string | null;
+  acceptanceGrade?: 'EXCELLENT' | 'PASS_ON_TIME' | 'PASS_LATE' | null;
   attachmentUrl?: string;
   publicationType: Publication['publicationType'];
   journalOrConference: string;
@@ -91,6 +92,9 @@ export function validateAndBuildPublicationPayload(
   if (req('hdgsnnScore') && !(Number(values.hdgsnnScore) > 0)) batBuocThieu.push('Điểm HĐGSNN');
   if (req('isbn') && !coChuoi(values.isbn)) batBuocThieu.push('ISBN');
   if (req('publishedAt') && values.publishedAt == null) batBuocThieu.push('Ngày xuất bản');
+  // Rule "Nhân hệ số c" (đề tài): bắt buộc xếp loại nghiệm thu.
+  const coXepLoaiNghiemThu = (leafNode?.ruleKind ?? null) === 'MULTIPLY_C';
+  if (coXepLoaiNghiemThu && !coChuoi(values.acceptanceGrade)) batBuocThieu.push('Xếp loại nghiệm thu');
   if (req('attachment')) {
     const att = values.attachmentUrls;
     const coFile = Array.isArray(att) ? att.length > 0 : coChuoi(att);
@@ -101,6 +105,15 @@ export function validateAndBuildPublicationPayload(
       (a) => a.contributionPercent == null || !(Number(a.contributionPercent) > 0)
     );
     if (authors.length === 0 || thieuTacGia) batBuocThieu.push('Tỉ lệ % đóng góp của tác giả');
+  }
+  // Tổng % đóng góp phải bằng 100% (áp dụng cho mọi loại khi đã nhập %).
+  const tongPhanTramDongGop = authors.reduce(
+    (s, a) => s + (a.contributionPercent != null ? Number(a.contributionPercent) : 0),
+    0
+  );
+  if (tongPhanTramDongGop > 0 && Math.abs(tongPhanTramDongGop - 100) > 0.01) {
+    message.error(`Tổng tỉ lệ % đóng góp của các tác giả phải bằng 100% (hiện ${tongPhanTramDongGop}%)`);
+    return null;
   }
   if (batBuocThieu.length) {
     message.error(`Thiếu trường bắt buộc cho ${schema.tenHienThi}: ${batBuocThieu.join(', ')}`);
@@ -155,6 +168,9 @@ export function validateAndBuildPublicationPayload(
     url: values.url,
     qRankUrl: chuanHoaLink(values.qRankUrl),
     reputableListUrl: chuanHoaLink(values.reputableListUrl),
+    acceptanceGrade: coXepLoaiNghiemThu
+      ? ((values.acceptanceGrade as PublicationSavePayload['acceptanceGrade']) ?? null)
+      : null,
     attachmentUrl: serializePublicationAttachmentUrls(values.attachmentUrls),
     publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
     journalOrConference,

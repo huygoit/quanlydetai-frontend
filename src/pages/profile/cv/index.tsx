@@ -200,14 +200,14 @@ const CvPage: React.FC = () => {
 
               <div className="cv-subsection">2. Sau đại học</div>
               <div className="cv-row">
-                - Thạc sĩ chuyên ngành: {degree === 'MASTER' ? profile.mainResearchArea || <Blank width={200} /> : <Blank width={200} />}
+                - Thạc sĩ chuyên ngành: {degree === 'MASTER' ? profile.specialization || <Blank width={200} /> : <Blank width={200} />}
                 {'   '}Năm cấp bằng: {degree === 'MASTER' ? hocViNoiNam.nam || <Blank width={80} /> : <Blank width={80} />}
               </div>
               <div className="cv-row">
                 Nơi đào tạo: {degree === 'MASTER' ? hocViNoiNam.noi || <Blank width={220} /> : <Blank width={220} />}
               </div>
               <div className="cv-row">
-                - Tiến sĩ chuyên ngành: {degree === 'DOCTORATE' ? profile.mainResearchArea || <Blank width={200} /> : <Blank width={200} />}
+                - Tiến sĩ chuyên ngành: {degree === 'DOCTORATE' ? profile.specialization || <Blank width={200} /> : <Blank width={200} />}
                 {'   '}Năm cấp bằng: {degree === 'DOCTORATE' ? hocViNoiNam.nam || <Blank width={80} /> : <Blank width={80} />}
               </div>
               <div className="cv-row">

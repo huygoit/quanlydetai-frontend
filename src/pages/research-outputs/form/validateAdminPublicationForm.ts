@@ -13,7 +13,7 @@ import {
 } from '@/services/api/profilePublications';
 import { dayjsRaPublishedAt } from '@/utils/publicationDate';
 import { serializePublicationAttachmentUrls } from '@/utils/publicationAttachments';
-import { laySchemaTheoMaLa } from '@/services/researchOutputFormSchema';
+import { laySchemaTheoMaLa, layNodeTheoPath } from '@/services/researchOutputFormSchema';
 
 export type ValidateAdminPublicationOptions = {
   form: FormInstance;
@@ -39,6 +39,7 @@ export type AdminPublicationSavePayload = {
   url?: string;
   qRankUrl?: string | null;
   reputableListUrl?: string | null;
+  acceptanceGrade?: 'EXCELLENT' | 'PASS_ON_TIME' | 'PASS_LATE' | null;
   attachmentUrl?: string;
   publicationType: Publication['publicationType'];
   journalOrConference: string;
@@ -56,7 +57,7 @@ export function coItNhatMotTacGiaLinkNcv(authors: PublicationAuthor[]): boolean 
 export function validateAndBuildAdminPublicationPayload(
   options: ValidateAdminPublicationOptions
 ): AdminPublicationSavePayload | null {
-  const { form, authors, editingPub = null } = options;
+  const { form, authors, researchOutputTree, editingPub = null } = options;
 
   const values = form.getFieldsValue(true);
   const rotPath = values.researchOutputTypePath as number[] | undefined;
@@ -67,6 +68,8 @@ export function validateAndBuildAdminPublicationPayload(
 
   // Lưu yêu cầu đủ trường bắt buộc theo loại KQNC — kiểm tra đầy đủ chạy ở handleSave (kiemTraDayDuDeDuyet).
   const researchOutputTypeId = rotPath[rotPath.length - 1];
+  const leafNode = layNodeTheoPath(researchOutputTree, rotPath);
+  const coXepLoaiNghiemThu = (leafNode?.ruleKind ?? null) === 'MULTIPLY_C';
 
   const finalAuthors = reassignAuthorOrdersSequential(authors);
 
@@ -119,6 +122,9 @@ export function validateAndBuildAdminPublicationPayload(
     url: values.url,
     qRankUrl: chuanHoaLink(values.qRankUrl),
     reputableListUrl: chuanHoaLink(values.reputableListUrl),
+    acceptanceGrade: coXepLoaiNghiemThu
+      ? ((values.acceptanceGrade as AdminPublicationSavePayload['acceptanceGrade']) ?? null)
+      : null,
     attachmentUrl: serializePublicationAttachmentUrls(values.attachmentUrls),
     publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
     journalOrConference,
@@ -153,6 +159,9 @@ export function kiemTraDayDuDeDuyet(
   if (req('hdgsnnScore') && !(Number(values.hdgsnnScore) > 0)) thieu.push('Điểm HĐGSNN');
   if (req('isbn') && !coChuoi(values.isbn)) thieu.push('ISBN');
   if (req('publishedAt') && values.publishedAt == null) thieu.push('Ngày xuất bản');
+  // Rule "Nhân hệ số c" (đề tài): bắt buộc xếp loại nghiệm thu.
+  if ((ruleKind ?? '').toUpperCase() === 'MULTIPLY_C' && !coChuoi(values.acceptanceGrade))
+    thieu.push('Xếp loại nghiệm thu');
   if (req('attachment')) {
     const att = values.attachmentUrls;
     const coFile = Array.isArray(att) ? att.length > 0 : coChuoi(att);
@@ -167,6 +176,14 @@ export function kiemTraDayDuDeDuyet(
       (a) => a.contributionPercent == null || !(Number(a.contributionPercent) > 0)
     );
     if (authors.length === 0 || thieuTacGia || tong <= 0) thieu.push('Tỉ lệ % đóng góp của tác giả');
+  }
+  // Tổng % đóng góp phải bằng 100% (điều 1.4) — áp dụng cho mọi loại khi đã nhập %.
+  const tongPhanTramDongGop = authors.reduce(
+    (s, a) => s + (a.contributionPercent != null ? Number(a.contributionPercent) : 0),
+    0
+  );
+  if (tongPhanTramDongGop > 0 && Math.abs(tongPhanTramDongGop - 100) > 0.01) {
+    thieu.push(`Tổng tỉ lệ % đóng góp phải bằng 100% (hiện ${tongPhanTramDongGop}%)`);
   }
   return thieu;
 }

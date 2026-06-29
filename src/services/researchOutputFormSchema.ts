@@ -20,6 +20,15 @@ export type FormFieldKey =
   | 'contributionRate'
   | 'authors';
 
+/** Xếp loại nghiệm thu đề tài (rule MULTIPLY_C) — map sang hệ số c cấu hình trong danh mục. */
+export type XepLoaiNghiemThu = 'EXCELLENT' | 'PASS_ON_TIME' | 'PASS_LATE';
+
+export const XEP_LOAI_NGHIEM_THU_OPTIONS: Array<{ value: XepLoaiNghiemThu; label: string }> = [
+  { value: 'EXCELLENT', label: 'Xuất sắc' },
+  { value: 'PASS_ON_TIME', label: 'Đạt đúng hạn' },
+  { value: 'PASS_LATE', label: 'Đạt chậm' },
+];
+
 export interface LeafFormSchema {
   leafCode: string;
   tenHienThi: string;
@@ -131,16 +140,48 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
       'publishedAt',
       'attachment',
       ...META_BAI_BAO,
+      'contributionRate',
       'authors',
     ],
-    batBuocForm: [...TITLE_TYPE, 'journalName', 'publishedAt', 'attachment', 'authors'],
-    ghiChuTinhToan: ['Không có DOI/xếp hạng Q. Điểm/giờ lấy theo mục lá đã chọn.'],
+    batBuocForm: [
+      ...TITLE_TYPE,
+      'journalName',
+      'publishedAt',
+      'attachment',
+      'contributionRate',
+      'authors',
+    ],
+    ghiChuTinhToan: [
+      'Không có DOI/xếp hạng Q. Điểm/giờ lấy theo mục lá đã chọn.',
+      'Mục 4 là sản phẩm khác (điều 1.4): chia giờ theo tỉ lệ % đóng góp của tác giả.',
+    ],
   },
   CONF_ISBN: {
     tenHienThi: 'Hội thảo/kỷ yếu có ISBN',
-    hienThiForm: [...TITLE_TYPE, 'journalName', 'isbn', 'publishedAt', 'attachment', 'pages', 'url', 'authors'],
-    batBuocForm: [...TITLE_TYPE, 'journalName', 'isbn', 'publishedAt', 'attachment', 'authors'],
-    ghiChuTinhToan: ['Cần ISBN của kỷ yếu để minh chứng đúng loại.'],
+    hienThiForm: [
+      ...TITLE_TYPE,
+      'journalName',
+      'isbn',
+      'publishedAt',
+      'attachment',
+      'pages',
+      'url',
+      'contributionRate',
+      'authors',
+    ],
+    batBuocForm: [
+      ...TITLE_TYPE,
+      'journalName',
+      'isbn',
+      'publishedAt',
+      'attachment',
+      'contributionRate',
+      'authors',
+    ],
+    ghiChuTinhToan: [
+      'Cần ISBN của kỷ yếu để minh chứng đúng loại.',
+      'Mục 5 là sản phẩm khác (điều 1.4): chia giờ theo tỉ lệ % đóng góp của tác giả.',
+    ],
   },
   REPORT: {
     tenHienThi: 'Tham luận/báo cáo tại sự kiện',
@@ -167,9 +208,12 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
   },
   MENTOR: {
     tenHienThi: 'Hướng dẫn SV NCKH',
-    hienThiForm: [...TITLE_TYPE, 'publishedAt', 'attachment', 'authors'],
+    hienThiForm: [...TITLE_TYPE, 'publishedAt', 'attachment', 'contributionRate', 'authors'],
     batBuocForm: [...TITLE_TYPE, 'attachment', 'authors'],
-    ghiChuTinhToan: ['Mức giải/đạt lấy theo mục lá đã chọn.'],
+    ghiChuTinhToan: [
+      'Mức giải/đạt lấy theo mục lá đã chọn.',
+      'Sản phẩm khác (điều 1.4): nhiều người thì chia giờ theo % đóng góp.',
+    ],
   },
   IP_TRANSFER: {
     tenHienThi: 'SHTT / chuyển giao công nghệ',
@@ -185,9 +229,12 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
   },
   AWARD: {
     tenHienThi: 'Khen thưởng / hoạt động khác',
-    hienThiForm: [...TITLE_TYPE, 'publishedAt', 'attachment', 'authors'],
+    hienThiForm: [...TITLE_TYPE, 'publishedAt', 'attachment', 'contributionRate', 'authors'],
     batBuocForm: [...TITLE_TYPE, 'attachment', 'authors'],
-    ghiChuTinhToan: ['Cấp/giải lấy theo mục lá đã chọn; cần minh chứng quyết định/giấy chứng nhận.'],
+    ghiChuTinhToan: [
+      'Cấp/giải lấy theo mục lá đã chọn; cần minh chứng quyết định/giấy chứng nhận.',
+      'Sản phẩm khác (điều 1.4): nhiều người thì chia giờ theo % đóng góp.',
+    ],
   },
   DEFAULT: {
     tenHienThi: MAC_DINH.tenHienThi,

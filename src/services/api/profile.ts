@@ -147,6 +147,12 @@ export interface ScientificProfile {
   degreeInstitution?: string;
   degreeCountry?: string;
   mainResearchArea?: string;
+  /** FK lĩnh vực nghiên cứu (danh mục fields) */
+  researchFieldId?: number | null;
+  /** Chuyên ngành đào tạo (nv_chuyennganh) */
+  specialization?: string;
+  /** FK chuyên ngành (danh mục specializations) */
+  specializationId?: number | null;
   subResearchAreas?: string[];
   keywords?: string[];
   languages?: ProfileLanguage[];

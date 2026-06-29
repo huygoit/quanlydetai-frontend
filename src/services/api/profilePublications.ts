@@ -351,6 +351,8 @@ export interface Publication {
   qRankUrl?: string | null;
   /** Link danh mục tạp chí uy tín (HĐGSNN/WoS/Scopus) */
   reputableListUrl?: string | null;
+  /** Xếp loại nghiệm thu (đề tài rule MULTIPLY_C) — map sang hệ số c. */
+  acceptanceGrade?: 'EXCELLENT' | 'PASS_ON_TIME' | 'PASS_LATE' | null;
   publicationStatus: 'PUBLISHED' | 'ACCEPTED' | 'UNDER_REVIEW';
   /** Trạng thái duyệt nội bộ */
   reviewStatus?: 'NEW' | 'CORRECTION_REQUESTED' | 'CORRECTED' | 'APPROVED';
@@ -836,6 +838,7 @@ function publicationAuthorToApiPayload(a: PublicationAuthor) {
     is_corresponding: a.isCorresponding,
     affiliation_type: a.affiliationType,
     is_multi_affiliation_outside_udn: a.isMultiAffiliationOutsideUdn,
+    contribution_percent: a.contributionPercent ?? null,
   };
 }
 

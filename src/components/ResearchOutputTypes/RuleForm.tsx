@@ -13,7 +13,11 @@ import type {
   RangeItem,
   PhamViHeSoA1883,
 } from '@/types/researchOutputs';
-import { RULE_KIND_OPTIONS, PHAM_VI_HE_SO_A_1883_OPTIONS } from '@/types/researchOutputs';
+import {
+  RULE_KIND_OPTIONS,
+  PHAM_VI_HE_SO_A_1883_OPTIONS,
+  PHAM_VI_HE_SO_A_1883_MAC_DINH,
+} from '@/types/researchOutputs';
 
 const { TextArea } = Input;
 
@@ -46,7 +50,9 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, typePhamViHeSoA1883, loading,
         c_pass_on_time: rule.meta?.c_map?.PASS_ON_TIME,
         c_pass_late: rule.meta?.c_map?.PASS_LATE,
         phamViHeSoA1883:
-          rule.ruleKind === 'MULTIPLY_A' ? (typePhamViHeSoA1883 ?? undefined) : undefined,
+          rule.ruleKind === 'MULTIPLY_A'
+            ? (typePhamViHeSoA1883 ?? PHAM_VI_HE_SO_A_1883_MAC_DINH)
+            : undefined,
       });
     } else {
       form.resetFields();
@@ -105,7 +111,9 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, typePhamViHeSoA1883, loading,
     }
 
     const phamViHeSoA1883: PhamViHeSoA1883 | null =
-      values.ruleKind === 'MULTIPLY_A' ? (values.phamViHeSoA1883 ?? null) : null;
+      values.ruleKind === 'MULTIPLY_A'
+        ? (values.phamViHeSoA1883 ?? PHAM_VI_HE_SO_A_1883_MAC_DINH)
+        : null;
     onSave(payload, phamViHeSoA1883);
   };
 
@@ -401,7 +409,10 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, typePhamViHeSoA1883, loading,
                 const v = value as RuleKind;
                 setRuleKind(v);
                 if (v === 'MULTIPLY_A') {
-                  form.setFieldValue('phamViHeSoA1883', typePhamViHeSoA1883 ?? undefined);
+                  form.setFieldValue(
+                    'phamViHeSoA1883',
+                    typePhamViHeSoA1883 ?? PHAM_VI_HE_SO_A_1883_MAC_DINH
+                  );
                 } else {
                   form.setFieldValue('phamViHeSoA1883', undefined);
                 }
@@ -415,15 +426,15 @@ const RuleForm: React.FC<RuleFormProps> = ({ rule, typePhamViHeSoA1883, loading,
             <Form.Item
               name="phamViHeSoA1883"
               label="Phạm vi tính hệ số a (QĐ 1883)"
+              rules={[{ required: true, message: 'Vui lòng chọn phạm vi tính hệ số a (mục 1, 2, 3)' }]}
               extra={
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  Tập tác giả dùng để tính hệ số a. Để trống: engine dùng mặc định (nhóm tác giả chính).
+                  Tập tác giả dùng để tính hệ số a. Mặc định: Nhóm các tác giả liên hệ (mục 1, 2).
                 </Typography.Text>
               }
             >
               <Select
-                allowClear
-                placeholder="Để trống — mặc định hệ thống"
+                placeholder="Chọn phạm vi tính hệ số a"
                 options={PHAM_VI_HE_SO_A_1883_OPTIONS}
               />
             </Form.Item>

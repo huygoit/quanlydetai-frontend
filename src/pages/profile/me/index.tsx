@@ -82,7 +82,6 @@ import {
   confirmSuggestion,
   ignoreSuggestion,
   PROFILE_STATUS_MAP,
-  RESEARCH_AREAS,
   LANGUAGES,
   PUBLICATION_TYPE_MAP,
   PUBLICATION_RANK_MAP,
@@ -94,6 +93,8 @@ import {
   type ProfileAttachment,
 } from '@/services/api/profile';
 import { THU_MUC_UPLOAD_MAC_DINH, uploadFileDon } from '@/services/api/fileUpload';
+import { getFieldOptions } from '@/services/api/fields';
+import { getSpecializationOptions } from '@/services/api/specializations';
 import {
   parsePublicationAttachmentUrls,
   serializePublicationAttachmentUrls,
@@ -404,6 +405,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       url: pub.url,
       qRankUrl: pub.qRankUrl ?? undefined,
       reputableListUrl: pub.reputableListUrl ?? undefined,
+      acceptanceGrade: pub.acceptanceGrade ?? undefined,
       attachmentUrls: parsePublicationAttachmentUrls(pub.attachmentUrl),
       researchOutputTypePath: path ?? undefined,
     });
@@ -739,9 +741,12 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           <div className="publications-table">
             <ProList<PublicationItem>
               dataSource={[...filteredPublications].sort((a, b) => {
-                const db = layPublishedAtTuApi(b) || '';
-                const da = layPublishedAtTuApi(a) || '';
-                return db.localeCompare(da);
+                // Mới thêm / mới chỉnh sửa gần nhất lên đầu (theo updatedAt, fallback createdAt, rồi ngày xuất bản).
+                const moc = (p: PublicationItem) =>
+                  p.updatedAt || p.createdAt || layPublishedAtTuApi(p) || '';
+                const cmp = moc(b).localeCompare(moc(a));
+                if (cmp !== 0) return cmp;
+                return (layPublishedAtTuApi(b) || '').localeCompare(layPublishedAtTuApi(a) || '');
               })}
               rowKey="id"
               metas={{
@@ -1213,6 +1218,12 @@ const MyProfilePage: React.FC = () => {
   /** Khoa/phòng ban từ bảng departments (Admin → Quản lý đơn vị). */
   const [khoaPhongOptions, setKhoaPhongOptions] = useState<DonViSelectOption[]>([]);
 
+  /** Danh mục lĩnh vực / chuyên ngành (label hiển thị, value = id). */
+  const [fieldOptions, setFieldOptions] = useState<{ label: string; value: number }[]>([]);
+  const [specializationOptions, setSpecializationOptions] = useState<
+    { label: string; value: number }[]
+  >([]);
+
   /** Học vị / học hàm từ GET /api/catalog/scientific-profile/options */
   const [degreeOptions, setDegreeOptions] = useState<HocViHocHamSelectOption[]>(() =>
     FALLBACK_DEGREE_CATALOG.map((d) => ({
@@ -1239,6 +1250,31 @@ const MyProfilePage: React.FC = () => {
         /* danh mục loại NCKH — tab vẫn dùng được nếu lỗi */
       } finally {
         if (!cancelled) setResearchTreeLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
+
+  // Nạp danh mục lĩnh vực + chuyên ngành để select hiển thị tên (value = id).
+  useEffect(() => {
+    if (!currentUser) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [fieldRes, specRes] = await Promise.all([
+          getFieldOptions(),
+          getSpecializationOptions(),
+        ]);
+        if (cancelled) return;
+        // BE trả id dạng chuỗi; ép về number để khớp value số trên hồ sơ.
+        setFieldOptions((fieldRes.data ?? []).map((f) => ({ label: f.name, value: Number(f.id) })));
+        setSpecializationOptions(
+          (specRes.data ?? []).map((s) => ({ label: s.name, value: Number(s.id) })),
+        );
+      } catch {
+        /* lỗi danh mục — select vẫn nhập tay được */
       }
     })();
     return () => {
@@ -2339,10 +2375,22 @@ const MyProfilePage: React.FC = () => {
                         <Row gutter={16}>
                           <Col xs={24}>
                             <ProFormSelect
-                              name="mainResearchArea"
+                              name="researchFieldId"
                               label="Lĩnh vực nghiên cứu chính"
-                              options={RESEARCH_AREAS.map(r => ({ label: r, value: r }))}
+                              showSearch
                               rules={[{ required: true }]}
+                              options={fieldOptions}
+                              fieldProps={{ optionFilterProp: 'label' }}
+                            />
+                          </Col>
+                          <Col xs={24}>
+                            <ProFormSelect
+                              name="specializationId"
+                              label="Chuyên ngành"
+                              showSearch
+                              placeholder="Chọn chuyên ngành đào tạo"
+                              options={specializationOptions}
+                              fieldProps={{ optionFilterProp: 'label' }}
                             />
                           </Col>
                           <Col xs={24}>

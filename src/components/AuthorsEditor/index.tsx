@@ -192,8 +192,19 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       );
     }
 
+    // Tổng % đóng góp của tất cả tác giả phải bằng 100% (điều 1.4) khi đã nhập tỉ lệ.
+    if (showContribution) {
+      const tongPhanTram = dataSource.reduce(
+        (s, a) => s + (a.contributionPercent != null ? Number(a.contributionPercent) : 0),
+        0
+      );
+      if (tongPhanTram > 0 && Math.abs(tongPhanTram - 100) > 0.01) {
+        errors.push(`Tổng tỉ lệ % đóng góp của các tác giả phải bằng 100% (hiện ${tongPhanTram}%)`);
+      }
+    }
+
     return { errors, warnings, n, p, isValid: errors.length === 0 };
-  }, [dataSource, ownerProfileId]);
+  }, [dataSource, ownerProfileId, showContribution]);
 
   /** Tìm dòng tương ứng trước đó: ưu id (cả so khớp chuỗi), rồi profileId, rồi STT — tránh mất merge khi Pro Table đổi kiểu key hoặc gửi form rỗng. */
   function timDongTuongUng(prevDs: AuthorEditableRow[], row: AuthorEditableRow): AuthorEditableRow | undefined {
@@ -219,11 +230,12 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       const prevRow = timDongTuongUng(prevDs, row);
       let next = { ...row };
       if (prevRow && laDongChuDangNhap(prevRow, ownerProfileId)) {
-        /** Dòng chủ hồ sơ: chỉ nhận thay đổi tác giả đầu / liên hệ. */
+        /** Dòng chủ hồ sơ: chỉ nhận thay đổi vai trò (đầu/liên hệ) và tỉ lệ % đóng góp. */
         return {
           ...prevRow,
           isTopAuthor: next.isTopAuthor,
           isCorresponding: next.isCorresponding,
+          contributionPercent: next.contributionPercent,
         };
       }
       if (prevRow) {
@@ -641,8 +653,9 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
             dataIndex: 'contributionPercent',
             valueType: 'digit',
             width: 130,
-            editable: (_, record) => choPhepSuaThongTin(record),
-            fieldProps: { min: 0, max: 100, step: 1, precision: 2, placeholder: 'VD: 50' },
+            // Tỉ lệ % được phép sửa cả với dòng chủ hồ sơ đang đăng nhập (chỉ cần không bị disable).
+            editable: () => !disabled,
+            fieldProps: { min: 0, max: 100, step: 1, precision: 0, placeholder: 'VD: 50' },
             render: (_, record) =>
               record.contributionPercent != null ? (
                 <Tag color="gold">{record.contributionPercent}%</Tag>
@@ -776,6 +789,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                   ...prev,
                   isTopAuthor: (row as AuthorEditableRow).isTopAuthor,
                   isCorresponding: (row as AuthorEditableRow).isCorresponding,
+                  contributionPercent: (row as AuthorEditableRow).contributionPercent,
                 };
               }
             }

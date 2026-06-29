@@ -143,6 +143,7 @@ const ResearchOutputFormPage: React.FC = () => {
           url: pub.url,
           qRankUrl: pub.qRankUrl ?? undefined,
           reputableListUrl: pub.reputableListUrl ?? undefined,
+          acceptanceGrade: pub.acceptanceGrade ?? undefined,
           attachmentUrls: parsePublicationAttachmentUrls(pub.attachmentUrl),
         });
 

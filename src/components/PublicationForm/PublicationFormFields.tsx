@@ -13,6 +13,7 @@ import {
 import {
   laySchemaTheoMaLa,
   layNodeTheoPath,
+  XEP_LOAI_NGHIEM_THU_OPTIONS,
   type FormFieldKey,
   type LeafFormSchema,
 } from '@/services/researchOutputFormSchema';
@@ -41,11 +42,14 @@ const PublicationFormFields: React.FC<PublicationFormFieldsProps> = ({
   onAuthorsChange,
   ownerProfileId,
   isAdminKeKhai = false,
+  selectedLeafRuleKind,
   selectedLeafSchema,
   showAdvancedPubFields,
   onShowAdvancedPubFieldsChange,
   onLeafSelect,
 }) => {
+  // Rule "Nhân hệ số c" (đề tài) cần khai xếp loại nghiệm thu.
+  const coXepLoaiNghiemThu = selectedLeafRuleKind === 'MULTIPLY_C';
   const show = (k: FormFieldKey) => selectedLeafSchema.hienThiForm.includes(k);
   const req = (k: FormFieldKey) => selectedLeafSchema.batBuocForm.includes(k);
   const coMetaMoRong =
@@ -108,6 +112,7 @@ const PublicationFormFields: React.FC<PublicationFormFieldsProps> = ({
                 for (const [key, field] of canXoa) {
                   if (!nextSchema.hienThiForm.includes(key)) form.setFieldValue(field, undefined);
                 }
+                if (nextRuleKind !== 'MULTIPLY_C') form.setFieldValue('acceptanceGrade', undefined);
               }}
             />
           </Form.Item>
@@ -146,6 +151,18 @@ const PublicationFormFields: React.FC<PublicationFormFieldsProps> = ({
         <Form.Item name="publicationStatus" hidden>
           <Input />
         </Form.Item>
+
+        {coXepLoaiNghiemThu && (
+          <Col span={12}>
+            <Form.Item
+              name="acceptanceGrade"
+              label={nhan('Xếp loại nghiệm thu', true)}
+              rules={[{ required: true, message: 'Vui lòng chọn xếp loại nghiệm thu đề tài' }]}
+            >
+              <Select placeholder="Chọn xếp loại nghiệm thu" options={XEP_LOAI_NGHIEM_THU_OPTIONS} />
+            </Form.Item>
+          </Col>
+        )}
 
         {show('hdgsnnScore') && (
           <Col span={12}>

@@ -494,6 +494,11 @@ const ProfileDetailPage: React.FC = () => {
                               {profile.degreeCountry && `, ${profile.degreeCountry}`}
                             </Descriptions.Item>
                           )}
+                          {profile.specialization && (
+                            <Descriptions.Item label="Chuyên ngành">
+                              {profile.specialization}
+                            </Descriptions.Item>
+                          )}
                         </Descriptions>
                       </div>
 
@@ -505,7 +510,7 @@ const ProfileDetailPage: React.FC = () => {
                             {profile.organization}
                           </Descriptions.Item>
                           {profile.faculty && (
-                            <Descriptions.Item label="Khoa/phòng ban">
+                            <Descriptions.Item label="Đơn vị">
                               {profile.faculty}
                             </Descriptions.Item>
                           )}

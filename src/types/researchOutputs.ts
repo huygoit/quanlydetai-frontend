@@ -15,9 +15,12 @@ export type RuleKind =
 export type PhamViHeSoA1883 = 'authors' | 'chiTacGiaChinh';
 
 export const PHAM_VI_HE_SO_A_1883_LABELS: Record<PhamViHeSoA1883, string> = {
-  chiTacGiaChinh: 'Nhóm tác giả chính (đầu ∪ liên hệ) — mục 1–2',
-  authors: 'Toàn bộ tác giả — mục 3',
+  chiTacGiaChinh: 'Nhóm các tác giả liên hệ (mục 1, 2)',
+  authors: 'Tất cả các tác giả (mục 3)',
 };
+
+/** Giá trị mặc định khi loại rule là MULTIPLY_A và chưa cấu hình. */
+export const PHAM_VI_HE_SO_A_1883_MAC_DINH: PhamViHeSoA1883 = 'chiTacGiaChinh';
 
 export const PHAM_VI_HE_SO_A_1883_OPTIONS = (
   Object.entries(PHAM_VI_HE_SO_A_1883_LABELS) as Array<[PhamViHeSoA1883, string]>
