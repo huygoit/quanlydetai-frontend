@@ -104,6 +104,27 @@
 
 // CSS riêng cho khi in: chỉ in vùng biểu mẫu, ẩn toàn bộ layout/menu
 @media print {
+  // Ép layout Pro co chiều cao về auto để không sinh trang trắng dư
+  // (mặc định content area có min-height:100vh -> đẻ ra trang trống phía dưới).
+  html,
+  body,
+  #root,
+  .ant-pro-layout,
+  .ant-layout,
+  .ant-layout-content,
+  .ant-pro-layout-content,
+  .ant-pro-grid-content,
+  .ant-pro-page-container,
+  .ant-pro-page-container-children-content,
+  .ant-card,
+  .ant-card-body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    // Bỏ position:relative của tổ tiên để absolute top:0 tính theo đỉnh trang
+    position: static !important;
+  }
+
   body * {
     visibility: hidden !important;
   }
@@ -116,7 +137,19 @@
     left: 0;
     top: 0;
     width: 100%;
+    max-width: none;
+    margin: 0;
     padding: 0;
+  }
+  // Phân trang gọn: không cắt giữa hàng, lặp header bảng, không tách chữ ký.
+  .nckh-table tr {
+    page-break-inside: avoid;
+  }
+  .nckh-table thead {
+    display: table-row-group;
+  }
+  .nckh-sign {
+    page-break-inside: avoid;
   }
   .nckh-table th {
     background: #f2f2f2 !important;

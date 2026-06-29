@@ -81,7 +81,6 @@ import {
   syncSCV,
   confirmSuggestion,
   ignoreSuggestion,
-  exportMyCvPdf,
   PROFILE_STATUS_MAP,
   RESEARCH_AREAS,
   LANGUAGES,
@@ -105,7 +104,7 @@ import ProfileNckhMetrics, {
   taoKpiPeriodMacDinh,
   type KpiPeriodState,
 } from '@/components/ProfileNckhMetrics';
-import { downloadBlob, downloadFromUrl } from '@/utils/download';
+import { downloadFromUrl } from '@/utils/download';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import { laDuongDanAnhChungChi, laDuongDanPdfChungChi } from '@/utils/certificatePreview';
 import {
@@ -1551,27 +1550,10 @@ const MyProfilePage: React.FC = () => {
     }
   };
 
-  // Export CV as PDF
-  const handleExportCvPdf = async () => {
+  // Mở trang Lý lịch khoa học (mẫu Bộ) để xem trước rồi in/lưu PDF bằng trình duyệt.
+  const handleExportCvPdf = () => {
     if (!profile) return;
-
-    setExporting(true);
-    try {
-      const result = await exportMyCvPdf();
-
-      if (result instanceof Blob) {
-        const filename = `CV_${profile.fullName.replace(/\s+/g, '_')}.pdf`;
-        downloadBlob(result, filename);
-        message.success('Đã tải CV thành công');
-      } else if (result.url) {
-        downloadFromUrl(result.url, `CV_${profile.fullName}.pdf`);
-        message.success('Đã tải CV thành công');
-      }
-    } catch (error) {
-      message.error('Không thể tải CV. Vui lòng thử lại.');
-    } finally {
-      setExporting(false);
-    }
+    history.push('/profile/cv');
   };
 
   // Language columns for editable table

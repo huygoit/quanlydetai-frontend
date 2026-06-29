@@ -59,6 +59,27 @@
 
 // In: chỉ in vùng biểu mẫu, ẩn layout/menu; xoay ngang để vừa nhiều cột
 @media print {
+  // Ép layout Pro co chiều cao về auto để không sinh trang trắng dư.
+  html,
+  body,
+  #root,
+  .ant-pro-layout,
+  .ant-layout,
+  .ant-layout-content,
+  .ant-pro-layout-content,
+  .ant-pro-grid-content,
+  .ant-pro-page-container,
+  .ant-pro-page-container-children-content,
+  .ant-card,
+  .ant-card-body,
+  .nckh-data-scroll {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    // Bỏ position:relative của tổ tiên để absolute top:0 tính theo đỉnh trang
+    position: static !important;
+  }
+
   body * {
     visibility: hidden !important;
   }
@@ -71,7 +92,14 @@
     left: 0;
     top: 0;
     width: 100%;
+    margin: 0;
     padding: 0;
+  }
+  .nckh-data-table tr {
+    page-break-inside: avoid;
+  }
+  .nckh-data-table thead {
+    display: table-row-group;
   }
   .nckh-data-table th {
     background: #fbf4cf !important;

@@ -156,18 +156,10 @@ const AdminPublicationFormFields: React.FC<AdminPublicationFormFieldsProps> = ({
           </Col>
         )}
 
-        <Col span={12}>
-          <Form.Item name="publicationStatus" label="Trạng thái">
-            <Select
-              options={[
-                { label: 'Đã xuất bản', value: 'PUBLISHED' },
-                { label: 'Đã chấp nhận', value: 'ACCEPTED' },
-                { label: 'Đang review', value: 'UNDER_REVIEW' },
-              ]}
-              placeholder="Chọn trạng thái"
-            />
-          </Form.Item>
-        </Col>
+        {/* Trạng thái xuất bản: ẩn khỏi form, vẫn giữ giá trị (mặc định PUBLISHED) */}
+        <Form.Item name="publicationStatus" hidden>
+          <Input />
+        </Form.Item>
 
         {show('hdgsnnScore') && (
           <Col span={12}>

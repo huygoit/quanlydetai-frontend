@@ -158,7 +158,6 @@ const ProfileNckhMetrics: React.FC<ProfileNckhMetricsProps> = ({
               <FieldTimeOutlined className="profile-nckh-metrics__statIcon" />
             </div>
             <div className="profile-nckh-metrics__statContent">
-              <span className="profile-nckh-metrics__statLabel">Giờ NCKH</span>
               <div className="profile-nckh-metrics__statValue">
                 {dinhDangSo(researchHours)}
                 {!loading && researchHours != null && (
@@ -181,7 +180,6 @@ const ProfileNckhMetrics: React.FC<ProfileNckhMetricsProps> = ({
               <TrophyOutlined className="profile-nckh-metrics__statIcon" />
             </div>
             <div className="profile-nckh-metrics__statContent">
-              <span className="profile-nckh-metrics__statLabel">Điểm quy đổi</span>
               <div className="profile-nckh-metrics__statValue">
                 {dinhDangSo(convertedPoint)}
                 {!loading && convertedPoint != null && (

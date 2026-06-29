@@ -1,0 +1,178 @@
+// Trang standalone (không có layout Pro): nền xám, canh giữa nội dung
+.cv-screen {
+  min-height: 100vh;
+  background: #f0f2f5;
+}
+.cv-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+}
+.cv-screen-body {
+  padding: 24px 16px;
+}
+
+// Lý lịch khoa học (mẫu Thông tư 08/2011/TT-BGDĐT - Phụ lục V) - style xem web + in PDF
+.cv-doc {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  color: #000;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #fff;
+
+  .cv-bold {
+    font-weight: 700;
+  }
+  .cv-center {
+    text-align: center;
+  }
+  .cv-italic {
+    font-style: italic;
+  }
+
+  // Quốc hiệu
+  .cv-national {
+    text-align: center;
+    margin-bottom: 12px;
+
+    .cv-line-short {
+      width: 220px;
+      margin: 4px auto 0;
+      border-bottom: 1px solid #000;
+    }
+  }
+
+  // Tiêu đề
+  .cv-title {
+    text-align: center;
+    margin: 14px 0 16px;
+
+    .cv-title-main {
+      font-size: 18px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .cv-title-sub {
+      font-style: italic;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+  }
+
+  .cv-section {
+    font-weight: 700;
+    text-transform: uppercase;
+    margin: 16px 0 6px;
+  }
+
+  .cv-subsection {
+    font-weight: 700;
+    margin: 8px 0 4px;
+  }
+
+  // Dòng thông tin label: value
+  .cv-row {
+    margin: 2px 0;
+  }
+  .cv-label {
+    font-weight: 400;
+  }
+  // Phần để trống (dòng chấm để điền tay khi in)
+  .cv-blank {
+    display: inline-block;
+    min-width: 160px;
+    border-bottom: 1px dotted #555;
+  }
+
+  .cv-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 6px 0 10px;
+
+    th,
+    td {
+      border: 1px solid #000;
+      padding: 4px 8px;
+      vertical-align: top;
+    }
+    th {
+      text-align: center;
+      font-weight: 700;
+      background: #f2f2f2;
+    }
+  }
+
+  .cv-sign {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 28px;
+
+    .cv-sign-box {
+      text-align: center;
+      min-width: 240px;
+    }
+    .cv-sign-space {
+      height: 80px;
+    }
+  }
+  .cv-date {
+    text-align: right;
+    font-style: italic;
+    margin-top: 18px;
+  }
+}
+
+// Khi in: trang đã standalone (không layout Pro) nên chỉ cần ẩn thanh công cụ
+// và bỏ nền/khoảng đệm. Nội dung in theo dòng tự nhiên, không hack absolute.
+@media print {
+  .cv-screen,
+  .cv-screen-body {
+    background: #fff !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .cv-toolbar {
+    display: none !important;
+  }
+  .cv-doc {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  // Phân trang gọn: không cắt giữa hàng/section, lặp lại header bảng.
+  .cv-table tr {
+    page-break-inside: avoid;
+  }
+  .cv-table thead {
+    display: table-row-group;
+  }
+  .cv-section,
+  .cv-subsection {
+    page-break-after: avoid;
+  }
+  .cv-sign {
+    page-break-inside: avoid;
+  }
+  .cv-sign .cv-sign-space {
+    height: 56px;
+  }
+  .cv-table th {
+    background: #f2f2f2 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}

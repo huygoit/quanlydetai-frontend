@@ -90,6 +90,15 @@ export default defineConfig({
         },
       ],
     },
+    // Lý lịch khoa học - trang in/PDF standalone (không layout Pro để in sạch)
+    {
+      path: '/profile/cv',
+      name: 'Lý lịch khoa học',
+      component: '@/pages/profile/cv',
+      access: 'canViewProfileSelf',
+      layout: false,
+      hideInMenu: true,
+    },
     // Chi tiết hồ sơ (hidden route)
     {
       path: '/profile/:id',
