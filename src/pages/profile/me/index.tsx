@@ -2215,6 +2215,18 @@ const MyProfilePage: React.FC = () => {
                           </Col>
                         </Row>
                         <Row gutter={16}>
+                          <Col xs={24}>
+                            <ProFormSelect
+                              name="specializationId"
+                              label="Chuyên ngành"
+                              showSearch
+                              placeholder="Chọn chuyên ngành đào tạo"
+                              options={specializationOptions}
+                              fieldProps={{ optionFilterProp: 'label' }}
+                            />
+                          </Col>
+                        </Row>
+                        <Row gutter={16}>
                           <Col xs={24} md={12}>
                             <ProFormText
                               name="degreeInstitution"
@@ -2385,23 +2397,13 @@ const MyProfilePage: React.FC = () => {
                           </Col>
                           <Col xs={24}>
                             <ProFormSelect
-                              name="specializationId"
-                              label="Chuyên ngành"
-                              showSearch
-                              placeholder="Chọn chuyên ngành đào tạo"
-                              options={specializationOptions}
-                              fieldProps={{ optionFilterProp: 'label' }}
-                            />
-                          </Col>
-                          <Col xs={24}>
-                            <ProFormSelect
                               name="subResearchAreas"
-                              label="Lĩnh vực phụ"
-                              mode="tags"
-                              placeholder="Nhập và Enter để thêm"
-                              fieldProps={{
-                                tokenSeparators: [','],
-                              }}
+                              label="Hướng nghiên cứu phụ"
+                              mode="multiple"
+                              showSearch
+                              placeholder="Chọn từ danh mục lĩnh vực"
+                              options={fieldOptions.map((o) => ({ label: o.label, value: o.label }))}
+                              fieldProps={{ optionFilterProp: 'label' }}
                             />
                           </Col>
                           <Col xs={24}>
