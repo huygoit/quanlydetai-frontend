@@ -129,7 +129,7 @@ const NckhDataReportPage: React.FC = () => {
                         Họ và tên
                       </th>
                       <th colSpan={3}>Công trình bài báo khoa học</th>
-                      <th colSpan={4}>Công trình đề tài khoa học</th>
+                      <th colSpan={3}>Công trình đề tài khoa học</th>
                       <th rowSpan={2}>SV NCKH</th>
                       <th rowSpan={2}>Giờ Nghiên cứu khoa học</th>
                       <th rowSpan={2}>Giáo trình</th>
@@ -144,9 +144,8 @@ const NckhDataReportPage: React.FC = () => {
                       <th>Bài báo đăng Tạp chí quốc tế khác</th>
                       <th>ISBN, được Hội đồng Chức danh công nhận</th>
                       <th>Nhà nước</th>
-                      <th>Bộ</th>
-                      <th>ĐHĐN / Trường</th>
-                      <th>Cơ sở</th>
+                      <th>Bộ/ĐHĐN</th>
+                      <th>Trường</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -161,7 +160,6 @@ const NckhDataReportPage: React.FC = () => {
                         <td className="c">{r.dt_nha_nuoc || ''}</td>
                         <td className="c">{r.dt_bo || ''}</td>
                         <td className="c">{r.dt_truong || ''}</td>
-                        <td className="c">{r.dt_co_so || ''}</td>
                         <td className="c">{r.sv_nckh || ''}</td>
                         <td className="c">{r.hours || ''}</td>
                         <td className="c">{r.textbook || ''}</td>
@@ -183,7 +181,6 @@ const NckhDataReportPage: React.FC = () => {
                         <td className="c b">{t.dt_nha_nuoc}</td>
                         <td className="c b">{t.dt_bo}</td>
                         <td className="c b">{t.dt_truong}</td>
-                        <td className="c b">{t.dt_co_so}</td>
                         <td className="c b">{t.sv_nckh}</td>
                         <td className="c b">{t.hours}</td>
                         <td className="c b">{t.textbook}</td>

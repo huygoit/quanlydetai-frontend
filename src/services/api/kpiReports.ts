@@ -21,16 +21,19 @@ export interface NckhReportUnit {
 
 export interface NckhHoursReport {
   academic_year: string;
+  faculty: string;
+  faculties: string[];
   generated_at: string;
   total_people: number;
   grand_total: number;
   units: NckhReportUnit[];
 }
 
-export const getNckhHoursReport = (academicYear: string) =>
-  get<NckhHoursReport>('/api/kpis/nckh-hours-report', { academic_year: academicYear }) as Promise<
-    ApiResponse<NckhHoursReport>
-  >;
+export const getNckhHoursReport = (academicYear: string, faculty?: string) =>
+  get<NckhHoursReport>('/api/kpis/nckh-hours-report', {
+    academic_year: academicYear,
+    faculty: faculty || '',
+  }) as Promise<ApiResponse<NckhHoursReport>>;
 
 export interface NckhDataCounts {
   wos_scopus: number;
@@ -39,7 +42,6 @@ export interface NckhDataCounts {
   dt_nha_nuoc: number;
   dt_bo: number;
   dt_truong: number;
-  dt_co_so: number;
   sv_nckh: number;
   hours: number;
   textbook: number;

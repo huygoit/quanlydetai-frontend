@@ -28,13 +28,14 @@ const ORG_SUB = 'TRƯỜNG ĐẠI HỌC SƯ PHẠM';
 const NckhHoursReportPage: React.FC = () => {
   const yearOptions = useMemo(() => buildAcademicYearOptions(), []);
   const [academicYear, setAcademicYear] = useState<string>(yearOptions[1]?.value ?? yearOptions[0].value);
+  const [faculty, setFaculty] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<NckhHoursReport | null>(null);
 
-  const fetchReport = async (year: string) => {
+  const fetchReport = async (year: string, fac?: string) => {
     setLoading(true);
     try {
-      const res = await getNckhHoursReport(year);
+      const res = await getNckhHoursReport(year, fac);
       if (res.success) {
         setReport(res.data);
       } else {
@@ -48,14 +49,23 @@ const NckhHoursReportPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchReport(academicYear);
+    fetchReport(academicYear, faculty);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleChangeYear = (val: string) => {
     setAcademicYear(val);
-    fetchReport(val);
+    fetchReport(val, faculty);
   };
+
+  // Tất cả đơn vị (value rỗng) + các đơn vị có hồ sơ
+  const facultyOptions = useMemo(
+    () => [
+      { label: 'Tất cả đơn vị', value: '' },
+      ...(report?.faculties || []).map((f) => ({ label: f, value: f })),
+    ],
+    [report?.faculties],
+  );
 
   const hasData = !!report && report.units.length > 0;
 
@@ -67,12 +77,23 @@ const NckhHoursReportPage: React.FC = () => {
         extra: [
           <Space key="controls" wrap>
             <Select
+              value={faculty}
+              placeholder="Chọn đơn vị"
+              onChange={(val) => {
+                setFaculty(val);
+                fetchReport(academicYear, val);
+              }}
+              options={facultyOptions}
+              style={{ width: 280 }}
+              showSearch
+            />
+            <Select
               value={academicYear}
               onChange={handleChangeYear}
               options={yearOptions}
               style={{ width: 200 }}
             />
-            <Button icon={<ReloadOutlined />} onClick={() => fetchReport(academicYear)}>
+            <Button icon={<ReloadOutlined />} onClick={() => fetchReport(academicYear, faculty)}>
               Tải lại
             </Button>
             <Button
