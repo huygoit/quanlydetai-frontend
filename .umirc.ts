@@ -343,7 +343,7 @@ export default defineConfig({
           name: 'Danh mục hệ thống',
           icon: 'AppstoreOutlined',
           component: '@/pages/admin/catalog',
-          access: 'canViewAdmin',
+          access: 'canViewCatalog',
         },
         {
           path: '/admin/audit-log',

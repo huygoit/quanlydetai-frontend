@@ -29,6 +29,7 @@ import {
 import {
   queryPermissions,
   syncMissingPermissions,
+  loadEffectiveModuleLabelMap,
   PERMISSION_MODULE_MAP,
   type PermissionItem,
 } from '@/services/api/permissions';
@@ -50,12 +51,19 @@ const RolePermissionsPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [initialSelectedIds, setInitialSelectedIds] = useState<number[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [moduleLabels, setModuleLabels] = useState<Record<string, string>>({
+    ...PERMISSION_MODULE_MAP,
+  });
 
   useEffect(() => {
     if (roleId) {
       loadData();
     }
   }, [roleId]);
+
+  useEffect(() => {
+    loadEffectiveModuleLabelMap().then(setModuleLabels);
+  }, []);
 
   const groupPermissionsByModule = (permissions: PermissionItem[]): GroupedPermissions => {
     const grouped = permissions.reduce((acc, perm) => {
@@ -193,7 +201,7 @@ const RolePermissionsPage: React.FC = () => {
   };
 
   const getModuleName = (module: string) => {
-    return PERMISSION_MODULE_MAP[module] || module;
+    return moduleLabels[module] || module;
   };
 
   const getModuleColor = (module: string): string => {

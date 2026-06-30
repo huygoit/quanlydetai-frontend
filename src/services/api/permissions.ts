@@ -1,7 +1,7 @@
 /**
  * Permissions API Service (Quản lý quyền)
  */
-import { get, post, ApiResponse, PaginatedResponse } from '../request';
+import { get, post, put, ApiResponse, PaginatedResponse } from '../request';
 
 // Types
 export type PermissionStatus = 'ACTIVE' | 'INACTIVE';
@@ -45,7 +45,7 @@ export const PERMISSION_STATUS_OPTIONS = Object.entries(PERMISSION_STATUS_MAP).m
   label: config.text,
 }));
 
-// Module names mapping
+// Module names mapping (nhãn mặc định — có thể bị ghi đè bởi cấu hình trong DB)
 export const PERMISSION_MODULE_MAP: Record<string, string> = {
   department: 'Phòng ban',
   user: 'Người dùng',
@@ -54,10 +54,11 @@ export const PERMISSION_MODULE_MAP: Record<string, string> = {
   project: 'Đề tài',
   idea: 'Ý tưởng',
   council: 'Hội đồng',
-  publication: 'Kết quả NCKH',
+  publication: 'Kết quả nghiên cứu khoa học',
   report: 'Báo cáo',
   finance: 'Tài chính',
-  profile: 'Hồ sơ',
+  profile: 'Hồ sơ khoa học',
+  personal_profile: 'Hồ sơ cán bộ',
   notification: 'Thông báo',
   system: 'Hệ thống',
 };
@@ -102,4 +103,57 @@ export async function syncMissingPermissions(): Promise<
   return post<ApiResponse<{ added: number; permissions: PermissionItem[] }>>(
     '/api/admin/permissions/sync-missing',
   );
+}
+
+/** Cập nhật quyền (đổi tên hiển thị, mô tả...). */
+export interface UpdatePermissionPayload {
+  name?: string;
+  description?: string;
+}
+
+export async function updatePermission(
+  id: number,
+  payload: UpdatePermissionPayload,
+): Promise<ApiResponse<PermissionItem>> {
+  return put<ApiResponse<PermissionItem>>(`/api/admin/permissions/${id}`, payload);
+}
+
+// --- Nhãn hiển thị module (tùy biến, lưu DB) ---
+
+export interface ModuleLabelRow {
+  code: string;
+  name: string;
+}
+
+/** Lấy các nhãn module đã tùy biến trong DB. */
+export async function getModuleLabelOverrides(): Promise<ApiResponse<ModuleLabelRow[]>> {
+  return get<ApiResponse<ModuleLabelRow[]>>('/api/admin/permissions/module-labels');
+}
+
+/** Cập nhật nhãn hiển thị cho một module (không đổi mã code). */
+export async function updateModuleLabel(
+  code: string,
+  name: string,
+): Promise<ApiResponse<ModuleLabelRow>> {
+  return put<ApiResponse<ModuleLabelRow>>(
+    `/api/admin/permissions/module-labels/${encodeURIComponent(code)}`,
+    { name },
+  );
+}
+
+/**
+ * Map nhãn module hiệu lực = hằng số mặc định + ghi đè từ DB.
+ * Dùng cho trang Quyền và trang phân quyền vai trò.
+ */
+export async function loadEffectiveModuleLabelMap(): Promise<Record<string, string>> {
+  const merged: Record<string, string> = { ...PERMISSION_MODULE_MAP };
+  try {
+    const res = await getModuleLabelOverrides();
+    for (const row of res.data ?? []) {
+      if (row.code && row.name) merged[row.code] = row.name;
+    }
+  } catch {
+    /* lỗi tải override — dùng nhãn mặc định */
+  }
+  return merged;
 }

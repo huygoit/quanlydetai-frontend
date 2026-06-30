@@ -106,7 +106,7 @@ const NckhDataReportPage: React.FC = () => {
         <Alert
           type="info"
           style={{ marginBottom: 12 }}
-          message="Số công trình đếm theo người kê khai (tất cả các năm). Cột Giờ NCKH lấy theo năm học đã chọn. Các cột Đề tài / SV NCKH / Sở hữu trí tuệ hiển thị 0 khi chưa có dữ liệu."
+          message="Số công trình và Giờ NCKH lấy theo ngày xuất bản nằm trong năm học đã chọn (01/08 → 31/07). Các cột Đề tài / SV NCKH / Sở hữu trí tuệ hiển thị 0 khi chưa có dữ liệu."
         />
         <Spin spinning={loading}>
           {!hasData && !loading ? (

@@ -53,11 +53,19 @@ export default function access(initialState: AccessInitialState | undefined) {
     isLogin: !!initialState?.currentUser,
     isAdminSystemAccount,
     canUsePersonalWorkspace,
+    /** Super Admin: có wildcard '*' (chỉ role SUPER_ADMIN). */
+    isSuperAdmin: hasWildcard,
 
     hasPermission: (code: string) => has(code),
     hasAnyPermission: (codes: string[]) => hasAny(codes),
 
     canViewAdmin: hasAdminPermission || hasWildcard,
+    /** Menu "Danh mục hệ thống" — hiện khi có bất kỳ quyền xem danh mục con nào. */
+    canViewCatalog: hasAny([
+      PERM.department.view,
+      PERM.field.view,
+      PERM.specialization.view,
+    ]),
     canViewDepartments: has(PERM.department.view),
     canCreateDepartment: has(PERM.department.create),
     canEditDepartment: has(PERM.department.update),
