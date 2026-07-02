@@ -68,6 +68,54 @@ const customViVN = {
   },
 };
 
+// Việt hóa toàn bộ message validate mặc định của Form (tránh lọt tiếng Trung khi rule không set message riêng)
+const VALIDATE_MESSAGES_VI = {
+  default: 'Giá trị của trường ${label} không hợp lệ',
+  required: 'Vui lòng nhập ${label}',
+  enum: '${label} phải là một trong [${enum}]',
+  whitespace: '${label} không được để trống',
+  date: {
+    format: '${label} sai định dạng ngày',
+    parse: '${label} không chuyển được sang ngày',
+    invalid: '${label} là ngày không hợp lệ',
+  },
+  types: {
+    string: '${label} không phải chuỗi hợp lệ',
+    method: '${label} không phải hàm hợp lệ',
+    array: '${label} không phải mảng hợp lệ',
+    object: '${label} không phải đối tượng hợp lệ',
+    number: '${label} không phải số hợp lệ',
+    date: '${label} không phải ngày hợp lệ',
+    boolean: '${label} không phải boolean hợp lệ',
+    integer: '${label} không phải số nguyên hợp lệ',
+    float: '${label} không phải số thực hợp lệ',
+    regexp: '${label} không phải biểu thức chính quy hợp lệ',
+    email: '${label} không phải email hợp lệ',
+    url: '${label} không phải URL hợp lệ',
+  },
+  string: {
+    len: '${label} phải đủ ${len} ký tự',
+    min: '${label} tối thiểu ${min} ký tự',
+    max: '${label} tối đa ${max} ký tự',
+    range: '${label} phải từ ${min} đến ${max} ký tự',
+  },
+  number: {
+    len: '${label} phải bằng ${len}',
+    min: '${label} tối thiểu là ${min}',
+    max: '${label} tối đa là ${max}',
+    range: '${label} phải từ ${min} đến ${max}',
+  },
+  array: {
+    len: 'Phải có ${len} phần tử ${label}',
+    min: 'Tối thiểu ${min} phần tử ${label}',
+    max: 'Tối đa ${max} phần tử ${label}',
+    range: 'Số phần tử ${label} phải từ ${min} đến ${max}',
+  },
+  pattern: {
+    mismatch: '${label} không khớp mẫu ${pattern}',
+  },
+};
+
 /**
  * rootContainer - Wrap app với ConfigProvider
  */
@@ -75,6 +123,7 @@ export function rootContainer(container: React.ReactNode) {
   return (
     <ConfigProvider
       locale={customViVN}
+      form={{ validateMessages: VALIDATE_MESSAGES_VI }}
       theme={{
         token: {
           colorPrimary: '#1890ff',

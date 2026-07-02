@@ -2,9 +2,14 @@
  * Upload nhiều file đính kèm KQNC — dùng chung hồ sơ cá nhân & module admin
  */
 import React, { useRef, useState } from 'react';
-import { Button, Space, Tooltip, Upload, message } from 'antd';
+import { Button, Divider, Space, Upload, message } from 'antd';
 import type { UploadFile } from 'antd/es/upload';
-import { DeleteOutlined, DownloadOutlined, PaperClipOutlined, UploadOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  DownloadOutlined,
+  PaperClipOutlined,
+  UploadOutlined,
+} from '@ant-design/icons';
 import { uploadFileDon } from '@/services/api/fileUpload';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import { downloadFromUrl } from '@/utils/download';
@@ -47,6 +52,13 @@ const PublicationAttachmentUpload: React.FC<PublicationAttachmentUploadProps> = 
     if (href) downloadFromUrl(href, file.name);
   };
 
+  // Mở file để xem trực tiếp trên trình duyệt (PDF/ảnh xem được ngay)
+  const xemFile = (file: UploadFile) => {
+    const href =
+      file.url || resolvePublicAssetUrl(value.find((u) => tenFileTuUrl(u) === file.name));
+    if (href) window.open(href, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <Upload
       multiple
@@ -55,42 +67,57 @@ const PublicationAttachmentUpload: React.FC<PublicationAttachmentUploadProps> = 
       itemRender={(_origin, file) => (
         <div
           style={{
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             gap: 8,
-            padding: '4px 0',
+            padding: '2px 8px',
+            marginTop: 6,
+            border: '1px solid #f0f0f0',
+            borderRadius: 6,
+            background: '#fafafa',
           }}
         >
+          <PaperClipOutlined style={{ color: '#8c8c8c', fontSize: 14, flexShrink: 0 }} />
           <a
-            onClick={() => taiFile(file)}
+            onClick={() => xemFile(file)}
+            title={file.name}
             style={{
-              maxWidth: 360,
+              maxWidth: 640,
+              color: 'rgba(0, 0, 0, 0.85)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}
           >
-            <PaperClipOutlined style={{ marginRight: 6 }} />
             {file.name}
           </a>
-          <Space size={0} style={{ flexShrink: 0 }}>
-            <Tooltip title="Tải xuống">
-              <Button
-                type="text"
-                size="small"
-                icon={<DownloadOutlined />}
-                onClick={() => taiFile(file)}
-              />
-            </Tooltip>
-            <Tooltip title="Xóa">
-              <Button
-                type="text"
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                onClick={() => xoaFile(file)}
-              />
-            </Tooltip>
+          <Space
+            split={<Divider type="vertical" style={{ margin: 0 }} />}
+            size={6}
+            style={{ flexShrink: 0, marginLeft: 16 }}
+          >
+            <Button type="link" size="small" style={{ padding: 0 }} onClick={() => xemFile(file)}>
+              Xem
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              style={{ padding: 0 }}
+              icon={<DownloadOutlined />}
+              onClick={() => taiFile(file)}
+            >
+              Tải xuống
+            </Button>
+            <Button
+              type="link"
+              danger
+              size="small"
+              style={{ padding: 0 }}
+              icon={<DeleteOutlined />}
+              onClick={() => xoaFile(file)}
+            >
+              Xóa
+            </Button>
           </Space>
         </div>
       )}
