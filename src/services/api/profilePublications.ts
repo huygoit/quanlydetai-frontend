@@ -416,7 +416,7 @@ export interface ConvertedHoursBreakdown {
 
 // API Functions
 
-/** Một hồ sơ khoa học trả về từ lookup tác giả (API /api/profile/me/author-profiles-lookup) */
+/** Một hồ sơ khoa học trả về từ lookup tác giả (API /api/lookup/author-profiles) */
 export interface AuthorProfileLookupItem {
   id: number;
   fullName: string;
@@ -431,7 +431,7 @@ export interface AuthorProfileLookupItem {
 }
 
 /**
- * Tìm hồ sơ nội bộ để gắn profile_id cho dòng tác giả (từ 2 ký tự trở lên).
+ * Lookup hồ sơ NCV dùng chung — GET /api/lookup/author-profiles (chỉ cần đăng nhập).
  */
 export async function lookupAuthorProfiles(
   q: string,
@@ -440,7 +440,7 @@ export async function lookupAuthorProfiles(
   const trimmed = q.trim();
   if (trimmed.length < 2) return [];
   const res = await get<ApiResponse<AuthorProfileLookupItem[]>>(
-    '/api/profile/me/author-profiles-lookup',
+    '/api/lookup/author-profiles',
     { q: trimmed, limit }
   );
   if (!res.success || !Array.isArray(res.data)) return [];
@@ -467,7 +467,7 @@ export async function lookupAuthorProfiles(
   }).filter((r) => r.id > 0);
 }
 
-/** Một sinh viên trả về từ lookup tác giả (API /api/profile/me/author-students-lookup) */
+/** Một sinh viên trả về từ lookup (API /api/lookup/author-students) */
 export interface AuthorStudentLookupItem {
   id: number;
   fullName: string | null;
@@ -483,7 +483,7 @@ export interface AuthorStudentLookupItem {
 }
 
 /**
- * Tìm sinh viên nội bộ để gắn student_id cho dòng tác giả (từ 2 ký tự trở lên).
+ * Lookup sinh viên dùng chung — GET /api/lookup/author-students (chỉ cần đăng nhập).
  */
 export async function lookupAuthorStudents(
   q: string,
@@ -492,93 +492,7 @@ export async function lookupAuthorStudents(
   const trimmed = q.trim();
   if (trimmed.length < 2) return [];
   const res = await get<ApiResponse<AuthorStudentLookupItem[]>>(
-    '/api/profile/me/author-students-lookup',
-    { q: trimmed, limit }
-  );
-  if (!res.success || !Array.isArray(res.data)) return [];
-  return res.data
-    .map((row: Record<string, unknown>) => {
-      const hoTen =
-        [row.fullName, row.full_name, row.name, row.hoTen, row.ho_ten].find(
-          (v): v is string => typeof v === 'string' && v.trim().length > 0
-        )?.trim() ?? '';
-      return {
-        id: Number(row.id) || 0,
-        fullName: hoTen || null,
-        studentCode:
-          typeof (row.studentCode ?? row.student_code) === 'string'
-            ? String(row.studentCode ?? row.student_code)
-            : null,
-        schoolEmail: String(row.schoolEmail ?? row.school_email ?? '') || null,
-        personalEmail: String(row.personalEmail ?? row.personal_email ?? '') || null,
-        classCode:
-          typeof (row.classCode ?? row.class_code) === 'string'
-            ? String(row.classCode ?? row.class_code)
-            : null,
-        className:
-          typeof (row.className ?? row.class_name) === 'string'
-            ? String(row.className ?? row.class_name)
-            : null,
-        majorName:
-          typeof (row.majorName ?? row.major_name) === 'string'
-            ? String(row.majorName ?? row.major_name)
-            : null,
-        department:
-          typeof row.department === 'string'
-            ? row.department
-            : typeof (row.department as { name?: string } | null)?.name === 'string'
-              ? (row.department as { name: string }).name
-              : null,
-        status: typeof row.status === 'string' ? row.status : null,
-        gender: chuanHoaGioiTinhTacGia(row.gender ?? row.gioi_tinh),
-      };
-    })
-    .filter((r) => r.id > 0);
-}
-
-/** Lookup tác giả NCV — module quản lý KQNC (không qua /api/profile/me) */
-export async function lookupAdminAuthorProfiles(
-  q: string,
-  limit = 20
-): Promise<AuthorProfileLookupItem[]> {
-  const trimmed = q.trim();
-  if (trimmed.length < 2) return [];
-  const res = await get<ApiResponse<AuthorProfileLookupItem[]>>(
-    '/api/admin/publications/lookup/author-profiles',
-    { q: trimmed, limit }
-  );
-  if (!res.success || !Array.isArray(res.data)) return [];
-  return res.data.map((row: Record<string, unknown>) => {
-    const hoTen =
-      [row.fullName, row.full_name, row.name, row.displayName, row.display_name, row.hoTen, row.ho_ten].find(
-        (v): v is string => typeof v === 'string' && v.trim().length > 0
-      )?.trim() ?? '';
-    const degreeRaw = row.degree ?? row.hoc_vi;
-    const academicTitleRaw = row.academicTitle ?? row.academic_title ?? row.hoc_ham;
-    return {
-      id: Number(row.id) || 0,
-      fullName: hoTen,
-      workEmail: String(row.workEmail ?? row.work_email ?? ''),
-      degree: typeof degreeRaw === 'string' ? degreeRaw : null,
-      academicTitle: typeof academicTitleRaw === 'string' ? academicTitleRaw : null,
-      organization: String(row.organization ?? row.co_quan_cong_tac ?? ''),
-      faculty: (row.faculty as string | null) ?? null,
-      department: (row.department as string | null) ?? null,
-      status: String(row.status ?? ''),
-      gender: chuanHoaGioiTinhTacGia(row.gender ?? row.gioi_tinh),
-    };
-  }).filter((r) => r.id > 0);
-}
-
-/** Lookup tác giả sinh viên — module quản lý KQNC */
-export async function lookupAdminAuthorStudents(
-  q: string,
-  limit = 20
-): Promise<AuthorStudentLookupItem[]> {
-  const trimmed = q.trim();
-  if (trimmed.length < 2) return [];
-  const res = await get<ApiResponse<AuthorStudentLookupItem[]>>(
-    '/api/admin/publications/lookup/author-students',
+    '/api/lookup/author-students',
     { q: trimmed, limit }
   );
   if (!res.success || !Array.isArray(res.data)) return [];

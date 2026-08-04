@@ -28,6 +28,8 @@ const MODULE_COLOR: Record<string, string> = {
   role: 'purple',
   permission: 'magenta',
   project: 'green',
+  cfp: 'cyan',
+  project_process_type: 'purple',
   idea: 'gold',
   council: 'orange',
   publication: 'geekblue',

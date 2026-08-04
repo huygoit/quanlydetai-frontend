@@ -32,6 +32,12 @@ export * from './openalex';
 // Project Proposals
 export * from './projectProposals';
 
+// Call for proposals (Thông báo tuyển chọn)
+export * from './callForProposals';
+
+// Loại quy trình đề tài (QT-I … QT-V)
+export * from './projectProcessTypes';
+
 // Idea Council
 export * from './ideaCouncil';
 

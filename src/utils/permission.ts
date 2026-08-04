@@ -63,6 +63,13 @@ export const PERM = {
     update: 'specialization.update',
     delete: 'specialization.delete',
   },
+  /** Loại quy trình đề tài (QT-I … QT-V) */
+  project_process_type: {
+    view: 'project_process_type.view',
+    create: 'project_process_type.create',
+    update: 'project_process_type.update',
+    delete: 'project_process_type.delete',
+  },
   user: {
     view: 'user.view',
     create: 'user.create',
@@ -132,6 +139,12 @@ export const PERM = {
     assign_reviewer: 'project.assign_reviewer',
     acceptance: 'project.acceptance',
     liquidation: 'project.liquidation',
+    /** US-03-04 — quản lý phiên xét chọn */
+    selection_manage: 'project.selection_manage',
+    /** US-03-04 — BGH duyệt danh mục xét chọn */
+    selection_approve: 'project.selection_approve',
+    /** US-03-05 — gia hạn điều chỉnh */
+    adjustment_extend: 'project.adjustment_extend',
   },
   /** Tài chính - backend dùng project.liquidation */
   finance: {
@@ -156,5 +169,16 @@ export const PERM = {
     delete: 'publication.delete',
     review: 'publication.review',
     approve: 'publication.approve',
+  },
+  /** Thông báo tuyển chọn đề tài (CFP) */
+  cfp: {
+    view: 'cfp.view',
+    create: 'cfp.create',
+    update: 'cfp.update',
+    submit: 'cfp.submit',
+    approve: 'cfp.approve',
+    publish: 'cfp.publish',
+    extend: 'cfp.extend',
+    close: 'cfp.close',
   },
 } as const;

@@ -43,6 +43,7 @@ export default function access(initialState: AccessInitialState | undefined) {
     PERM.department.view,
     PERM.field.view,
     PERM.specialization.view,
+    PERM.project_process_type.view,
     PERM.user.view,
     PERM.role.view,
     PERM.permission.view,
@@ -65,6 +66,7 @@ export default function access(initialState: AccessInitialState | undefined) {
       PERM.department.view,
       PERM.field.view,
       PERM.specialization.view,
+      PERM.project_process_type.view,
     ]),
     canViewDepartments: has(PERM.department.view),
     canCreateDepartment: has(PERM.department.create),
@@ -75,6 +77,9 @@ export default function access(initialState: AccessInitialState | undefined) {
     canViewSpecializations: has(PERM.specialization.view),
     canCreateSpecialization: has(PERM.specialization.create),
     canEditSpecialization: has(PERM.specialization.update),
+    canViewProjectProcessTypes: has(PERM.project_process_type.view),
+    canCreateProjectProcessType: has(PERM.project_process_type.create),
+    canEditProjectProcessType: has(PERM.project_process_type.update),
     canViewUsers: has(PERM.user.view),
     canCreateUser: has(PERM.user.create),
     canEditUser: has(PERM.user.update),
@@ -111,13 +116,29 @@ export default function access(initialState: AccessInitialState | undefined) {
     canAccessCouncil: hasAny([PERM.council.view, PERM.council.score]),
     canProposeOrder: has(PERM.council.propose_order),
     canApproveOrder: has(PERM.council.approve_order),
-    canViewProjectRegister: hasAny([PERM.project.create, PERM.project.submit]),
+    canViewProjectRegister:
+      hasAny([PERM.project.create, PERM.project.submit]) || has(PERM.project.review),
     canViewMyProjects: canUsePersonalWorkspace && has(PERM.project.view),
     canCreateProjectProposal: hasAny([PERM.project.create, PERM.project.submit]),
     canUnitReviewProjectProposal: has(PERM.project.unit_review),
-    canReviewProjectProposal: has(PERM.project.review),
+    canReviewProjectProposal: has(PERM.project.review) || has(PERM.project.selection_manage),
+    canApproveProjectProposal:
+      has(PERM.project.approve) || has(PERM.project.selection_approve),
+    canManageSelectionSession:
+      has(PERM.project.selection_manage) || has(PERM.project.review),
+    canApproveSelectionSession:
+      has(PERM.project.selection_approve) || has(PERM.project.approve),
+    canExtendProposalAdjustment:
+      has(PERM.project.adjustment_extend) ||
+      has(PERM.project.review) ||
+      has(PERM.project.selection_manage),
     canViewProjectManage: has(PERM.project.view),
-    canViewProjectCouncil: has(PERM.council.view),
+    canViewProjectCouncil:
+      has(PERM.council.view) ||
+      has(PERM.project.review) ||
+      has(PERM.project.approve) ||
+      has(PERM.project.selection_manage) ||
+      has(PERM.project.selection_approve),
     canViewAcceptance: has(PERM.project.acceptance),
     canViewFinance: has(PERM.finance.view),
     canViewReports: hasAny([
@@ -128,6 +149,23 @@ export default function access(initialState: AccessInitialState | undefined) {
       PERM.dashboard.view_department,
       PERM.dashboard.view_all,
     ]),
+
+    /** Thông báo tuyển chọn đề tài */
+    canViewCfp: has(PERM.cfp.view),
+    canCreateCfp: has(PERM.cfp.create),
+    canUpdateCfp: has(PERM.cfp.update),
+    canSubmitCfp: has(PERM.cfp.submit),
+    canApproveCfp: has(PERM.cfp.approve),
+    canPublishCfp: has(PERM.cfp.publish),
+    canExtendCfp: has(PERM.cfp.extend),
+    canCloseCfp: has(PERM.cfp.close),
+    /** Menu Đề tài: hiện nếu có quyền đề tài / CFP / PKH review */
+    canViewProjectsSection:
+      has(PERM.project.view) ||
+      has(PERM.cfp.view) ||
+      has(PERM.project.review) ||
+      has(PERM.project.approve) ||
+      hasWildcard,
 
     /** Menu Kết quả nghiên cứu khoa học — admin vận hành hoặc user có quyền publication / xem toàn trường */
     canViewResearchOutputs:

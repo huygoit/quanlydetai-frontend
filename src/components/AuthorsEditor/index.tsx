@@ -16,8 +16,6 @@ import {
   normalizePublicationAuthor,
   lookupAuthorProfiles,
   lookupAuthorStudents,
-  lookupAdminAuthorProfiles,
-  lookupAdminAuthorStudents,
   type AuthorProfileLookupItem,
   type AuthorStudentLookupItem,
 } from '@/services/api/profilePublications';
@@ -56,10 +54,15 @@ interface AuthorsEditorProps {
   disabled?: boolean;
   /** Bắt buộc có trong danh sách; không cho xóa dòng này (chỉ đổi vai trò sau). */
   ownerProfileId?: number;
-  /** profile = /api/profile/me; admin = /api/admin/publications/lookup (SUPER_ADMIN) */
-  authorLookupScope?: 'profile' | 'admin';
   /** Hiện cột Tỉ lệ % đóng góp (sách/đề tài/sáng kiến — QĐ 1883 điều 1.4). */
   showContribution?: boolean;
+  /**
+   * Ẩn cột Tác giả đầu / Tác giả liên hệ — dùng cho danh sách thành viên đề xuất đề tài.
+   * Khi bật: không bắt buộc ≥1 dòng, bỏ cảnh báo vai trò.
+   */
+  hideRoleColumns?: boolean;
+  /** Nhãn nút thêm dòng (mặc định: Thêm tác giả / Thêm thành viên khi hideRoleColumns). */
+  addRowLabel?: string;
 }
 
 type AuthorEditableRow = PublicationAuthor & { id: React.Key };
@@ -69,9 +72,12 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   onChange,
   disabled = false,
   ownerProfileId,
-  authorLookupScope = 'profile',
   showContribution = false,
+  hideRoleColumns = false,
+  addRowLabel,
 }) => {
+  const nhanDong = hideRoleColumns ? 'thành viên' : 'tác giả';
+  const nhanThemDong = addRowLabel || (hideRoleColumns ? 'Thêm thành viên' : 'Thêm tác giả');
   const editableFormRef = useRef<any>();
   const [editableKeys, setEditableRowKeys] = useState<React.Key[]>([]);
   const [dataSource, setDataSource] = useState<AuthorEditableRow[]>([]);
@@ -108,19 +114,15 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     try {
       const rows =
         tab === 'student'
-          ? authorLookupScope === 'admin'
-            ? await lookupAdminAuthorStudents(t, 25)
-            : await lookupAuthorStudents(t, 25)
-          : authorLookupScope === 'admin'
-            ? await lookupAdminAuthorProfiles(t, 25)
-            : await lookupAuthorProfiles(t, 25);
+          ? await lookupAuthorStudents(t, 25)
+          : await lookupAuthorProfiles(t, 25);
       setLookupResults(rows);
     } catch {
       setLookupResults([]);
     } finally {
       setLookupLoading(false);
     }
-  }, [authorLookupScope]);
+  }, []);
 
   const scheduleLookup = useCallback(
     (q: string, tab: 'staff' | 'student') => {
@@ -146,11 +148,11 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     const mainAuthors = dataSource.filter((a) => a.isTopAuthor || a.isCorresponding);
     const correspondingAuthors = dataSource.filter((a) => a.isCorresponding);
 
-    if (dataSource.length === 0) {
+    if (!hideRoleColumns && dataSource.length === 0) {
       errors.push('Cần ít nhất 1 tác giả');
     }
 
-    if (correspondingAuthors.length === 0) {
+    if (!hideRoleColumns && correspondingAuthors.length === 0) {
       warnings.push('Chưa xác định tác giả liên hệ (p)');
     }
 
@@ -160,15 +162,19 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     const orders = dataSource.map((a) => a.authorOrder);
     const uniqueOrders = new Set(orders);
     if (uniqueOrders.size !== orders.length) {
-      errors.push('Thứ tự tác giả không được trùng');
+      errors.push(`Thứ tự ${nhanDong} không được trùng`);
     }
 
     const hasUdnAuthor = dataSource.some((a) => a.affiliationType === 'UDN_ONLY');
-    if (!hasUdnAuthor) {
-      warnings.push('Không có tác giả thuộc Đại học Đà Nẵng');
+    if (dataSource.length > 0 && !hasUdnAuthor) {
+      warnings.push(`Không có ${nhanDong} thuộc Đại học Đà Nẵng`);
     }
 
-    if (ownerProfileId != null && !dataSource.some((a) => rowMatchesOwner(a, ownerProfileId))) {
+    if (
+      !hideRoleColumns &&
+      ownerProfileId != null &&
+      !dataSource.some((a) => rowMatchesOwner(a, ownerProfileId))
+    ) {
       errors.push('Phải có ít nhất một tác giả là bạn (hồ sơ đang đăng nhập)');
     }
 
@@ -179,32 +185,35 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     );
     if (udnNoProfile.length > 0) {
       warnings.push(
-        `Có ${udnNoProfile.length} dòng cơ quan ĐHĐN chưa liên kết hồ sơ nội bộ — nên bấm “Chọn từ hồ sơ NCV” để gắn profile_id (trừ tác giả ngoài thật sự không có trong hệ thống).`
+        `Có ${udnNoProfile.length} dòng cơ quan ĐHĐN chưa liên kết hồ sơ nội bộ — nên bấm “Chọn từ hồ sơ NCV” để gắn profile_id (trừ ${nhanDong} ngoài thật sự không có trong hệ thống).`
       );
     }
 
     const nhapTayThieuGioiTinh = dataSource.filter((a) => laTacGiaNhapTay(a) && !a.gender);
     if (nhapTayThieuGioiTinh.length > 0) {
+      const nhan = hideRoleColumns ? 'Thành viên' : 'Tác giả';
       errors.push(
         nhapTayThieuGioiTinh.length === 1
-          ? `Tác giả "${nhapTayThieuGioiTinh[0].fullName?.trim() || 'nhập tay'}" cần chọn giới tính`
-          : `Có ${nhapTayThieuGioiTinh.length} tác giả nhập tay chưa chọn giới tính`
+          ? `${nhan} "${nhapTayThieuGioiTinh[0].fullName?.trim() || 'nhập tay'}" cần chọn giới tính`
+          : `Có ${nhapTayThieuGioiTinh.length} ${nhanDong} nhập tay chưa chọn giới tính`
       );
     }
 
-    // Tổng % đóng góp của tất cả tác giả phải bằng 100% (điều 1.4) khi đã nhập tỉ lệ.
+    // Tổng % đóng góp phải bằng 100% khi đã nhập tỉ lệ.
     if (showContribution) {
       const tongPhanTram = dataSource.reduce(
         (s, a) => s + (a.contributionPercent != null ? Number(a.contributionPercent) : 0),
         0
       );
       if (tongPhanTram > 0 && Math.abs(tongPhanTram - 100) > 0.01) {
-        errors.push(`Tổng tỉ lệ % đóng góp của các tác giả phải bằng 100% (hiện ${tongPhanTram}%)`);
+        errors.push(
+          `Tổng tỉ lệ % đóng góp của các ${nhanDong} phải bằng 100% (hiện ${tongPhanTram}%)`
+        );
       }
     }
 
     return { errors, warnings, n, p, isValid: errors.length === 0 };
-  }, [dataSource, ownerProfileId, showContribution]);
+  }, [dataSource, ownerProfileId, showContribution, hideRoleColumns, nhanDong]);
 
   /** Tìm dòng tương ứng trước đó: ưu id (cả so khớp chuỗi), rồi profileId, rồi STT — tránh mất merge khi Pro Table đổi kiểu key hoặc gửi form rỗng. */
   function timDongTuongUng(prevDs: AuthorEditableRow[], row: AuthorEditableRow): AuthorEditableRow | undefined {
@@ -299,8 +308,11 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     setPickerOpen(true);
   };
 
-  /** Họ tên thuần để ghi vào ô tác giả sau khi chọn (không kèm học hàm/học vị). */
+  /** Họ tên ghi vào ô sau khi chọn — thành viên đề tài kèm học hàm/học vị. */
   function tenTuLookup(it: AuthorProfileLookupItem): string {
+    if (hideRoleColumns) {
+      return formatAuthorLookupTitle(it);
+    }
     const fn = typeof it.fullName === 'string' ? it.fullName.trim() : '';
     if (fn) return fn;
     const mail = typeof it.workEmail === 'string' ? it.workEmail.trim() : '';
@@ -483,15 +495,17 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       render: (_, record) => <Text>{record.authorOrder}</Text>,
     },
     {
-      title: 'Họ tên',
+      title: hideRoleColumns ? 'Họ và tên' : 'Họ tên',
       dataIndex: 'fullName',
-      width: 170,
+      width: hideRoleColumns ? 220 : 170,
       editable: (_, record) => choPhepSuaThongTin(record),
       formItemProps: {
         rules: [{ required: true, message: 'Bắt buộc' }],
       },
       fieldProps: {
-        placeholder: 'Tác giả ngoài: nhập tay. NCV nội bộ: nên bấm “Chọn hồ sơ”.',
+        placeholder: hideRoleColumns
+          ? 'Thành viên ngoài: nhập tay. NCV nội bộ: nên bấm “Chọn hồ sơ”.'
+          : 'Tác giả ngoài: nhập tay. NCV nội bộ: nên bấm “Chọn hồ sơ”.',
       },
     },
     {
@@ -576,30 +590,42 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         return defaultRender ? defaultRender(_) : null;
       },
     },
-    {
-      title: 'Tác giả đầu',
-      dataIndex: 'isTopAuthor',
-      valueType: 'switch',
-      width: 110,
-      fieldProps: {
-        checkedChildren: 'Có',
-        unCheckedChildren: 'Không',
-      },
-      render: (_, record) =>
-        record.isTopAuthor ? <Tag color="blue">Có</Tag> : <Text type="secondary">Không</Text>,
-    },
-    {
-      title: 'Tác giả liên hệ',
-      dataIndex: 'isCorresponding',
-      valueType: 'switch',
-      width: 120,
-      fieldProps: {
-        checkedChildren: 'Có',
-        unCheckedChildren: 'Không',
-      },
-      render: (_, record) =>
-        record.isCorresponding ? <Tag color="green">Có</Tag> : <Text type="secondary">Không</Text>,
-    },
+    ...(!hideRoleColumns
+      ? ([
+          {
+            title: 'Tác giả đầu',
+            dataIndex: 'isTopAuthor',
+            valueType: 'switch',
+            width: 110,
+            fieldProps: {
+              checkedChildren: 'Có',
+              unCheckedChildren: 'Không',
+            },
+            render: (_: unknown, record: AuthorEditableRow) =>
+              record.isTopAuthor ? (
+                <Tag color="blue">Có</Tag>
+              ) : (
+                <Text type="secondary">Không</Text>
+              ),
+          },
+          {
+            title: 'Tác giả liên hệ',
+            dataIndex: 'isCorresponding',
+            valueType: 'switch',
+            width: 120,
+            fieldProps: {
+              checkedChildren: 'Có',
+              unCheckedChildren: 'Không',
+            },
+            render: (_: unknown, record: AuthorEditableRow) =>
+              record.isCorresponding ? (
+                <Tag color="green">Có</Tag>
+              ) : (
+                <Text type="secondary">Không</Text>
+              ),
+          },
+        ] as ProColumns<AuthorEditableRow>[])
+      : []),
     {
       title: 'Cơ quan công tác',
       dataIndex: 'affiliationUnits',
@@ -706,7 +732,9 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
           message={
             validation.errors.length === 1
               ? validation.errors[0]
-              : 'Lỗi danh sách tác giả'
+              : hideRoleColumns
+                ? 'Lỗi danh sách thành viên'
+                : 'Lỗi danh sách tác giả'
           }
           description={
             validation.errors.length === 1 ? undefined : (
@@ -771,7 +799,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                     contributionPercent: null,
                   };
                 },
-                creatorButtonText: 'Thêm tác giả',
+                creatorButtonText: nhanThemDong,
               }
         }
         editable={{

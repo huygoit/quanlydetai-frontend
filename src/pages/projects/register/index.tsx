@@ -1,323 +1,120 @@
 /**
- * Đăng ký đề xuất đề tài - Giai đoạn 1
- * specs/projects-register.md
+ * Danh sách đề xuất đề tài + xử lý Khoa / PKH
+ * Form tạo/sửa: /projects/register/form (+ FooterToolbar)
  */
-import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { PageContainer, ProTable, StepsForm, ProFormText, ProFormSelect, ProFormTextArea, ProFormDigit } from '@ant-design/pro-components';
-import type { ProColumns, ActionType, ProFormInstance } from '@ant-design/pro-components';
-import { Button, Drawer, Tag, Space, Descriptions, Divider, Modal, message, Card, Typography, Form, Input, Radio, Badge, Cascader } from 'antd';
-import { PlusOutlined, EyeOutlined, EditOutlined, SendOutlined, DeleteOutlined, UndoOutlined, CheckCircleOutlined, CloseCircleOutlined, CommentOutlined } from '@ant-design/icons';
-import { useModel, useAccess } from '@umijs/max';
+import React, { useEffect, useRef, useState } from 'react';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
+import type { ProColumns, ActionType } from '@ant-design/pro-components';
+import {
+  Badge,
+  Button,
+  Drawer,
+  Tag,
+  Space,
+  Descriptions,
+  Divider,
+  Modal,
+  message,
+  Typography,
+  Form,
+  Input,
+  Radio,
+  Timeline,
+} from 'antd';
+import {
+  PlusOutlined,
+  EyeOutlined,
+  EditOutlined,
+  SendOutlined,
+  DeleteOutlined,
+  UndoOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  CommentOutlined,
+} from '@ant-design/icons';
+import { useModel, useAccess, history } from '@umijs/max';
+import dayjs from 'dayjs';
 import {
   queryProposals,
   getProposal,
-  createProposal,
-  updateProposal,
+  getProposalAudits,
   submitProposal,
   withdrawProposal,
   deleteProposal,
   unitReviewProposal,
-  sciDeptReviewProposal,
+  getPendingUnitProposalCount,
   PROPOSAL_STATUS_MAP,
   FIELD_OPTIONS,
   LEVEL_OPTIONS,
   UNIT_OPTIONS,
-  PRIORITY_OPTIONS,
+  PROPOSAL_AUDIT_ACTION_LABEL,
   type ProjectProposal,
   type ProposalStatus,
+  type ProposalAudit,
 } from '@/services/api/projectProposals';
-import {
-  getResearchOutputTypesTree,
-  buildResearchOutputCascaderOptions,
-  findResearchOutputPathById,
-  type ResearchOutputTypeTreeNode,
-} from '@/services/api/profilePublications';
+import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 
-const PROPOSAL_STATUS_CONFIG = Object.fromEntries(
-  Object.entries(PROPOSAL_STATUS_MAP).map(([k, v]) => [k, { label: v.label, color: v.color }])
-) as Record<ProposalStatus, { label: string; color: string }>;
-
-const { Text, Title, Paragraph } = Typography;
-
-// ============ COMPONENT ============
+const { Title, Paragraph } = Typography;
 
 const ProjectRegisterPage: React.FC = () => {
   const { initialState } = useModel('@@initialState');
   const access = useAccess();
-  const currentUser = initialState?.currentUser;
-
-  // Refs
+  const currentUser = initialState?.currentUser as { id?: number | string; name?: string } | undefined;
   const tableRef = useRef<ActionType>();
-  const formRef = useRef<ProFormInstance>();
 
-  // State
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<ProjectProposal | null>(null);
-  const [formVisible, setFormVisible] = useState(false);
-  const [editingProposal, setEditingProposal] = useState<ProjectProposal | null>(null);
+  const [audits, setAudits] = useState<ProposalAudit[]>([]);
   const [unitReviewVisible, setUnitReviewVisible] = useState(false);
-  const [sciDeptReviewVisible, setSciDeptReviewVisible] = useState(false);
   const [reviewProposal, setReviewProposal] = useState<ProjectProposal | null>(null);
-  const [researchOutputTree, setResearchOutputTree] = useState<ResearchOutputTypeTreeNode[]>([]);
-  const [researchTreeLoading, setResearchTreeLoading] = useState(false);
+  const [pendingUnitCount, setPendingUnitCount] = useState(0);
+  const [unitReviewForm] = Form.useForm();
 
   const canCreate = access.canCreateProjectProposal;
   const canUnitReview = access.canUnitReviewProjectProposal;
-  const canSciDeptReview = access.canReviewProjectProposal;
-  const hideUnitSearch = !canSciDeptReview && !canUnitReview;
-
-  // Current user info for filtering
-  const currentUserId = 'user-001'; // Mock: thay bằng currentUser?.id
-  const currentUserUnit = currentUser?.roleLabel === 'Trưởng khoa' ? 'Khoa Công nghệ thông tin' : undefined;
+  const canPkhReview = access.canReviewProjectProposal;
+  const hideUnitSearch = !canPkhReview && !canUnitReview;
+  const currentUserId = Number(currentUser?.id || 0);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setResearchTreeLoading(true);
-      try {
-        const res = await getResearchOutputTypesTree();
-        if (!cancelled && res.success && res.data) setResearchOutputTree(res.data);
-      } finally {
-        if (!cancelled) setResearchTreeLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!canUnitReview) return;
+    getPendingUnitProposalCount()
+      .then((res) => setPendingUnitCount(res.data?.count || 0))
+      .catch(() => setPendingUnitCount(0));
+  }, [canUnitReview]);
 
-  useEffect(() => {
-    if (!formVisible || !researchOutputTree.length || !editingProposal?.researchOutputTypeId) return;
-    const p = findResearchOutputPathById(researchOutputTree, editingProposal.researchOutputTypeId);
-    if (p?.length) formRef.current?.setFieldsValue?.({ researchOutputTypePath: p });
-  }, [formVisible, researchOutputTree, editingProposal]);
-
-  // ============ TABLE COLUMNS ============
-
-  const columns: ProColumns<ProjectProposal>[] = [
-    {
-      title: 'Mã đề xuất',
-      dataIndex: 'code',
-      width: 130,
-      fixed: 'left',
-      copyable: true,
-    },
-    {
-      title: 'Tên đề tài',
-      dataIndex: 'title',
-      width: 300,
-      ellipsis: true,
-      render: (_, record) => (
-        <a onClick={() => handleView(record)}>{record.title}</a>
-      ),
-    },
-    {
-      title: 'Chủ nhiệm',
-      dataIndex: 'ownerName',
-      width: 150,
-      ellipsis: true,
-      hideInSearch: true,
-    },
-    {
-      title: 'Đơn vị',
-      dataIndex: 'ownerUnit',
-      width: 180,
-      ellipsis: true,
-      valueType: 'select',
-      fieldProps: {
-        options: UNIT_OPTIONS.map((u) => ({ label: u, value: u })),
-        showSearch: true,
-      },
-      hideInSearch: hideUnitSearch,
-    },
-    {
-      title: 'Lĩnh vực',
-      dataIndex: 'field',
-      width: 150,
-      ellipsis: true,
-      valueType: 'select',
-      fieldProps: {
-        options: FIELD_OPTIONS.map((f) => ({ label: f, value: f })),
-        showSearch: true,
-      },
-    },
-    {
-      title: 'Cấp',
-      dataIndex: 'level',
-      width: 100,
-      valueType: 'select',
-      fieldProps: {
-        options: LEVEL_OPTIONS,
-      },
-      render: (_, record) => {
-        const level = LEVEL_OPTIONS.find((l) => l.value === record.level);
-        return level?.label || record.level;
-      },
-    },
-    {
-      title: 'Kinh phí',
-      dataIndex: 'requestedBudgetTotal',
-      width: 130,
-      hideInSearch: true,
-      render: (_, record) =>
-        record.requestedBudgetTotal
-          ? `${(record.requestedBudgetTotal / 1000000).toFixed(0)} tr`
-          : '-',
-    },
-    {
-      title: 'Năm',
-      dataIndex: 'year',
-      width: 80,
-      valueType: 'select',
-      initialValue: new Date().getFullYear(),
-      fieldProps: {
-        options: [2024, 2025, 2026].map((y) => ({ label: String(y), value: y })),
-      },
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      width: 140,
-      valueType: 'select',
-      fieldProps: {
-        options: Object.entries(PROPOSAL_STATUS_CONFIG).map(([key, val]) => ({
-          label: val.label,
-          value: key,
-        })),
-      },
-      render: (_, record) => {
-        const config = PROPOSAL_STATUS_CONFIG[record.status];
-        return <Tag color={config?.color}>{config?.label || record.status}</Tag>;
-      },
-    },
-    {
-      title: 'Cập nhật',
-      dataIndex: 'updatedAt',
-      width: 140,
-      valueType: 'dateTime',
-      hideInSearch: true,
-      sorter: true,
-    },
-    {
-      title: 'Từ khóa',
-      dataIndex: 'keyword',
-      hideInTable: true,
-      fieldProps: {
-        placeholder: 'Tìm theo mã, tên, chủ nhiệm...',
-      },
-    },
-    {
-      title: 'Hành động',
-      valueType: 'option',
-      width: 200,
-      fixed: 'right',
-      render: (_, record) => renderActions(record),
-    },
-  ];
-
-  // ============ ACTIONS RENDER ============
-
-  const renderActions = (record: ProjectProposal) => {
-    const actions: React.ReactNode[] = [];
-
-    // Xem - tất cả đều có
-    actions.push(
-      <a key="view" onClick={() => handleView(record)}>
-        <EyeOutlined /> Xem
-      </a>
-    );
-
-    // Actions cho creator/owner (NCV/CNDT - người tạo đề xuất)
-    if (canCreate && record.ownerId === currentUserId) {
-      // Sửa - chỉ DRAFT hoặc REJECTED
-      if (record.status === 'DRAFT' || record.status === 'REJECTED') {
-        actions.push(
-          <a key="edit" onClick={() => handleEdit(record)}>
-            <EditOutlined /> Sửa
-          </a>
-        );
-      }
-
-      // Gửi đề xuất - chỉ DRAFT
-      if (record.status === 'DRAFT') {
-        actions.push(
-          <a key="submit" onClick={() => handleSubmit(record)}>
-            <SendOutlined /> Gửi
-          </a>
-        );
-      }
-
-      // Rút đề xuất - chỉ SUBMITTED
-      if (record.status === 'SUBMITTED') {
-        actions.push(
-          <a key="withdraw" style={{ color: '#faad14' }} onClick={() => handleWithdraw(record)}>
-            <UndoOutlined /> Rút
-          </a>
-        );
-      }
-
-      // Xoá - chỉ DRAFT
-      if (record.status === 'DRAFT') {
-        actions.push(
-          <a key="delete" style={{ color: '#ff4d4f' }} onClick={() => handleDelete(record)}>
-            <DeleteOutlined /> Xoá
-          </a>
-        );
-      }
-    }
-
-    // Actions cho unit review (Trưởng đơn vị / tương đương)
-    if (canUnitReview && record.status === 'SUBMITTED') {
-      actions.push(
-        <a key="unitReview" style={{ color: '#1890ff' }} onClick={() => handleUnitReview(record)}>
-          <CommentOutlined /> Ý kiến
-        </a>
-      );
-    }
-
-    // Actions cho sơ duyệt Phòng KH / Lãnh đạo
-    if (canSciDeptReview && (record.status === 'SUBMITTED' || record.status === 'UNIT_REVIEWED')) {
-      actions.push(
-        <a key="sciDeptReview" style={{ color: '#52c41a' }} onClick={() => handleSciDeptReview(record)}>
-          <CheckCircleOutlined /> Sơ duyệt
-        </a>
-      );
-    }
-
-    return <Space size="small">{actions}</Space>;
+  const reloadPending = () => {
+    if (!canUnitReview) return;
+    getPendingUnitProposalCount()
+      .then((res) => setPendingUnitCount(res.data?.count || 0))
+      .catch(() => undefined);
   };
-
-  // ============ HANDLERS ============
 
   const handleView = async (record: ProjectProposal) => {
     const full = await getProposal(record.id);
-    setSelectedProposal(full.success && full.data ? full.data : record);
+    setSelectedProposal(full.data || record);
     setDrawerVisible(true);
-  };
-
-  const handleCreate = () => {
-    setEditingProposal(null);
-    setFormVisible(true);
-  };
-
-  const handleEdit = (record: ProjectProposal) => {
-    setEditingProposal(record);
-    setFormVisible(true);
+    try {
+      const a = await getProposalAudits(record.id);
+      setAudits(a.data || []);
+    } catch {
+      setAudits([]);
+    }
   };
 
   const handleSubmit = (record: ProjectProposal) => {
     Modal.confirm({
-      title: 'Gửi đề xuất',
-      content: `Bạn có chắc chắn muốn gửi đề xuất "${record.title}"?`,
+      title: 'Gửi lên Khoa',
+      content: `Gửi đề xuất "${record.title}" lên Khoa xác nhận?`,
       okText: 'Gửi',
-      cancelText: 'Huỷ',
       onOk: async () => {
-        const result = await submitProposal(record.id);
-        if (result.success) {
-          message.success('Đã gửi đề xuất thành công!');
+        try {
+          await submitProposal(record.id);
+          message.success('Đã gửi lên Khoa');
           tableRef.current?.reload();
-        } else {
-          message.error(result.message || 'Có lỗi xảy ra');
+          reloadPending();
+        } catch (e: any) {
+          message.error(e?.data?.message || e?.message || 'Gửi thất bại');
         }
       },
     });
@@ -326,17 +123,17 @@ const ProjectRegisterPage: React.FC = () => {
   const handleWithdraw = (record: ProjectProposal) => {
     Modal.confirm({
       title: 'Rút đề xuất',
-      content: `Bạn có chắc chắn muốn rút đề xuất "${record.title}"?`,
-      okText: 'Rút đề xuất',
+      content: `Rút đề xuất "${record.title}"?`,
+      okText: 'Rút',
       okButtonProps: { danger: true },
-      cancelText: 'Huỷ',
       onOk: async () => {
-        const result = await withdrawProposal(record.id);
-        if (result.success) {
-          message.success('Đã rút đề xuất!');
+        try {
+          await withdrawProposal(record.id);
+          message.success('Đã rút đề xuất');
           tableRef.current?.reload();
-        } else {
-          message.error(result.message || 'Có lỗi xảy ra');
+          reloadPending();
+        } catch (e: any) {
+          message.error(e?.data?.message || e?.message || 'Rút thất bại');
         }
       },
     });
@@ -344,598 +141,376 @@ const ProjectRegisterPage: React.FC = () => {
 
   const handleDelete = (record: ProjectProposal) => {
     Modal.confirm({
-      title: 'Xoá đề xuất',
-      content: `Bạn có chắc chắn muốn xoá đề xuất "${record.title}"? Hành động này không thể hoàn tác.`,
-      okText: 'Xoá',
+      title: 'Xóa nháp',
+      content: `Xóa đề xuất "${record.title}"?`,
+      okText: 'Xóa',
       okButtonProps: { danger: true },
-      cancelText: 'Huỷ',
       onOk: async () => {
-        const result = await deleteProposal(record.id);
-        if (result.success) {
-          message.success('Đã xoá đề xuất!');
+        try {
+          await deleteProposal(record.id);
+          message.success('Đã xóa');
           tableRef.current?.reload();
-        } else {
-          message.error(result.message || 'Có lỗi xảy ra');
+        } catch (e: any) {
+          message.error(e?.data?.message || e?.message || 'Xóa thất bại');
         }
       },
     });
   };
 
-  const handleUnitReview = (record: ProjectProposal) => {
-    setReviewProposal(record);
-    setUnitReviewVisible(true);
-  };
+  const renderActions = (record: ProjectProposal) => {
+    const actions: React.ReactNode[] = [
+      <a key="view" onClick={() => void handleView(record)}>
+        <EyeOutlined /> Xem
+      </a>,
+    ];
 
-  const handleSciDeptReview = (record: ProjectProposal) => {
-    setReviewProposal(record);
-    setSciDeptReviewVisible(true);
-  };
-
-  // ============ FORM SUBMIT ============
-
-  const handleFormFinish = async (values: any) => {
-    const { researchOutputTypePath, ...rest } = values;
-    const researchOutputTypeId =
-      Array.isArray(researchOutputTypePath) && researchOutputTypePath.length > 0
-        ? researchOutputTypePath[researchOutputTypePath.length - 1]
-        : null;
-    const proposalData: Partial<ProjectProposal> = {
-      ...rest,
-      researchOutputTypeId,
-      ownerId: currentUserId,
-      ownerName: currentUser?.name || 'Người dùng',
-      ownerUnit: values.ownerUnit || 'Khoa Công nghệ thông tin',
-      ownerEmail: 'user@university.edu.vn',
-    };
-
-    let result;
-    if (editingProposal) {
-      result = await updateProposal(editingProposal.id, proposalData);
-      if (result.success) {
-        message.success('Cập nhật đề xuất thành công!');
+    if (canCreate && Number(record.ownerId) === currentUserId) {
+      if (record.status === 'DRAFT' || record.status === 'RETURNED') {
+        actions.push(
+          <a key="edit" onClick={() => history.push(`/projects/register/form/${record.id}`)}>
+            <EditOutlined /> Sửa
+          </a>,
+        );
+        actions.push(
+          <a key="submit" onClick={() => handleSubmit(record)}>
+            <SendOutlined /> Gửi Khoa
+          </a>,
+        );
       }
-    } else {
-      result = await createProposal(proposalData);
-      if (result.success) {
-        message.success('Tạo đề xuất mới thành công!');
+      if (record.status === 'SUBMITTED') {
+        actions.push(
+          <a key="withdraw" style={{ color: '#faad14' }} onClick={() => handleWithdraw(record)}>
+            <UndoOutlined /> Rút
+          </a>,
+        );
+      }
+      if (record.status === 'DRAFT') {
+        actions.push(
+          <a key="delete" style={{ color: '#ff4d4f' }} onClick={() => handleDelete(record)}>
+            <DeleteOutlined /> Xóa
+          </a>,
+        );
       }
     }
 
-    if (result.success) {
-      setFormVisible(false);
-      tableRef.current?.reload();
-    } else {
-      message.error(result.message || 'Có lỗi xảy ra');
+    if (canUnitReview && record.status === 'SUBMITTED') {
+      actions.push(
+        <a
+          key="unit"
+          style={{ color: '#1890ff' }}
+          onClick={() => {
+            setReviewProposal(record);
+            setUnitReviewVisible(true);
+          }}
+        >
+          <CommentOutlined /> Xử lý Khoa
+        </a>,
+      );
     }
 
-    return result.success;
+    if (
+      canPkhReview &&
+      (record.status === 'CHO_PKH' ||
+        record.status === 'UNIT_REVIEWED' ||
+        record.status === 'YEU_CAU_BS' ||
+        record.status === 'HOP_LE')
+    ) {
+      actions.push(
+        <a key="pkh" style={{ color: '#52c41a' }} onClick={() => history.push('/projects/pkh-review')}>
+          <CheckCircleOutlined /> Xử lý tại PKH
+        </a>,
+      );
+    }
+
+    return <Space size="small">{actions}</Space>;
   };
 
-  const handleFormFinishAndSubmit = async (values: any) => {
-    const { researchOutputTypePath, ...rest } = values;
-    const researchOutputTypeId =
-      Array.isArray(researchOutputTypePath) && researchOutputTypePath.length > 0
-        ? researchOutputTypePath[researchOutputTypePath.length - 1]
-        : null;
-    const proposalData: Partial<ProjectProposal> = {
-      ...rest,
-      researchOutputTypeId,
-      ownerId: currentUserId,
-      ownerName: currentUser?.name || 'Người dùng',
-      ownerUnit: values.ownerUnit || 'Khoa Công nghệ thông tin',
-      ownerEmail: 'user@university.edu.vn',
-      status: 'SUBMITTED',
-    };
-
-    let result;
-    if (editingProposal) {
-      result = await updateProposal(editingProposal.id, { ...proposalData, status: 'SUBMITTED' });
-    } else {
-      result = await createProposal(proposalData);
-    }
-
-    if (result.success) {
-      message.success(editingProposal ? 'Cập nhật và gửi đề xuất thành công!' : 'Tạo và gửi đề xuất thành công!');
-      setFormVisible(false);
-      tableRef.current?.reload();
-    } else {
-      message.error(result.message || 'Có lỗi xảy ra');
-    }
-
-    return result.success;
-  };
-
-  // ============ UNIT REVIEW SUBMIT ============
-
-  const [unitReviewForm] = Form.useForm();
-
-  const handleUnitReviewSubmit = async () => {
-    try {
-      const values = await unitReviewForm.validateFields();
-      const result = await unitReviewProposal(reviewProposal!.id, {
-        unitApproved: values.unitApproved,
-        unitComment: values.unitComment,
-      });
-
-      if (result.success) {
-        message.success('Đã lưu ý kiến đơn vị!');
-        setUnitReviewVisible(false);
-        unitReviewForm.resetFields();
-        tableRef.current?.reload();
-      } else {
-        message.error(result.message || 'Có lỗi xảy ra');
-      }
-    } catch (error) {
-      console.error('Validate failed:', error);
-    }
-  };
-
-  // ============ SCI DEPT REVIEW SUBMIT ============
-
-  const [sciDeptReviewForm] = Form.useForm();
-
-  const handleSciDeptReviewSubmit = async () => {
-    try {
-      const values = await sciDeptReviewForm.validateFields();
-      const result = await sciDeptReviewProposal(reviewProposal!.id, {
-        status: values.status,
-        sciDeptPriority: values.sciDeptPriority,
-        sciDeptComment: values.sciDeptComment,
-      });
-
-      if (result.success) {
-        message.success(values.status === 'APPROVED' ? 'Đã phê duyệt đề xuất!' : 'Đã từ chối đề xuất!');
-        setSciDeptReviewVisible(false);
-        sciDeptReviewForm.resetFields();
-        tableRef.current?.reload();
-      } else {
-        message.error(result.message || 'Có lỗi xảy ra');
-      }
-    } catch (error) {
-      console.error('Validate failed:', error);
-    }
-  };
-
-  // ============ RENDER ============
+  const columns: ProColumns<ProjectProposal>[] = [
+    { title: 'Mã', dataIndex: 'code', width: 120, copyable: true, hideInSearch: true },
+    { title: 'Tên đề tài', dataIndex: 'title', ellipsis: true, hideInSearch: true },
+    { title: 'Chủ nhiệm', dataIndex: 'ownerName', width: 140, hideInSearch: true },
+    {
+      title: 'Đơn vị',
+      dataIndex: 'ownerUnit',
+      width: 160,
+      valueType: 'select',
+      fieldProps: { options: UNIT_OPTIONS.map((u) => ({ label: u, value: u })), showSearch: true },
+      hideInSearch: hideUnitSearch,
+    },
+    {
+      title: 'Lĩnh vực',
+      dataIndex: 'field',
+      width: 140,
+      valueType: 'select',
+      fieldProps: { options: FIELD_OPTIONS.map((f) => ({ label: f, value: f })), showSearch: true },
+    },
+    {
+      title: 'Cấp / quy trình',
+      dataIndex: 'projectProcessTypeId',
+      width: 180,
+      hideInSearch: true,
+      render: (_, r) =>
+        r.projectProcessType
+          ? `${r.projectProcessType.code}`
+          : LEVEL_OPTIONS.find((l) => l.value === r.level)?.label || r.level,
+    },
+    {
+      title: 'Kinh phí',
+      dataIndex: 'requestedBudgetTotal',
+      width: 110,
+      hideInSearch: true,
+      render: (_, r) =>
+        r.requestedBudgetTotal != null
+          ? `${(r.requestedBudgetTotal / 1_000_000).toFixed(0)} tr`
+          : '—',
+    },
+    {
+      title: 'Năm',
+      dataIndex: 'year',
+      width: 80,
+      valueType: 'select',
+      fieldProps: {
+        options: [2024, 2025, 2026, 2027].map((y) => ({ label: String(y), value: y })),
+      },
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      width: 130,
+      valueType: 'select',
+      fieldProps: {
+        options: Object.entries(PROPOSAL_STATUS_MAP).map(([value, v]) => ({
+          label: v.label,
+          value,
+        })),
+      },
+      render: (_, r) => {
+        const m = PROPOSAL_STATUS_MAP[r.status as ProposalStatus];
+        return (
+          <Space size={4} wrap>
+            <Tag color={m?.color}>{m?.label || r.status}</Tag>
+            {r.status === 'DIEU_CHINH' && (
+              <Tag color="gold">Cần điều chỉnh</Tag>
+            )}
+            {r.status === 'DIEU_CHINH' && r.adjustmentDueAt && (
+              <Tag color={r.adjustmentOverdue ? 'red' : 'blue'}>
+                {r.adjustmentOverdue
+                  ? 'Quá hạn'
+                  : `Hạn ${dayjs(r.adjustmentDueAt).format('DD/MM')}`}
+              </Tag>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
+      title: 'Từ khóa',
+      dataIndex: 'keyword',
+      hideInTable: true,
+      fieldProps: { placeholder: 'Mã / tên / chủ nhiệm' },
+    },
+    {
+      title: 'Thao tác',
+      valueType: 'option',
+      width: 220,
+      fixed: 'right',
+      render: (_, r) => renderActions(r),
+    },
+  ];
 
   return (
     <PageContainer
       header={{
         title: 'Đăng ký đề xuất đề tài',
-        subTitle: 'Quản lý các đề xuất đề tài nghiên cứu khoa học - Giai đoạn 1',
+        subTitle: 'Nộp hồ sơ trực tuyến · Khoa xác nhận · PKH tiếp nhận',
       }}
     >
       <ProTable<ProjectProposal>
         actionRef={tableRef}
         rowKey="id"
         columns={columns}
-        scroll={{ x: 1500 }}
-        request={async (params, sort) => {
-          const queryParams: any = {
-            pageSize: params.pageSize,
-            current: params.current,
+        scroll={{ x: 1280 }}
+        request={async (params) => {
+          const isCreatorOnly = canCreate && !canUnitReview && !canPkhReview;
+          const result = await queryProposals({
             keyword: params.keyword,
             year: params.year,
             status: params.status,
             level: params.level,
             field: params.field,
-          };
-
-          // Filter theo quyền: creator-only / unit / all
-          const isCreatorOnly = canCreate && !canUnitReview && !canSciDeptReview;
-          if (isCreatorOnly) {
-            queryParams.ownerOnly = true;
-            queryParams.ownerId = currentUserId;
-          } else if (canUnitReview) {
-            queryParams.unit = currentUserUnit || params.ownerUnit;
-          } else {
-            queryParams.unit = params.ownerUnit;
-          }
-
-          const result = await queryProposals({
-            ...queryParams,
-            page: queryParams.current,
-            perPage: queryParams.pageSize,
+            unit: params.ownerUnit,
+            ownerOnly: isCreatorOnly || undefined,
+            page: params.current,
+            perPage: params.pageSize,
           });
           return {
             data: result.data,
             total: result.meta?.total || 0,
-            success: result.success,
+            success: !!result.success,
           };
         }}
-        pagination={{
-          defaultPageSize: 10,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) => `Đang xem ${range[0]}-${range[1]} trên tổng ${total} đề xuất`,
-        }}
+        pagination={{ defaultPageSize: 10, showSizeChanger: true }}
         toolBarRender={() => [
-          canCreate && (
-            <Button key="create" type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-              Tạo đề xuất mới
+          canUnitReview && pendingUnitCount > 0 ? (
+            <Badge key="pending" count={pendingUnitCount} offset={[0, 0]}>
+              <Tag color="processing">Chờ Khoa xác nhận</Tag>
+            </Badge>
+          ) : null,
+          canPkhReview ? (
+            <Button key="pkh" onClick={() => history.push('/projects/pkh-review')}>
+              Màn PKH kiểm tra
             </Button>
-          ),
+          ) : null,
+          canCreate ? (
+            <Button
+              key="create"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => history.push('/projects/register/form')}
+            >
+              Nộp hồ sơ đề xuất
+            </Button>
+          ) : null,
         ]}
-        search={{
-          labelWidth: 'auto',
-          defaultCollapsed: false,
-        }}
-        options={{
-          density: true,
-          fullScreen: true,
-          reload: true,
-          setting: true,
-        }}
-        dateFormatter="string"
+        search={{ labelWidth: 'auto', defaultCollapsed: false }}
       />
 
-      {/* ============ DETAIL DRAWER ============ */}
       <Drawer
-        title={selectedProposal?.title || 'Chi tiết đề xuất'}
+        title={selectedProposal?.code || 'Chi tiết đề xuất'}
         width={720}
         open={drawerVisible}
         onClose={() => setDrawerVisible(false)}
-        extra={
-          <Space>
-            {selectedProposal && (
-              <Tag color={PROPOSAL_STATUS_CONFIG[selectedProposal.status]?.color}>
-                {PROPOSAL_STATUS_CONFIG[selectedProposal.status]?.label}
-              </Tag>
-            )}
-          </Space>
-        }
       >
         {selectedProposal && (
           <>
-            <Descriptions column={2} bordered size="small">
-              <Descriptions.Item label="Mã đề xuất">{selectedProposal.code}</Descriptions.Item>
-              <Descriptions.Item label="Năm">{selectedProposal.year}</Descriptions.Item>
-              <Descriptions.Item label="Chủ nhiệm">{selectedProposal.ownerName}</Descriptions.Item>
-              <Descriptions.Item label="Email">{selectedProposal.ownerEmail || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Đơn vị" span={2}>{selectedProposal.ownerUnit}</Descriptions.Item>
-              <Descriptions.Item label="Lĩnh vực">{selectedProposal.field}</Descriptions.Item>
-              <Descriptions.Item label="Cấp quản lý">
-                {LEVEL_OPTIONS.find((l) => l.value === selectedProposal.level)?.label || selectedProposal.level}
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="Trạng thái">
+                <Tag color={PROPOSAL_STATUS_MAP[selectedProposal.status]?.color}>
+                  {PROPOSAL_STATUS_MAP[selectedProposal.status]?.label}
+                </Tag>
               </Descriptions.Item>
-              {selectedProposal.researchOutputType?.name && (
-                <Descriptions.Item label="Loại kết quả NCKH" span={2}>
-                  {selectedProposal.researchOutputType.name}
+              <Descriptions.Item label="Tên đề tài">{selectedProposal.title}</Descriptions.Item>
+              <Descriptions.Item label="Chủ nhiệm">
+                {selectedProposal.ownerName} · {selectedProposal.ownerUnit}
+              </Descriptions.Item>
+              <Descriptions.Item label="Cấp / quy trình">
+                {selectedProposal.projectProcessType
+                  ? `${selectedProposal.projectProcessType.code}: ${selectedProposal.projectProcessType.name}`
+                  : LEVEL_OPTIONS.find((l) => l.value === selectedProposal.level)?.label ||
+                    selectedProposal.level}
+                {' · '}
+                {selectedProposal.field}
+              </Descriptions.Item>
+              <Descriptions.Item label="Thời gian / kinh phí">
+                {selectedProposal.durationMonths} tháng ·{' '}
+                {selectedProposal.requestedBudgetTotal != null
+                  ? `${selectedProposal.requestedBudgetTotal.toLocaleString('vi-VN')} đ`
+                  : '—'}
+              </Descriptions.Item>
+              {selectedProposal.researchDirection && (
+                <Descriptions.Item label="Hướng NC">
+                  {selectedProposal.researchDirection}
                 </Descriptions.Item>
               )}
-              <Descriptions.Item label="Thời gian">{selectedProposal.durationMonths} tháng</Descriptions.Item>
-              <Descriptions.Item label="Kinh phí đề nghị">
-                {selectedProposal.requestedBudgetTotal
-                  ? new Intl.NumberFormat('vi-VN').format(selectedProposal.requestedBudgetTotal) + ' VNĐ'
-                  : '-'}
+              <Descriptions.Item label="Mục tiêu">{selectedProposal.objectives}</Descriptions.Item>
+              <Descriptions.Item label="Sản phẩm dự kiến">
+                {selectedProposal.expectedResults || '—'}
               </Descriptions.Item>
-              <Descriptions.Item label="Từ khóa" span={2}>
-                {selectedProposal.keywords?.map((k) => <Tag key={k}>{k}</Tag>) || '-'}
+              <Descriptions.Item label="Thành viên">
+                {(selectedProposal.coAuthors || []).join(', ') || '—'}
               </Descriptions.Item>
-              <Descriptions.Item label="Thành viên" span={2}>
-                {selectedProposal.coAuthors?.join(', ') || '-'}
+              <Descriptions.Item label="File biểu mẫu">
+                {selectedProposal.attachmentUrl ? (
+                  <a
+                    href={resolvePublicAssetUrl(selectedProposal.attachmentUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Tải / xem file
+                  </a>
+                ) : (
+                  '—'
+                )}
               </Descriptions.Item>
+              {selectedProposal.unitComment && (
+                <Descriptions.Item label="Phản hồi Khoa">
+                  {selectedProposal.unitComment}
+                </Descriptions.Item>
+              )}
             </Descriptions>
 
-            <Divider orientation="left">Nội dung khoa học</Divider>
-            <Card size="small" style={{ marginBottom: 16 }}>
-              <Title level={5}>Mục tiêu</Title>
-              <Paragraph>{selectedProposal.objectives || '-'}</Paragraph>
-              <Title level={5}>Tóm tắt</Title>
-              <Paragraph>{selectedProposal.summary || '-'}</Paragraph>
-              {selectedProposal.contentOutline && (
-                <>
-                  <Title level={5}>Nội dung / Đề cương</Title>
-                  <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{selectedProposal.contentOutline}</Paragraph>
-                </>
-              )}
-              {selectedProposal.expectedResults && (
-                <>
-                  <Title level={5}>Kết quả dự kiến</Title>
-                  <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{selectedProposal.expectedResults}</Paragraph>
-                </>
-              )}
-              {selectedProposal.applicationPotential && (
-                <>
-                  <Title level={5}>Khả năng ứng dụng</Title>
-                  <Paragraph>{selectedProposal.applicationPotential}</Paragraph>
-                </>
-              )}
-              {selectedProposal.requestedBudgetDetail && (
-                <>
-                  <Title level={5}>Chi tiết kinh phí</Title>
-                  <Paragraph style={{ whiteSpace: 'pre-wrap' }}>{selectedProposal.requestedBudgetDetail}</Paragraph>
-                </>
-              )}
-            </Card>
-
-            {(selectedProposal.unitComment || selectedProposal.sciDeptComment) && (
-              <>
-                <Divider orientation="left">Ý kiến đánh giá</Divider>
-                {selectedProposal.unitComment && (
-                  <Card size="small" style={{ marginBottom: 16 }}>
-                    <Title level={5}>
-                      Ý kiến Đơn vị{' '}
-                      <Badge
-                        status={selectedProposal.unitApproved ? 'success' : 'error'}
-                        text={selectedProposal.unitApproved ? 'Đề xuất' : 'Không đề xuất'}
-                      />
-                    </Title>
-                    <Paragraph>{selectedProposal.unitComment}</Paragraph>
-                  </Card>
-                )}
-                {selectedProposal.sciDeptComment && (
-                  <Card size="small">
-                    <Title level={5}>
-                      Ý kiến Phòng KH{' '}
-                      {selectedProposal.sciDeptPriority && (
-                        <Tag color={PRIORITY_OPTIONS.find((p) => p.value === selectedProposal.sciDeptPriority)?.color}>
-                          Ưu tiên: {PRIORITY_OPTIONS.find((p) => p.value === selectedProposal.sciDeptPriority)?.label}
-                        </Tag>
-                      )}
-                    </Title>
-                    <Paragraph>{selectedProposal.sciDeptComment}</Paragraph>
-                  </Card>
-                )}
-              </>
-            )}
+            <Divider />
+            <Title level={5}>Lịch sử trạng thái</Title>
+            <Timeline
+              items={audits.map((a) => ({
+                children: (
+                  <div>
+                    <strong>{PROPOSAL_AUDIT_ACTION_LABEL[a.action] || a.action}</strong>
+                    {a.fromStatus || a.toStatus
+                      ? ` · ${a.fromStatus || '—'} → ${a.toStatus || '—'}`
+                      : ''}
+                    {a.actorName ? ` — ${a.actorName}` : ''}
+                    <div style={{ color: '#888', fontSize: 12 }}>
+                      {a.createdAt ? dayjs(a.createdAt).format('DD/MM/YYYY HH:mm') : ''}
+                    </div>
+                    {a.note && <Paragraph style={{ marginBottom: 0 }}>{a.note}</Paragraph>}
+                  </div>
+                ),
+              }))}
+            />
+            {!audits.length && <div style={{ color: '#999' }}>Chưa có lịch sử.</div>}
           </>
         )}
       </Drawer>
 
-      {/* ============ CREATE/EDIT STEPS FORM ============ */}
-      <StepsForm
-        formRef={formRef}
-        onFinish={handleFormFinish}
-        formProps={{
-          validateMessages: {
-            required: '${label} là bắt buộc',
-          },
-        }}
-        stepsFormRender={(dom, submitter) => (
-          <Modal
-            title={editingProposal ? 'Chỉnh sửa đề xuất' : 'Tạo đề xuất mới'}
-            width={900}
-            open={formVisible}
-            onCancel={() => setFormVisible(false)}
-            footer={submitter}
-            destroyOnClose
-          >
-            {dom}
-          </Modal>
-        )}
-      >
-        {/* Step 1: Thông tin chung */}
-        <StepsForm.StepForm
-          name="basicInfo"
-          title="Thông tin chung"
-          initialValues={
-            editingProposal
-              ? editingProposal
-              : { year: new Date().getFullYear(), durationMonths: 12, level: 'TRUONG' }
-          }
-        >
-          <ProFormSelect
-            name="year"
-            label="Năm đề xuất"
-            width="sm"
-            options={[2024, 2025, 2026].map((y) => ({ label: String(y), value: y }))}
-            rules={[{ required: true }]}
-          />
-          <ProFormText
-            name="title"
-            label="Tên đề tài"
-            placeholder="Nhập tên đề tài đề xuất"
-            rules={[{ required: true }, { max: 500, message: 'Tối đa 500 ký tự' }]}
-          />
-          <ProFormSelect
-            name="level"
-            label="Cấp quản lý dự kiến"
-            width="md"
-            options={LEVEL_OPTIONS}
-            rules={[{ required: true }]}
-          />
-          <ProFormSelect
-            name="field"
-            label="Lĩnh vực"
-            width="md"
-            options={FIELD_OPTIONS.map((f) => ({ label: f, value: f }))}
-            rules={[{ required: true }]}
-            showSearch
-          />
-          <ProFormDigit
-            name="durationMonths"
-            label="Thời gian thực hiện (tháng)"
-            width="sm"
-            min={6}
-            max={60}
-            rules={[{ required: true }]}
-          />
-          <ProFormSelect
-            name="keywords"
-            label="Từ khóa"
-            mode="tags"
-            placeholder="Nhập từ khóa và Enter"
-            fieldProps={{
-              tokenSeparators: [','],
-            }}
-          />
-          <Form.Item
-            name="researchOutputTypePath"
-            label="Loại kết quả NCKH dự kiến (danh mục — tuỳ chọn)"
-            tooltip="Chọn mục lá nếu đã xác định loại sản phẩm theo danh mục quy đổi giờ NCKH"
-          >
-            <Cascader
-              options={buildResearchOutputCascaderOptions(researchOutputTree)}
-              placeholder="Chọn nhóm → … → mục lá"
-              showSearch
-              changeOnSelect={false}
-              loading={researchTreeLoading}
-              style={{ width: '100%' }}
-              allowClear
-            />
-          </Form.Item>
-        </StepsForm.StepForm>
-
-        {/* Step 2: Nội dung khoa học */}
-        <StepsForm.StepForm
-          name="scientificContent"
-          title="Nội dung khoa học"
-          initialValues={editingProposal || {}}
-        >
-          <ProFormTextArea
-            name="objectives"
-            label="Mục tiêu nghiên cứu"
-            placeholder="Mô tả mục tiêu của đề tài"
-            rules={[{ required: true }]}
-            fieldProps={{ rows: 3 }}
-          />
-          <ProFormTextArea
-            name="summary"
-            label="Tóm tắt đề tài"
-            placeholder="Tóm tắt nội dung chính của đề tài"
-            rules={[{ required: true }]}
-            fieldProps={{ rows: 4 }}
-          />
-          <ProFormTextArea
-            name="contentOutline"
-            label="Nội dung / Đề cương chi tiết"
-            placeholder="Mô tả chi tiết các nội dung nghiên cứu"
-            fieldProps={{ rows: 5 }}
-          />
-          <ProFormTextArea
-            name="expectedResults"
-            label="Kết quả / Sản phẩm dự kiến"
-            placeholder="Liệt kê các kết quả và sản phẩm dự kiến"
-            fieldProps={{ rows: 3 }}
-          />
-          <ProFormTextArea
-            name="applicationPotential"
-            label="Khả năng ứng dụng"
-            placeholder="Mô tả khả năng ứng dụng của kết quả nghiên cứu"
-            fieldProps={{ rows: 3 }}
-          />
-        </StepsForm.StepForm>
-
-        {/* Step 3: Nhân sự & Kinh phí */}
-        <StepsForm.StepForm
-          name="personnelBudget"
-          title="Nhân sự & Kinh phí"
-          initialValues={
-            editingProposal || {
-              ownerName: currentUser?.name || 'Người dùng',
-              ownerUnit: 'Khoa Công nghệ thông tin',
-            }
-          }
-        >
-          <ProFormText
-            name="ownerName"
-            label="Chủ nhiệm đề tài"
-            disabled
-            tooltip="Thông tin lấy từ tài khoản đăng nhập"
-          />
-          <ProFormSelect
-            name="ownerUnit"
-            label="Đơn vị"
-            disabled
-            options={UNIT_OPTIONS.map((u) => ({ label: u, value: u }))}
-          />
-          <ProFormSelect
-            name="coAuthors"
-            label="Thành viên tham gia"
-            mode="tags"
-            placeholder="Nhập tên thành viên và Enter"
-          />
-          <ProFormDigit
-            name="requestedBudgetTotal"
-            label="Kinh phí đề nghị tổng (VNĐ)"
-            width="md"
-            min={0}
-            fieldProps={{
-              formatter: (value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ','),
-              parser: (value) => value!.replace(/\$\s?|(,*)/g, ''),
-            }}
-          />
-          <ProFormTextArea
-            name="requestedBudgetDetail"
-            label="Mô tả chi tiết kinh phí"
-            placeholder="Chi tiết các khoản chi dự kiến"
-            fieldProps={{ rows: 4 }}
-          />
-        </StepsForm.StepForm>
-      </StepsForm>
-
-      {/* ============ UNIT REVIEW MODAL ============ */}
       <Modal
-        title="Ý kiến Đơn vị"
+        title="Khoa xử lý hồ sơ"
         open={unitReviewVisible}
         onCancel={() => {
           setUnitReviewVisible(false);
           unitReviewForm.resetFields();
         }}
-        onOk={handleUnitReviewSubmit}
-        okText="Lưu ý kiến"
-        cancelText="Huỷ"
+        onOk={async () => {
+          const values = await unitReviewForm.validateFields();
+          try {
+            await unitReviewProposal(reviewProposal!.id, {
+              unitApproved: values.unitApproved,
+              unitComment: values.unitComment,
+            });
+            message.success(
+              values.unitApproved ? 'Đã xác nhận — chuyển chờ PKH' : 'Đã trả lại giảng viên',
+            );
+            setUnitReviewVisible(false);
+            unitReviewForm.resetFields();
+            tableRef.current?.reload();
+            reloadPending();
+          } catch (e: any) {
+            message.error(e?.data?.message || e?.message || 'Thất bại');
+          }
+        }}
+        okText="Xác nhận"
       >
         <Form form={unitReviewForm} layout="vertical">
           <Form.Item
             name="unitApproved"
-            label="Quyết định của đơn vị"
-            rules={[{ required: true, message: 'Vui lòng chọn' }]}
+            label="Quyết định"
+            rules={[{ required: true, message: 'Chọn quyết định' }]}
           >
             <Radio.Group>
               <Radio value={true}>
-                <CheckCircleOutlined style={{ color: '#52c41a' }} /> Đề xuất thực hiện
+                <CheckCircleOutlined style={{ color: '#52c41a' }} /> Xác nhận hồ sơ (→ Chờ PKH)
               </Radio>
               <Radio value={false}>
-                <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> Không đề xuất
+                <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> Trả lại giảng viên chỉnh sửa
               </Radio>
             </Radio.Group>
           </Form.Item>
-          <Form.Item name="unitComment" label="Ý kiến nhận xét">
-            <Input.TextArea rows={4} placeholder="Nhập ý kiến nhận xét của đơn vị..." />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* ============ SCI DEPT REVIEW MODAL ============ */}
-      <Modal
-        title="Sơ duyệt đề xuất"
-        open={sciDeptReviewVisible}
-        onCancel={() => {
-          setSciDeptReviewVisible(false);
-          sciDeptReviewForm.resetFields();
-        }}
-        onOk={handleSciDeptReviewSubmit}
-        okText="Xác nhận"
-        cancelText="Huỷ"
-        width={500}
-      >
-        <Form form={sciDeptReviewForm} layout="vertical">
           <Form.Item
-            name="status"
-            label="Quyết định"
-            rules={[{ required: true, message: 'Vui lòng chọn quyết định' }]}
+            name="unitComment"
+            label="Nội dung / yêu cầu chỉnh sửa"
+            rules={[{ required: true, message: 'Bắt buộc' }]}
           >
-            <Radio.Group>
-              <Radio value="APPROVED">
-                <CheckCircleOutlined style={{ color: '#52c41a' }} /> Phê duyệt
-              </Radio>
-              <Radio value="REJECTED">
-                <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> Không phê duyệt
-              </Radio>
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item name="sciDeptPriority" label="Mức ưu tiên">
-            <Radio.Group>
-              {PRIORITY_OPTIONS.map((p) => (
-                <Radio key={p.value} value={p.value}>
-                  <Tag color={p.color}>{p.label}</Tag>
-                </Radio>
-              ))}
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item name="sciDeptComment" label="Ý kiến Phòng Khoa học">
-            <Input.TextArea rows={4} placeholder="Nhập ý kiến nhận xét..." />
+            <Input.TextArea rows={4} placeholder="Nhập nhận xét..." />
           </Form.Item>
         </Form>
       </Modal>

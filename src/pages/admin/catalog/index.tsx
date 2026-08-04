@@ -6,16 +6,17 @@ import React, { useState } from 'react';
 import { PageContainer } from '@ant-design/pro-components';
 import { Tabs, Card } from 'antd';
 import { useAccess } from '@umijs/max';
-import { AppstoreOutlined, SettingOutlined, ApartmentOutlined, ReadOutlined, ClusterOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, SettingOutlined, ApartmentOutlined, ReadOutlined, ClusterOutlined, PartitionOutlined } from '@ant-design/icons';
 import ResearchOutputTypes from './ResearchOutputTypes';
 import Fields from './Fields';
 import Specializations from './Specializations';
+import ProjectProcessTypes from './ProjectProcessTypes';
 import Departments from '@/pages/admin/departments';
 
 const AdminCatalogPage: React.FC = () => {
   const access = useAccess();
 
-  // Chỉ hiển thị tab mà người dùng có quyền xem (Loại KQNC dùng chung quyền danh mục).
+  // Chỉ hiển thị tab mà người dùng có quyền xem
   const items = [
     access.canViewDepartments && {
       key: 'departments',
@@ -56,6 +57,16 @@ const AdminCatalogPage: React.FC = () => {
         </span>
       ),
       children: <Specializations />,
+    },
+    access.canViewProjectProcessTypes && {
+      key: 'project-process-types',
+      label: (
+        <span>
+          <PartitionOutlined />
+          Loại quy trình đề tài
+        </span>
+      ),
+      children: <ProjectProcessTypes />,
     },
     access.canViewCatalog && {
       key: 'other',

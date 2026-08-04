@@ -340,7 +340,6 @@ const AdminPublicationFormFields: React.FC<AdminPublicationFormFieldsProps> = ({
       <AuthorsEditor
         value={authors}
         onChange={onAuthorsChange}
-        authorLookupScope="admin"
         showContribution={show('contributionRate')}
       />
     </Form>

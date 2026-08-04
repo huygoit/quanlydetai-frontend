@@ -2,22 +2,30 @@
  * Trang phân quyền cho Role - Advanced Form với FooterToolbar
  */
 import { PageContainer, FooterToolbar, ProCard } from '@ant-design/pro-components';
-import { 
-  Checkbox, 
-  message, 
-  Spin, 
-  Button, 
-  Space, 
-  Descriptions, 
+import {
+  Checkbox,
+  message,
+  Spin,
+  Button,
+  Space,
+  Descriptions,
   Badge,
   Row,
   Col,
   Divider,
   Typography,
   Empty,
+  Input,
 } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, CheckSquareOutlined, MinusSquareOutlined, PlusOutlined } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import {
+  ArrowLeftOutlined,
+  SaveOutlined,
+  CheckSquareOutlined,
+  MinusSquareOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from '@ant-design/icons';
+import { useEffect, useMemo, useState } from 'react';
 import { history, useParams } from '@umijs/max';
 import {
   getRoleDetail,
@@ -27,14 +35,14 @@ import {
   type RoleItem,
 } from '@/services/api/roles';
 import {
-  queryPermissions,
+  getAllPermissions,
   syncMissingPermissions,
   loadEffectiveModuleLabelMap,
   PERMISSION_MODULE_MAP,
   type PermissionItem,
 } from '@/services/api/permissions';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface GroupedPermissions {
   [module: string]: PermissionItem[];
@@ -51,13 +59,14 @@ const RolePermissionsPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [initialSelectedIds, setInitialSelectedIds] = useState<number[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [keyword, setKeyword] = useState('');
   const [moduleLabels, setModuleLabels] = useState<Record<string, string>>({
     ...PERMISSION_MODULE_MAP,
   });
 
   useEffect(() => {
     if (roleId) {
-      loadData();
+      void loadData(true);
     }
   }, [roleId]);
 
@@ -68,46 +77,48 @@ const RolePermissionsPage: React.FC = () => {
   const groupPermissionsByModule = (permissions: PermissionItem[]): GroupedPermissions => {
     const grouped = permissions.reduce((acc, perm) => {
       const module = perm.module || 'other';
-      if (!acc[module]) {
-        acc[module] = [];
-      }
+      if (!acc[module]) acc[module] = [];
       acc[module].push(perm);
       return acc;
     }, {} as GroupedPermissions);
 
-    // Sort permissions within each module by name
     Object.keys(grouped).forEach((module) => {
-      grouped[module].sort((a, b) => a.name.localeCompare(b.name));
+      grouped[module].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
     });
-
     return grouped;
   };
 
-  const loadData = async () => {
+  const loadData = async (alsoSync = false) => {
     setLoading(true);
     try {
+      if (alsoSync) {
+        try {
+          await syncMissingPermissions();
+        } catch {
+          /* bỏ qua — vẫn tải danh sách */
+        }
+      }
+
       const [roleRes, permissionsRes, rolePermissionsRes] = await Promise.all([
         getRoleDetail(roleId),
-        queryPermissions({ perPage: 500, status: 'ACTIVE' }),
+        getAllPermissions(),
         getRolePermissions(roleId),
       ]);
 
-      if (roleRes?.data) {
-        setRole(roleRes.data);
-      }
+      if (roleRes?.data) setRole(roleRes.data);
 
-      if (permissionsRes?.data) {
-        const grouped = groupPermissionsByModule(permissionsRes.data);
-        setGroupedPermissions(grouped);
-      }
+      const allPerms = Array.isArray(permissionsRes?.data) ? permissionsRes.data : [];
+      setGroupedPermissions(groupPermissionsByModule(allPerms));
 
       if (rolePermissionsRes?.data) {
         const raw = rolePermissionsRes.data || [];
-        const ids = raw.map((p: any) => Number(typeof p === 'object' ? p.id : p)).filter((n) => !isNaN(n));
+        const ids = raw
+          .map((p: any) => Number(typeof p === 'object' ? p.id : p))
+          .filter((n) => !Number.isNaN(n));
         setSelectedIds(ids);
         setInitialSelectedIds(ids);
       }
-    } catch (error) {
+    } catch {
       message.error('Không thể tải dữ liệu');
     } finally {
       setLoading(false);
@@ -120,7 +131,6 @@ const RolePermissionsPage: React.FC = () => {
       const result = await updateRolePermissions(roleId, {
         permission_ids: selectedIds,
       });
-
       if (result?.data || result) {
         message.success('Cập nhật quyền thành công');
         history.push('/admin/iam/roles');
@@ -132,21 +142,17 @@ const RolePermissionsPage: React.FC = () => {
     }
   };
 
-  const handleCancel = () => {
-    history.push('/admin/iam/roles');
-  };
+  const handleCancel = () => history.push('/admin/iam/roles');
 
   const handleSyncMissing = async () => {
     setSyncing(true);
     try {
       const result = await syncMissingPermissions();
       const added = result?.data?.added ?? 0;
-      if (added > 0) {
-        message.success(`Đã bổ sung ${added} quyền chuẩn. Đang tải lại danh sách...`);
-        loadData();
-      } else {
-        message.info('Không có quyền nào cần bổ sung.');
-      }
+      message[added > 0 ? 'success' : 'info'](
+        added > 0 ? `Đã bổ sung ${added} quyền chuẩn` : 'Catalog đã đủ quyền chuẩn',
+      );
+      await loadData(false);
     } catch {
       message.error('Không thể bổ sung quyền.');
     } finally {
@@ -154,40 +160,26 @@ const RolePermissionsPage: React.FC = () => {
     }
   };
 
-  const toNum = (id: any) => Number(id);
-
-  const isSelected = (id: any) => selectedIds.includes(toNum(id));
+  const toNum = (v: any) => Number(v);
+  const isSelected = (pid: any) => selectedIds.includes(toNum(pid));
 
   const handleModuleCheckAll = (module: string, checked: boolean) => {
-    const permissions = groupedPermissions[module] || [];
-    const moduleIds = permissions.map((p) => toNum(p.id));
-
-    if (checked) {
-      setSelectedIds((prev) => [...new Set([...prev, ...moduleIds])]);
-    } else {
-      setSelectedIds((prev) => prev.filter((id) => !moduleIds.includes(id)));
-    }
+    const moduleIds = (groupedPermissions[module] || []).map((p) => toNum(p.id));
+    if (checked) setSelectedIds((prev) => [...new Set([...prev, ...moduleIds])]);
+    else setSelectedIds((prev) => prev.filter((x) => !moduleIds.includes(x)));
   };
 
   const handlePermissionChange = (permissionId: any, checked: boolean) => {
     const numId = toNum(permissionId);
-    if (checked) {
-      setSelectedIds((prev) => [...prev, numId]);
-    } else {
-      setSelectedIds((prev) => prev.filter((id) => id !== numId));
-    }
+    if (checked) setSelectedIds((prev) => [...prev, numId]);
+    else setSelectedIds((prev) => prev.filter((x) => x !== numId));
   };
 
   const handleSelectAll = () => {
-    const allIds = Object.values(groupedPermissions)
-      .flat()
-      .map((p) => toNum(p.id));
-    setSelectedIds(allIds);
+    setSelectedIds(Object.values(groupedPermissions).flat().map((p) => toNum(p.id)));
   };
 
-  const handleDeselectAll = () => {
-    setSelectedIds([]);
-  };
+  const handleDeselectAll = () => setSelectedIds([]);
 
   const isModuleAllChecked = (module: string) => {
     const permissions = groupedPermissions[module] || [];
@@ -200,9 +192,7 @@ const RolePermissionsPage: React.FC = () => {
     return checkedCount > 0 && checkedCount < permissions.length;
   };
 
-  const getModuleName = (module: string) => {
-    return moduleLabels[module] || module;
-  };
+  const getModuleName = (module: string) => moduleLabels[module] || module;
 
   const getModuleColor = (module: string): string => {
     const colorMap: Record<string, string> = {
@@ -211,6 +201,7 @@ const RolePermissionsPage: React.FC = () => {
       role: '#722ed1',
       permission: '#eb2f96',
       project: '#52c41a',
+      cfp: '#389e0d',
       idea: '#faad14',
       council: '#fa8c16',
       publication: '#2f54eb',
@@ -223,12 +214,31 @@ const RolePermissionsPage: React.FC = () => {
     return colorMap[module] || '#1890ff';
   };
 
-  const modules = Object.keys(groupedPermissions).sort((a, b) => 
-    getModuleName(a).localeCompare(getModuleName(b))
+  const filteredGrouped = useMemo(() => {
+    const q = keyword.trim().toLowerCase();
+    if (!q) return groupedPermissions;
+    const out: GroupedPermissions = {};
+    Object.entries(groupedPermissions).forEach(([mod, list]) => {
+      const matched = list.filter(
+        (p) =>
+          p.code.toLowerCase().includes(q) ||
+          (p.name || '').toLowerCase().includes(q) ||
+          mod.toLowerCase().includes(q) ||
+          getModuleName(mod).toLowerCase().includes(q),
+      );
+      if (matched.length) out[mod] = matched;
+    });
+    return out;
+  }, [groupedPermissions, keyword, moduleLabels]);
+
+  const modules = Object.keys(filteredGrouped).sort((a, b) =>
+    getModuleName(a).localeCompare(getModuleName(b), 'vi'),
   );
 
   const totalPermissions = Object.values(groupedPermissions).flat().length;
-  const hasChanges = JSON.stringify([...selectedIds].sort()) !== JSON.stringify([...initialSelectedIds].sort());
+  const visiblePermissions = Object.values(filteredGrouped).flat().length;
+  const hasChanges =
+    JSON.stringify([...selectedIds].sort()) !== JSON.stringify([...initialSelectedIds].sort());
 
   return (
     <PageContainer
@@ -252,9 +262,9 @@ const RolePermissionsPage: React.FC = () => {
               <Text strong>{role.name}</Text>
             </Descriptions.Item>
             <Descriptions.Item label="Trạng thái">
-              <Badge 
-                status={ROLE_STATUS_MAP[role.status]?.status as any} 
-                text={ROLE_STATUS_MAP[role.status]?.text} 
+              <Badge
+                status={ROLE_STATUS_MAP[role.status]?.status as any}
+                text={ROLE_STATUS_MAP[role.status]?.text}
               />
             </Descriptions.Item>
           </Descriptions>
@@ -262,19 +272,23 @@ const RolePermissionsPage: React.FC = () => {
       }
     >
       <Spin spinning={loading}>
-        {/* Statistics & Quick Actions */}
         <ProCard style={{ marginBottom: 16 }}>
-          <Row justify="space-between" align="middle">
-            <Col>
-              <Space size="large">
+          <Row justify="space-between" align="middle" gutter={[12, 12]}>
+            <Col flex="auto">
+              <Space size="large" wrap>
                 <div>
                   <Text type="secondary">Tổng số quyền: </Text>
                   <Text strong>{totalPermissions}</Text>
+                  {keyword ? (
+                    <Text type="secondary"> (đang lọc: {visiblePermissions})</Text>
+                  ) : null}
                 </div>
                 <Divider type="vertical" />
                 <div>
                   <Text type="secondary">Đã chọn: </Text>
-                  <Text strong style={{ color: '#1890ff' }}>{selectedIds.length}</Text>
+                  <Text strong style={{ color: '#1890ff' }}>
+                    {selectedIds.length}
+                  </Text>
                 </div>
                 <Divider type="vertical" />
                 <div>
@@ -284,28 +298,28 @@ const RolePermissionsPage: React.FC = () => {
               </Space>
             </Col>
             <Col>
-              <Space>
+              <Space wrap>
+                <Input
+                  allowClear
+                  prefix={<SearchOutlined />}
+                  placeholder="Tìm: selection, xét chọn, cfp…"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  style={{ width: 260 }}
+                />
                 <Button
                   type="primary"
                   icon={<PlusOutlined />}
-                  onClick={handleSyncMissing}
+                  onClick={() => void handleSyncMissing()}
                   loading={syncing}
                   size="small"
                 >
                   Bổ sung quyền chuẩn
                 </Button>
-                <Button 
-                  icon={<CheckSquareOutlined />} 
-                  onClick={handleSelectAll}
-                  size="small"
-                >
+                <Button icon={<CheckSquareOutlined />} onClick={handleSelectAll} size="small">
                   Chọn tất cả
                 </Button>
-                <Button 
-                  icon={<MinusSquareOutlined />} 
-                  onClick={handleDeselectAll}
-                  size="small"
-                >
+                <Button icon={<MinusSquareOutlined />} onClick={handleDeselectAll} size="small">
                   Bỏ chọn tất cả
                 </Button>
               </Space>
@@ -313,11 +327,10 @@ const RolePermissionsPage: React.FC = () => {
           </Row>
         </ProCard>
 
-        {/* Permission Groups */}
         {modules.length > 0 ? (
           <Row gutter={[16, 16]}>
             {modules.map((module) => {
-              const permissions = groupedPermissions[module] || [];
+              const permissions = filteredGrouped[module] || [];
               const checkedCount = permissions.filter((p) => isSelected(p.id)).length;
               const moduleColor = getModuleColor(module);
 
@@ -342,30 +355,24 @@ const RolePermissionsPage: React.FC = () => {
                     bordered
                     headerBordered
                     size="small"
-                    style={{ 
-                      height: '100%',
-                      borderTop: `3px solid ${moduleColor}`,
-                    }}
-                    bodyStyle={{ 
-                      maxHeight: 280, 
-                      overflowY: 'auto',
-                      padding: '12px 16px',
-                    }}
+                    style={{ height: '100%', borderTop: `3px solid ${moduleColor}` }}
+                    bodyStyle={{ maxHeight: 420, overflowY: 'auto', padding: '12px 16px' }}
                   >
                     <Space direction="vertical" style={{ width: '100%' }} size={4}>
                       {permissions.map((permission) => (
-                        <div 
+                        <div
                           key={permission.id}
                           style={{
                             padding: '6px 8px',
                             borderRadius: 4,
                             background: isSelected(permission.id) ? '#e6f7ff' : 'transparent',
-                            transition: 'background 0.2s',
                           }}
                         >
                           <Checkbox
                             checked={isSelected(permission.id)}
-                            onChange={(e) => handlePermissionChange(permission.id, e.target.checked)}
+                            onChange={(e) =>
+                              handlePermissionChange(permission.id, e.target.checked)
+                            }
                             style={{ width: '100%' }}
                           >
                             <div>
@@ -386,12 +393,17 @@ const RolePermissionsPage: React.FC = () => {
           </Row>
         ) : (
           <ProCard>
-            <Empty description="Không có quyền nào" />
+            <Empty
+              description={
+                keyword
+                  ? `Không thấy quyền khớp “${keyword}”. Thử “selection” hoặc “xét chọn”.`
+                  : 'Không có quyền nào'
+              }
+            />
           </ProCard>
         )}
       </Spin>
 
-      {/* Footer Toolbar - Sticky */}
       <FooterToolbar>
         <Space>
           {hasChanges && (
@@ -402,11 +414,11 @@ const RolePermissionsPage: React.FC = () => {
           <Button icon={<ArrowLeftOutlined />} onClick={handleCancel}>
             Quay lại
           </Button>
-          <Button 
-            type="primary" 
-            icon={<SaveOutlined />} 
-            loading={saving} 
-            onClick={handleSave}
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={saving}
+            onClick={() => void handleSave()}
             disabled={!hasChanges}
           >
             Lưu thay đổi

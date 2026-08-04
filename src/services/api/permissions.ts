@@ -52,6 +52,8 @@ export const PERMISSION_MODULE_MAP: Record<string, string> = {
   role: 'Vai trò',
   permission: 'Quyền',
   project: 'Đề tài',
+  cfp: 'Thông báo tuyển chọn đề tài',
+  project_process_type: 'Loại quy trình đề tài',
   idea: 'Ý tưởng',
   council: 'Hội đồng',
   publication: 'Kết quả nghiên cứu khoa học',
@@ -80,10 +82,35 @@ export async function getGroupedPermissions(): Promise<ApiResponse<GroupedPermis
 }
 
 /**
- * Lấy tất cả permissions (không phân trang)
+ * Lấy tất cả permissions ACTIVE (không phân trang).
+ * Fallback: lật trang nếu /all chưa có trên server cũ.
  */
 export async function getAllPermissions(): Promise<ApiResponse<PermissionItem[]>> {
-  return get<ApiResponse<PermissionItem[]>>('/api/admin/permissions/all');
+  try {
+    return await get<ApiResponse<PermissionItem[]>>('/api/admin/permissions/all', {
+      status: 'ACTIVE',
+    });
+  } catch {
+    // Server chưa có /all — gom đủ trang
+    const pageSize = 200;
+    let page = 1;
+    let lastPage = 1;
+    const all: PermissionItem[] = [];
+    do {
+      const res = await queryPermissions({
+        page,
+        perPage: pageSize,
+        status: 'ACTIVE',
+        sortBy: 'module',
+        order: 'asc',
+      });
+      const chunk = Array.isArray(res?.data) ? res.data : [];
+      all.push(...chunk);
+      lastPage = Number(res?.meta?.lastPage || 1);
+      page += 1;
+    } while (page <= lastPage && page <= 50);
+    return { success: true, data: all };
+  }
 }
 
 /**
