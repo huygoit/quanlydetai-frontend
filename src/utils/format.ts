@@ -89,3 +89,26 @@ export function formatProfileOrganization(
 ): string {
   return formatProfileOrganizationLine(organization, faculty);
 }
+
+/** Hiển thị số tiền Việt Nam Đồng: 1.234.567 đ */
+export function formatVnd(value?: number | string | null, opts?: { suffix?: boolean }): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const n = Number(value);
+  if (Number.isNaN(n)) return '—';
+  const formatted = n.toLocaleString('vi-VN', { maximumFractionDigits: 0 });
+  return opts?.suffix === false ? formatted : `${formatted} đ`;
+}
+
+/** formatter / parser cho InputNumber & ProFormDigit (dấu chấm nghìn kiểu VN) */
+export const vndInputNumberProps = {
+  formatter: (value: string | number | undefined) => {
+    if (value === undefined || value === null || value === '') return '';
+    const raw = String(value).replace(/[^\d]/g, '');
+    if (!raw) return '';
+    return Number(raw).toLocaleString('vi-VN');
+  },
+  parser: (value: string | undefined) => {
+    const raw = (value || '').replace(/[^\d]/g, '');
+    return raw ? Number(raw) : (0 as any);
+  },
+};

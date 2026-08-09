@@ -213,8 +213,9 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     }
 
     const nhapTayThieuGioiTinh = dataSource.filter((a) => laTacGiaNhapTay(a) && !a.gender);
-    if (nhapTayThieuGioiTinh.length > 0) {
-      const nhan = hideRoleColumns ? 'Thành viên' : 'Tác giả';
+    // Đề xuất / thuyết minh (hideRoleColumns): không hiện cảnh báo giới tính cho đỡ chiếm chỗ
+    if (!hideRoleColumns && nhapTayThieuGioiTinh.length > 0) {
+      const nhan = 'Tác giả';
       errors.push(
         nhapTayThieuGioiTinh.length === 1
           ? `${nhan} "${nhapTayThieuGioiTinh[0].fullName?.trim() || 'nhập tay'}" cần chọn giới tính`
@@ -514,6 +515,10 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   const hienThiOGioiTinh = (record: AuthorEditableRow) => {
     const label = nhanGioiTinhTacGia(record.gender);
     if (label === '—') {
+      // Đề xuất / thuyết minh: thành viên ngoài không có GT → để trống, không báo đỏ
+      if (hideRoleColumns) {
+        return <Text type="secondary">—</Text>;
+      }
       return laTacGiaNhapTay(record) ? (
         <Text type="danger">Chưa chọn</Text>
       ) : (
@@ -636,27 +641,31 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       dataIndex: 'gender',
       valueType: 'select',
       width: 110,
-      editable: (_, record) => choPhepSuaThongTin(record) && laTacGiaNhapTay(record),
+      // Đề xuất/thuyết minh: GT chỉ từ hồ sơ liên kết; ngoài hệ thống để trống (không chọn tay)
+      editable: (_, record) =>
+        !hideRoleColumns && choPhepSuaThongTin(record) && laTacGiaNhapTay(record),
       fieldProps: {
         options: AUTHOR_GENDER_OPTIONS,
         placeholder: 'Chọn',
       },
       formItemProps: (_form, { entity }) => ({
-        rules: [
-          {
-            validator: async (_, value) => {
-              const row = entity as AuthorEditableRow | undefined;
-              if (!row || !laTacGiaNhapTay(row)) return;
-              if (value) return;
-              throw new Error('Bắt buộc với tác giả nhập tay');
-            },
-          },
-        ],
+        rules: hideRoleColumns
+          ? []
+          : [
+              {
+                validator: async (_, value) => {
+                  const row = entity as AuthorEditableRow | undefined;
+                  if (!row || !laTacGiaNhapTay(row)) return;
+                  if (value) return;
+                  throw new Error('Bắt buộc với tác giả nhập tay');
+                },
+              },
+            ],
       }),
       render: (_, record) => hienThiOGioiTinh(record),
       renderFormItem: (_, { defaultRender, record }) => {
-        if (record && !laTacGiaNhapTay(record)) {
-          return hienThiOGioiTinh(record);
+        if (hideRoleColumns || (record && !laTacGiaNhapTay(record))) {
+          return hienThiOGioiTinh(record as AuthorEditableRow);
         }
         return defaultRender ? defaultRender(_) : null;
       },

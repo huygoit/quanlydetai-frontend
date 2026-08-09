@@ -32,11 +32,15 @@ import {
   bghRejectSelection,
   getSelectionSummary,
   updateSelectionSessionMeta,
+  getSelectionSessionMembers,
   COUNCIL_RESULT_OPTIONS,
   SESSION_STATUS_MAP,
+  SELECTION_MEMBER_ROLE_MAP,
   type CouncilResult,
   type SelectionSession,
   type SelectionSessionItem,
+  type SelectionSessionMember,
+  type SelectionMemberRole,
 } from '@/services/api/proposalSelectionSessions';
 import { API_BASE_URL } from '@/services/request';
 
@@ -55,16 +59,15 @@ const SelectionSessionDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState<{
-    totals: { dongY: number; dieuChinh: number; khongDongY: number; total: number };
+    totals: { dongY: number; khongDongY: number; total: number };
     byUnit: Array<{
       unit: string;
       dongY: number;
-      dieuChinh: number;
       khongDongY: number;
       total: number;
     }>;
   } | null>(null);
-  const [membersText, setMembersText] = useState('');
+  const [members, setMembers] = useState<SelectionSessionMember[]>([]);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectForm] = Form.useForm();
 
@@ -90,11 +93,8 @@ const SelectionSessionDetailPage: React.FC = () => {
           adjustmentNote: it.adjustmentNote || '',
         })),
       );
-      setMembersText(
-        (d.councilMembers || [])
-          .map((m) => (m.role ? `${m.name} — ${m.role}` : m.name))
-          .join('\n'),
-      );
+      const memRes = await getSelectionSessionMembers(sid);
+      setMembers(Array.isArray(memRes.data) ? memRes.data : []);
       const sum = await getSelectionSummary(sid);
       setSummary(sum.data || null);
     } catch (e: any) {
@@ -183,17 +183,14 @@ const SelectionSessionDetailPage: React.FC = () => {
           ),
       },
       {
-        title: 'Nội dung điều chỉnh',
-        width: 200,
-        render: (_: unknown, r: EditRow, idx: number) => {
-          const need = r.councilResult === 'DONG_Y_DIEU_CHINH';
-          if (!need && !r.adjustmentNote) return '—';
-          return editable ? (
+        title: 'Góp ý hội đồng',
+        width: 220,
+        render: (_: unknown, r: EditRow, idx: number) =>
+          editable ? (
             <Input.TextArea
               rows={2}
-              disabled={!need}
               value={r.adjustmentNote}
-              placeholder={need ? 'Bắt buộc khi Đồng ý có điều chỉnh' : ''}
+              placeholder="Tuỳ chọn — bổ sung khi soạn thuyết minh"
               onChange={(e) => {
                 const next = [...rows];
                 next[idx] = { ...next[idx], adjustmentNote: e.target.value };
@@ -202,14 +199,13 @@ const SelectionSessionDetailPage: React.FC = () => {
             />
           ) : (
             r.adjustmentNote || '—'
-          );
-        },
+          ),
       },
     ],
     [editable, rows],
   );
 
-  /** Lưu kết quả + thành phần HĐ; trả về true nếu thành công */
+  /** Lưu kết quả; trả về true nếu thành công */
   const luuKetQua = async (opts?: { silent?: boolean }): Promise<boolean> => {
     if (!session) return false;
     for (const r of rows) {
@@ -217,24 +213,12 @@ const SelectionSessionDetailPage: React.FC = () => {
         message.error(`Thiếu ý kiến/kết quả: ${r.proposal?.code}`);
         return false;
       }
-      if (r.councilResult === 'DONG_Y_DIEU_CHINH' && !r.adjustmentNote?.trim()) {
-        message.error(`Thiếu nội dung điều chỉnh: ${r.proposal?.code}`);
-        return false;
-      }
     }
     setSaving(true);
     try {
-      const memberLines = membersText
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const [name, role] = line.split('—').map((x) => x.trim());
-          return { name: name || line, role };
-        });
+      // Thành viên HĐ quản lý ở Chi tiết phiên (drawer); chỉ lưu kết quả tại đây
       await updateSelectionSessionMeta(session.id, {
         title: session.title,
-        councilMembers: memberLines,
       });
       const res = await saveSelectionSessionResults(session.id, {
         expectedVersion: session.version,
@@ -272,8 +256,17 @@ const SelectionSessionDetailPage: React.FC = () => {
           <Alert
             type="error"
             showIcon
-            message="BGH yêu cầu chỉnh sửa"
-            description={session.bghComment}
+            message="BGH từ chối danh mục xét chọn"
+            description={
+              <>
+                <div>
+                  <strong>Nguyên nhân:</strong> {session.bghComment}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  PKH chỉnh sửa kết quả/biên bản rồi trình lại, hoặc tạo kỳ tuyển chọn mới nếu cần.
+                </div>
+              </>
+            }
           />
         )}
         {locked && (
@@ -288,30 +281,31 @@ const SelectionSessionDetailPage: React.FC = () => {
           <p>
             <strong>Địa điểm:</strong> {session?.location}
           </p>
-          {editable && (
-            <Form layout="vertical">
-              <Form.Item
-                label="Thành phần Hội đồng (mỗi dòng: Họ tên — Vai trò)"
-                extra="VD: PGS.TS. Nguyễn A — Chủ tịch"
-              >
-                <Input.TextArea
-                  rows={3}
-                  value={membersText}
-                  onChange={(e) => setMembersText(e.target.value)}
-                />
-              </Form.Item>
-            </Form>
-          )}
-          {!editable && session?.councilMembers?.length ? (
-            <ul>
-              {session.councilMembers.map((m, i) => (
-                <li key={i}>
-                  {m.name}
-                  {m.role ? ` — ${m.role}` : ''}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <p>
+            <strong>Thành phần Hội đồng:</strong>{' '}
+            {members.length === 0 ? (
+              <span>
+                Chưa có — quản lý tại{' '}
+                <a onClick={() => history.push('/projects/selection-sessions')}>
+                  Chi tiết phiên
+                </a>
+              </span>
+            ) : (
+              <ul style={{ marginBottom: 0 }}>
+                {members.map((m) => {
+                  const role =
+                    SELECTION_MEMBER_ROLE_MAP[m.roleInCouncil as SelectionMemberRole]?.text ||
+                    m.roleInCouncil;
+                  return (
+                    <li key={m.id}>
+                      {m.memberName}
+                      {role ? ` — ${role}` : ''}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </p>
           {session?.minutesFileUrl && (
             <p>
               Biên bản:{' '}
@@ -322,24 +316,19 @@ const SelectionSessionDetailPage: React.FC = () => {
           )}
         </Card>
 
-        {summary && (
+          {summary && (
           <Row gutter={12}>
-            <Col xs={12} md={6}>
+            <Col xs={12} md={8}>
               <Card size="small">
                 <Statistic title="Đồng ý" value={summary.totals.dongY} />
               </Card>
             </Col>
-            <Col xs={12} md={6}>
-              <Card size="small">
-                <Statistic title="Có điều chỉnh" value={summary.totals.dieuChinh} />
-              </Card>
-            </Col>
-            <Col xs={12} md={6}>
+            <Col xs={12} md={8}>
               <Card size="small">
                 <Statistic title="Không đồng ý" value={summary.totals.khongDongY} />
               </Card>
             </Col>
-            <Col xs={12} md={6}>
+            <Col xs={12} md={8}>
               <Card size="small">
                 <Statistic title="Tổng" value={summary.totals.total} />
               </Card>
@@ -356,9 +345,8 @@ const SelectionSessionDetailPage: React.FC = () => {
               dataSource={summary.byUnit}
               columns={[
                 { title: 'Đơn vị', dataIndex: 'unit' },
-                { title: 'Đồng ý', dataIndex: 'dongY', width: 90 },
-                { title: 'Điều chỉnh', dataIndex: 'dieuChinh', width: 100 },
-                { title: 'Không ĐY', dataIndex: 'khongDongY', width: 100 },
+                { title: 'Đồng ý', dataIndex: 'dongY', width: 100 },
+                { title: 'Không đồng ý', dataIndex: 'khongDongY', width: 120 },
                 { title: 'Tổng', dataIndex: 'total', width: 80 },
               ]}
             />
@@ -435,20 +423,46 @@ const SelectionSessionDetailPage: React.FC = () => {
           <>
             <Button
               type="primary"
-              onClick={async () => {
-                try {
-                  await bghApproveSelection(sid);
-                  message.success('BGH đã phê duyệt — phiên khóa, trạng thái đề xuất đã cập nhật');
-                  await load();
-                } catch (e: any) {
-                  message.error(e?.data?.message || e?.message || 'Phê duyệt thất bại');
-                }
+              onClick={() => {
+                Modal.confirm({
+                  title: 'Xác nhận phê duyệt',
+                  content: 'Bạn có chắc là phê duyệt danh mục đề xuất đề tài?',
+                  okText: 'Phê duyệt',
+                  cancelText: 'Hủy',
+                  onOk: async () => {
+                    try {
+                      await bghApproveSelection(sid);
+                      message.success(
+                        'BGH đã phê duyệt — phiên khóa, trạng thái đề xuất đã cập nhật',
+                      );
+                      await load();
+                    } catch (e: any) {
+                      message.error(e?.data?.message || e?.message || 'Phê duyệt thất bại');
+                      throw e;
+                    }
+                  },
+                });
               }}
             >
               BGH phê duyệt
             </Button>
-            <Button danger onClick={() => setRejectOpen(true)}>
-              BGH từ chối / yêu cầu sửa
+            <Button
+              danger
+              onClick={() => {
+                Modal.confirm({
+                  title: 'Xác nhận từ chối',
+                  content: 'Bạn có chắc là từ chối danh mục đề xuất đề tài?',
+                  okText: 'Tiếp tục',
+                  cancelText: 'Hủy',
+                  okButtonProps: { danger: true },
+                  onOk: () => {
+                    rejectForm.resetFields();
+                    setRejectOpen(true);
+                  },
+                });
+              }}
+            >
+              BGH từ chối
             </Button>
           </>
         )}
@@ -458,21 +472,29 @@ const SelectionSessionDetailPage: React.FC = () => {
         title="BGH từ chối danh mục"
         open={rejectOpen}
         onCancel={() => setRejectOpen(false)}
+        okText="Xác nhận từ chối"
+        cancelText="Hủy"
+        okButtonProps={{ danger: true }}
         onOk={async () => {
           const v = await rejectForm.validateFields();
           try {
             await bghRejectSelection(sid, v.reason);
-            message.success('Đã trả lại PKH');
+            message.success('Đã từ chối danh mục — đã thông báo người liên quan');
             setRejectOpen(false);
             await load();
           } catch (e: any) {
-            message.error(e?.data?.message || e?.message || 'Thất bại');
+            message.error(e?.data?.message || e?.message || 'Từ chối thất bại');
+            throw e;
           }
         }}
       >
         <Form form={rejectForm} layout="vertical">
-          <Form.Item name="reason" label="Nội dung phản hồi" rules={[{ required: true }]}>
-            <Input.TextArea rows={4} />
+          <Form.Item
+            name="reason"
+            label="Nội dung từ chối"
+            rules={[{ required: true, message: 'Vui lòng nhập nội dung từ chối' }]}
+          >
+            <Input.TextArea rows={4} placeholder="Nhập lý do từ chối danh mục đề xuất..." />
           </Form.Item>
         </Form>
       </Modal>

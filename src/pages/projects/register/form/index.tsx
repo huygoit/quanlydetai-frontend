@@ -31,6 +31,7 @@ import { ArrowLeftOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons
 import { history, useAccess, useModel, useParams } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
+import { vndInputNumberProps } from '@/utils/format';
 import {
   createProposal,
   updateProposal,
@@ -55,6 +56,7 @@ import {
   getProjectProcessTypeOptions,
   type ProjectProcessTypeOption,
 } from '@/services/api/projectProcessTypes';
+import { openOrCreateOutlineFromProposal } from '@/services/api/projectOutlines';
 import ProposalAttachmentUpload from '@/components/ProposalAttachmentUpload';
 import AuthorsEditor from '@/components/AuthorsEditor';
 
@@ -466,19 +468,49 @@ const ProposalFormPage: React.FC = () => {
           <Alert
             type="success"
             showIcon
-            message="Đề xuất được tuyển chọn"
+            message="Đề xuất được tuyển chọn — có thể soạn thuyết minh"
             description={
-              <Space>
-                <span>Bạn có thể thực hiện chức năng Soạn thuyết minh (khi module sẵn sàng).</span>
-                <Button size="small" onClick={() => void moSoSanhVersion()}>
-                  Xem bản trước/sau điều chỉnh
-                </Button>
+              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                {proposal.councilAdjustmentNote && (
+                  <div>
+                    <strong>Góp ý Hội đồng (tham khảo khi soạn thuyết minh):</strong>{' '}
+                    {proposal.councilAdjustmentNote}
+                  </div>
+                )}
+                <Space wrap>
+                  <Button
+                    type="primary"
+                    size="small"
+                    onClick={async () => {
+                      try {
+                        const res = await openOrCreateOutlineFromProposal(proposal.id);
+                        if (res.data?.id) {
+                          history.push(`/projects/outlines/form/${res.data.id}`);
+                        }
+                      } catch (e: any) {
+                        message.error(
+                          e?.data?.message || e?.message || 'Không mở được thuyết minh',
+                        );
+                      }
+                    }}
+                  >
+                    Soạn thuyết minh
+                  </Button>
+                  <Button size="small" onClick={() => void moSoSanhVersion()}>
+                    Xem bản trước/sau điều chỉnh
+                  </Button>
+                </Space>
               </Space>
             }
           />
         )}
         {proposal?.status === 'KHONG_CHON' && (
-          <Alert type="error" showIcon message="Đề xuất không được tuyển chọn trong kỳ này." />
+          <Alert
+            type="error"
+            showIcon
+            message="Đề xuất không được tuyển chọn trong kỳ này"
+            description="Không áp dụng chức năng Soạn thuyết minh."
+          />
         )}
         {!loadingTypes && processTypeOptions.length === 0 && (
           <Alert
@@ -616,8 +648,8 @@ const ProposalFormPage: React.FC = () => {
                     fieldProps={{
                       size: 'large',
                       style: { width: '100%' },
-                      formatter: (v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ','),
-                      parser: (v) => Number((v || '').replace(/,/g, '')),
+                      ...vndInputNumberProps,
+                      addonAfter: 'đ',
                     }}
                   />
                 </Col>

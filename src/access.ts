@@ -124,10 +124,66 @@ export default function access(initialState: AccessInitialState | undefined) {
     canViewProjectRegister:
       hasAny([PERM.project.create, PERM.project.submit, PERM.project.unit_review]) ||
       has(PERM.project.review),
-    canViewMyProjects: canUsePersonalWorkspace && has(PERM.project.view),
+    /** GV soạn thuyết minh: workspace cá nhân + quyền tạo/nộp/xem đề tài */
+    canViewMyProjects:
+      canUsePersonalWorkspace &&
+      hasAny([PERM.project.view, PERM.project.create, PERM.project.submit]),
     canCreateProjectProposal: hasAny([PERM.project.create, PERM.project.submit]),
+    /** Soạn / nộp thuyết minh chi tiết (US-04-01) */
+    canWriteProjectOutline:
+      canUsePersonalWorkspace &&
+      hasAny([
+        PERM.project.outline_manage,
+        PERM.project.create,
+        PERM.project.submit,
+        PERM.project.update,
+      ]),
     canUnitReviewProjectProposal: has(PERM.project.unit_review),
     canReviewProjectProposal: has(PERM.project.review) || has(PERM.project.selection_manage),
+    /** PKH phân công phản biện kín (US-04-02) */
+    canAssignOutlineBlindReview:
+      has(PERM.project.blind_review_assign) ||
+      has(PERM.project.review) ||
+      has(PERM.project.selection_manage),
+    /** Xem / chấm nhiệm vụ phản biện được phân công (US-04-03) */
+    canViewOutlineReviewTasks:
+      has(PERM.project.blind_review_score) ||
+      canUsePersonalWorkspace ||
+      has(PERM.project.review) ||
+      has(PERM.project.selection_manage),
+    /** PKH tổ chức bảo vệ (US-04-04) */
+    canManageOutlineDefense:
+      has(PERM.project.defense_manage) ||
+      has(PERM.project.review) ||
+      has(PERM.project.selection_manage),
+    /** PKH gia hạn chỉnh sửa TM (US-04-05) */
+    canExtendOutlineRevision:
+      has(PERM.project.outline_revision_extend) ||
+      has(PERM.project.adjustment_extend) ||
+      has(PERM.project.review) ||
+      has(PERM.project.selection_manage),
+    /** US-04-06 — PKH đề xuất kinh phí */
+    canProposeOutlineBudget:
+      has(PERM.project.budget_propose) ||
+      has(PERM.project.review) ||
+      has(PERM.project.selection_manage),
+    /** US-04-06 — TC thẩm tra KP */
+    canConfirmOutlineBudget:
+      has(PERM.project.budget_confirm) || has(PERM.project.liquidation),
+    /** US-04-06 — LĐ phê duyệt */
+    canApproveOutlineBudget:
+      has(PERM.project.outline_approve) ||
+      has(PERM.project.approve) ||
+      has(PERM.project.selection_approve),
+    canViewOutlineBudgetFlow:
+      has(PERM.project.budget_propose) ||
+      has(PERM.project.budget_confirm) ||
+      has(PERM.project.outline_approve) ||
+      has(PERM.project.review) ||
+      has(PERM.project.liquidation) ||
+      has(PERM.project.approve) ||
+      has(PERM.project.selection_manage) ||
+      has(PERM.project.selection_approve),
     canApproveProjectProposal:
       has(PERM.project.approve) || has(PERM.project.selection_approve),
     canManageSelectionSession:
@@ -168,6 +224,8 @@ export default function access(initialState: AccessInitialState | undefined) {
     /** Menu Đề tài: hiện nếu có quyền đề tài / CFP / PKH review */
     canViewProjectsSection:
       has(PERM.project.view) ||
+      has(PERM.project.create) ||
+      has(PERM.project.submit) ||
       has(PERM.cfp.view) ||
       has(PERM.project.review) ||
       has(PERM.project.approve) ||

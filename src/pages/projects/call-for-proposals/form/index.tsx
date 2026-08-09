@@ -10,16 +10,7 @@ import {
   FooterToolbar,
   type ProFormInstance,
 } from '@ant-design/pro-components';
-import { Card, message, Button, Space, Form, Tooltip } from 'antd';
-import {
-  BoldOutlined,
-  ItalicOutlined,
-  UnderlineOutlined,
-  OrderedListOutlined,
-  UnorderedListOutlined,
-  LinkOutlined,
-  ClearOutlined,
-} from '@ant-design/icons';
+import { Card, message, Button, Form } from 'antd';
 import { history, useParams, useAccess } from '@umijs/max';
 import { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
@@ -32,6 +23,7 @@ import {
 } from '@/services/api/callForProposals';
 import { getProjectProcessTypeOptions } from '@/services/api/projectProcessTypes';
 import PublicationAttachmentUpload from '@/components/PublicationForm/PublicationAttachmentUpload';
+import RichTextHtmlField from '@/components/RichTextHtmlField';
 
 /** Tự sinh nhãn kỳ theo loại kỳ + ngày hiện tại (field ẩn trên form). */
 const sinhNhanKy = (periodKind: string, ngay = dayjs()) => {
@@ -74,148 +66,6 @@ const chuanHoaHanNop = (value: unknown): string | null => {
     return d.isValid() ? d.format('YYYY-MM-DD') : null;
   }
   return null;
-};
-
-/**
- * Editor rich text tối giản (không thêm package).
- * Lưu HTML vào contentHtml — khớp spec CFP.
- */
-const RichTextHtmlField: React.FC<{
-  value?: string;
-  onChange?: (html: string) => void;
-}> = ({ value = '', onChange }) => {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const dangSoan = useRef(false);
-
-  useEffect(() => {
-    // Đồng bộ khi load dữ liệu sửa; không ghi đè khi đang gõ
-    if (!editorRef.current || dangSoan.current) return;
-    if (editorRef.current.innerHTML !== (value || '')) {
-      editorRef.current.innerHTML = value || '';
-    }
-  }, [value]);
-
-  const phatSinhThayDoi = () => {
-    onChange?.(editorRef.current?.innerHTML || '');
-  };
-
-  const chayLenh = (cmd: string, arg?: string) => {
-    document.execCommand(cmd, false, arg);
-    editorRef.current?.focus();
-    phatSinhThayDoi();
-  };
-
-  const chenLienKet = () => {
-    const url = window.prompt('Nhập URL liên kết:');
-    if (!url) return;
-    chayLenh('createLink', url);
-  };
-
-  return (
-    <div style={{ border: '1px solid #d9d9d9', borderRadius: 6, overflow: 'hidden' }}>
-      <div
-        style={{
-          padding: '4px 8px',
-          borderBottom: '1px solid #f0f0f0',
-          background: '#fafafa',
-        }}
-      >
-        <Space size={2} wrap>
-          <Tooltip title="In đậm">
-            <Button
-              type="text"
-              size="small"
-              icon={<BoldOutlined />}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                chayLenh('bold');
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="In nghiêng">
-            <Button
-              type="text"
-              size="small"
-              icon={<ItalicOutlined />}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                chayLenh('italic');
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Gạch chân">
-            <Button
-              type="text"
-              size="small"
-              icon={<UnderlineOutlined />}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                chayLenh('underline');
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Danh sách">
-            <Button
-              type="text"
-              size="small"
-              icon={<UnorderedListOutlined />}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                chayLenh('insertUnorderedList');
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Danh sách số">
-            <Button
-              type="text"
-              size="small"
-              icon={<OrderedListOutlined />}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                chayLenh('insertOrderedList');
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Chèn liên kết">
-            <Button
-              type="text"
-              size="small"
-              icon={<LinkOutlined />}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                chenLienKet();
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Xóa định dạng">
-            <Button
-              type="text"
-              size="small"
-              icon={<ClearOutlined />}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                chayLenh('removeFormat');
-              }}
-            />
-          </Tooltip>
-        </Space>
-      </div>
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        style={{ minHeight: 180, padding: 12, outline: 'none', lineHeight: 1.6 }}
-        onFocus={() => {
-          dangSoan.current = true;
-        }}
-        onBlur={() => {
-          dangSoan.current = false;
-          phatSinhThayDoi();
-        }}
-        onInput={phatSinhThayDoi}
-      />
-    </div>
-  );
 };
 
 const CfpFormPage: React.FC = () => {

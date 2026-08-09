@@ -41,12 +41,34 @@ const CallForProposalsListPage: React.FC = () => {
       dataIndex: 'projectProcessTypes',
       search: false,
       width: 260,
-      render: (_, r) =>
-        renderCfpProcessTypeTags(r).map((t) => (
-          <Tag key={t.key} style={{ marginBottom: 2 }}>
-            {t.label}
-          </Tag>
-        )),
+      ellipsis: false,
+      render: (_, r) => (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 4,
+            maxWidth: '100%',
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          }}
+        >
+          {renderCfpProcessTypeTags(r).map((t) => (
+            <Tag
+              key={t.key}
+              style={{
+                marginInlineEnd: 0,
+                whiteSpace: 'normal',
+                height: 'auto',
+                lineHeight: 1.4,
+                paddingBlock: 2,
+              }}
+            >
+              {t.label}
+            </Tag>
+          ))}
+        </div>
+      ),
     },
     {
       title: 'Hạn nộp',

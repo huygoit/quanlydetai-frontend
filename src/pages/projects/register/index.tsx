@@ -29,6 +29,7 @@ import {
   UndoOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  FormOutlined,
 } from '@ant-design/icons';
 import { useModel, useAccess, history } from '@umijs/max';
 import dayjs from 'dayjs';
@@ -52,6 +53,8 @@ import {
   type ProposalAudit,
 } from '@/services/api/projectProposals';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+import { formatVnd } from '@/utils/format';
+import { openOrCreateOutlineFromProposal } from '@/services/api/projectOutlines';
 
 const { Title, Paragraph } = Typography;
 
@@ -269,6 +272,31 @@ const ProjectRegisterPage: React.FC = () => {
           </a>,
         );
       }
+      // GV có đề xuất Được chọn → vào soạn thuyết minh ngay từ danh sách
+      if (record.status === 'DUOC_CHON' && record.canWriteOutline) {
+        actions.push(
+          <a
+            key="outline"
+            style={{ color: '#1677ff', fontWeight: 600 }}
+            onClick={() => {
+              void (async () => {
+                try {
+                  const res = await openOrCreateOutlineFromProposal(record.id);
+                  if (res.data?.id) {
+                    history.push(`/projects/outlines/form/${res.data.id}`);
+                  }
+                } catch (e: any) {
+                  message.error(
+                    e?.data?.message || e?.message || 'Không mở được thuyết minh',
+                  );
+                }
+              })();
+            }}
+          >
+            <FormOutlined /> Soạn thuyết minh
+          </a>,
+        );
+      }
     }
 
     if (
@@ -320,12 +348,10 @@ const ProjectRegisterPage: React.FC = () => {
     {
       title: 'Kinh phí',
       dataIndex: 'requestedBudgetTotal',
-      width: 110,
+      width: 150,
       hideInSearch: true,
       render: (_, r) =>
-        r.requestedBudgetTotal != null
-          ? `${(r.requestedBudgetTotal / 1_000_000).toFixed(0)} tr`
-          : '—',
+        r.requestedBudgetTotal != null ? formatVnd(r.requestedBudgetTotal) : '—',
     },
     {
       title: 'Năm',
@@ -487,7 +513,7 @@ const ProjectRegisterPage: React.FC = () => {
               <Descriptions.Item label="Thời gian / kinh phí">
                 {selectedProposal.durationMonths} tháng ·{' '}
                 {selectedProposal.requestedBudgetTotal != null
-                  ? `${selectedProposal.requestedBudgetTotal.toLocaleString('vi-VN')} đ`
+                  ? formatVnd(selectedProposal.requestedBudgetTotal)
                   : '—'}
               </Descriptions.Item>
               {selectedProposal.researchDirection && (

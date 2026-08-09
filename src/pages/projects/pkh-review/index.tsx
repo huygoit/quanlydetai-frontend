@@ -28,7 +28,7 @@ import {
   EditOutlined,
   EyeOutlined,
   FieldTimeOutlined,
-  PlusOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { history, useAccess } from '@umijs/max';
 import { useEffect, useRef, useState } from 'react';
@@ -42,7 +42,6 @@ import {
   extendProposalSupplement,
   rejectProposalByPkh,
   exportPkhProposalsExcel,
-  createProposalSelectionSession,
   PROPOSAL_STATUS_MAP,
   LEVEL_OPTIONS,
   type ProjectProposal,
@@ -52,6 +51,7 @@ import {
 import { listCallForProposals, type CallForProposal } from '@/services/api/callForProposals';
 import { downloadBlob } from '@/utils/download';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+import { formatVnd } from '@/utils/format';
 
 /** Trạng thái thuộc pipeline PKH (không gồm Chờ Khoa / nháp) */
 const PKH_LIST_STATUSES: ProposalStatus[] = ['CHO_PKH', 'HOP_LE', 'YEU_CAU_BS', 'DA_LOAI'];
@@ -74,12 +74,10 @@ const PkhReviewPage: React.FC = () => {
   const [supplementOpen, setSupplementOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [extendOpen, setExtendOpen] = useState(false);
-  const [sessionOpen, setSessionOpen] = useState(false);
   const [current, setCurrent] = useState<ProjectProposal | null>(null);
   const [supplementForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
   const [extendForm] = Form.useForm();
-  const [sessionForm] = Form.useForm();
 
   useEffect(() => {
     listCallForProposals()
@@ -236,7 +234,7 @@ const PkhReviewPage: React.FC = () => {
       width: 120,
       render: (_, r) =>
         r.requestedBudgetTotal != null
-          ? Number(r.requestedBudgetTotal).toLocaleString('vi-VN')
+          ? formatVnd(r.requestedBudgetTotal)
           : '—',
     },
     {
@@ -341,18 +339,10 @@ const PkhReviewPage: React.FC = () => {
             </Button>
             <Button
               type="primary"
-              icon={<PlusOutlined />}
-              disabled={!cfpId}
-              onClick={() => {
-                sessionForm.resetFields();
-                sessionForm.setFieldsValue({
-                  meetingAt: dayjs().add(10, 'day').hour(8).minute(0),
-                  location: '',
-                });
-                setSessionOpen(true);
-              }}
+              icon={<TeamOutlined />}
+              onClick={() => history.push('/projects/selection-sessions')}
             >
-              Tạo phiên xét chọn
+              Hội đồng xét chọn
             </Button>
           </Space>
         </Card>
@@ -496,7 +486,7 @@ const PkhReviewPage: React.FC = () => {
             <Descriptions.Item label="Thời gian / kinh phí">
               {selected.durationMonths} tháng ·{' '}
               {selected.requestedBudgetTotal != null
-                ? `${Number(selected.requestedBudgetTotal).toLocaleString('vi-VN')} đ`
+                ? formatVnd(selected.requestedBudgetTotal)
                 : '—'}
             </Descriptions.Item>
             {selected.researchDirection && (
@@ -623,80 +613,6 @@ const PkhReviewPage: React.FC = () => {
           </Form.Item>
           <Form.Item name="reason" label="Lý do (tuỳ chọn)">
             <Input.TextArea rows={2} />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal
-        title="Tạo phiên xét chọn"
-        open={sessionOpen}
-        onCancel={() => setSessionOpen(false)}
-        onOk={async () => {
-          const v = await sessionForm.validateFields();
-          if (!cfpId) return;
-          const meetingAt = (v.meetingAt as dayjs.Dayjs).toISOString();
-          try {
-            const res = await createProposalSelectionSession({
-              callForProposalId: cfpId,
-              meetingAt,
-              location: v.location,
-              forceConfirm: false,
-            });
-            message.success('Đã tạo phiên xét chọn');
-            setSessionOpen(false);
-            const newId = Number((res?.data as { id?: number })?.id);
-            history.push(
-              Number.isFinite(newId) && newId > 0
-                ? `/projects/selection-sessions/${newId}`
-                : '/projects/selection-sessions',
-            );
-          } catch (e: any) {
-            const code = e?.data?.code || e?.code;
-            if (code === 'LESS_THAN_5_BUSINESS_DAYS' || e?.data?.warning) {
-              Modal.confirm({
-                title: 'Cảnh báo thời hạn thư mời',
-                content:
-                  e?.data?.message ||
-                  'Ít hơn 5 ngày làm việc trước ngày họp. Vẫn tạo phiên (xác nhận ngoại lệ)?',
-                onOk: async () => {
-                  const res = await createProposalSelectionSession({
-                    callForProposalId: cfpId,
-                    meetingAt,
-                    location: v.location,
-                    forceConfirm: true,
-                  });
-                  message.success('Đã tạo phiên (ngoại lệ < 5 ngày LV)');
-                  setSessionOpen(false);
-                  const newId = Number((res?.data as { id?: number })?.id);
-                  history.push(
-                    Number.isFinite(newId) && newId > 0
-                      ? `/projects/selection-sessions/${newId}`
-                      : '/projects/selection-sessions',
-                  );
-                },
-              });
-              return;
-            }
-            message.error(e?.data?.message || e?.message || 'Tạo phiên thất bại');
-          }
-        }}
-        destroyOnClose
-        width={520}
-      >
-        <Form form={sessionForm} layout="vertical">
-          <Form.Item
-            name="meetingAt"
-            label="Thời gian họp"
-            rules={[{ required: true, message: 'Bắt buộc' }]}
-          >
-            <DatePicker showTime style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item
-            name="location"
-            label="Địa điểm"
-            rules={[{ required: true, message: 'Bắt buộc' }]}
-          >
-            <Input placeholder="Phòng họp / online..." />
           </Form.Item>
         </Form>
       </Modal>

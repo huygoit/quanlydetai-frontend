@@ -145,6 +145,22 @@ export const PERM = {
     selection_approve: 'project.selection_approve',
     /** US-03-05 — gia hạn điều chỉnh */
     adjustment_extend: 'project.adjustment_extend',
+    /** US-04-01 — soạn / nộp / chỉnh sửa thuyết minh */
+    outline_manage: 'project.outline_manage',
+    /** US-04-02 — phân công phản biện kín */
+    blind_review_assign: 'project.blind_review_assign',
+    /** US-04-03 — chấm phản biện kín */
+    blind_review_score: 'project.blind_review_score',
+    /** US-04-04 — tổ chức bảo vệ */
+    defense_manage: 'project.defense_manage',
+    /** US-04-05 — gia hạn chỉnh sửa TM */
+    outline_revision_extend: 'project.outline_revision_extend',
+    /** US-04-06 — PKH đề xuất KP */
+    budget_propose: 'project.budget_propose',
+    /** US-04-06 — TC xác nhận KP */
+    budget_confirm: 'project.budget_confirm',
+    /** US-04-06 — LĐ phê duyệt TM */
+    outline_approve: 'project.outline_approve',
   },
   /** Tài chính - backend dùng project.liquidation */
   finance: {

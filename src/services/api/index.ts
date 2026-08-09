@@ -31,6 +31,11 @@ export * from './openalex';
 
 // Project Proposals
 export * from './projectProposals';
+export * from './projectOutlines';
+export * from './projectOutlineReviews';
+export * from './projectOutlineScores';
+export * from './projectOutlineDefenses';
+export * from './projectOutlineBudgets';
 
 // Call for proposals (Thông báo tuyển chọn)
 export * from './callForProposals';

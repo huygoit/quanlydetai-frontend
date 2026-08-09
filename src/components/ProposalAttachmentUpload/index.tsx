@@ -1,5 +1,5 @@
 /**
- * Upload 1 file biểu mẫu đề xuất — chỉ PDF/DOCX, tối đa 10MB (AC2)
+ * Upload 1 file PDF/DOCX — dùng cho đề xuất / thuyết minh
  */
 import React, { useState } from 'react';
 import { Button, Upload, message } from 'antd';
@@ -8,14 +8,18 @@ import { DeleteOutlined, PaperClipOutlined, UploadOutlined } from '@ant-design/i
 import { uploadFileDon } from '@/services/api/fileUpload';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 
-const THU_MUC = 'projects/proposal-attachments';
-const MAX_BYTES = 10 * 1024 * 1024;
+const THU_MUC_MAC_DINH = 'projects/proposal-attachments';
 const ACCEPT = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 export type ProposalAttachmentUploadProps = {
   value?: string | null;
   onChange?: (url: string | null) => void;
   disabled?: boolean;
+  /** Thư mục lưu (mặc định đề xuất) */
+  folder?: string;
+  /** Dung lượng tối đa MB (mặc định 10; thuyết minh 20) */
+  maxMb?: number;
+  buttonText?: string;
 };
 
 const tenFileTuUrl = (url: string) => {
@@ -31,8 +35,12 @@ const ProposalAttachmentUpload: React.FC<ProposalAttachmentUploadProps> = ({
   value,
   onChange,
   disabled,
+  folder = THU_MUC_MAC_DINH,
+  maxMb = 10,
+  buttonText,
 }) => {
   const [dangTai, setDangTai] = useState(false);
+  const maxBytes = maxMb * 1024 * 1024;
 
   const fileList: UploadFile[] = value
     ? [
@@ -62,8 +70,8 @@ const ProposalAttachmentUpload: React.FC<ProposalAttachmentUploadProps> = ({
           message.error('Chỉ chấp nhận PDF hoặc DOCX');
           return Upload.LIST_IGNORE;
         }
-        if (file.size > MAX_BYTES) {
-          message.error('Dung lượng tối đa 10MB');
+        if (file.size > maxBytes) {
+          message.error(`Dung lượng tối đa ${maxMb}MB`);
           return Upload.LIST_IGNORE;
         }
         return true;
@@ -103,10 +111,10 @@ const ProposalAttachmentUpload: React.FC<ProposalAttachmentUploadProps> = ({
         const file = options.file as File;
         setDangTai(true);
         try {
-          const kq = await uploadFileDon(file, { folder: THU_MUC });
+          const kq = await uploadFileDon(file, { folder });
           onChange?.(kq.url);
           options.onSuccess?.(kq as unknown as Record<string, unknown>);
-          message.success('Đã tải file biểu mẫu');
+          message.success('Đã tải file');
         } catch (e: unknown) {
           const err = e as { message?: string };
           message.error(err?.message || 'Tải file thất bại');
@@ -118,7 +126,7 @@ const ProposalAttachmentUpload: React.FC<ProposalAttachmentUploadProps> = ({
     >
       {!value && !disabled && (
         <Button icon={<UploadOutlined />} loading={dangTai}>
-          Chọn file PDF/DOCX (≤10MB)
+          {buttonText || `Chọn file PDF/DOCX (≤${maxMb}MB)`}
         </Button>
       )}
     </Upload>

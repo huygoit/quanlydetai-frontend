@@ -1,7 +1,7 @@
 /**
  * API phiên xét chọn đề tài — US-03-03/03-04
  */
-import { get, post, put, ApiResponse } from '../request';
+import { get, post, put, del, ApiResponse } from '../request';
 
 export type SelectionSessionStatus =
   | 'CREATED'
@@ -11,7 +11,9 @@ export type SelectionSessionStatus =
   | 'LOCKED'
   | 'RETURNED';
 
-export type CouncilResult = 'DONG_Y' | 'DONG_Y_DIEU_CHINH' | 'KHONG_DONG_Y';
+export type CouncilResult = 'DONG_Y' | 'KHONG_DONG_Y';
+
+export type SelectionMemberRole = 'CHU_TICH' | 'THU_KY' | 'UY_VIEN' | 'PHAN_BIEN';
 
 export interface SelectionSessionItem {
   id: number;
@@ -31,6 +33,30 @@ export interface SelectionSessionItem {
   } | null;
 }
 
+export interface SelectionSessionMember {
+  id: number;
+  memberId: number;
+  memberName: string;
+  memberEmail?: string | null;
+  roleInCouncil: SelectionMemberRole | string;
+  unit?: string | null;
+}
+
+export interface SelectionAvailableMember {
+  userId: number;
+  fullName: string;
+  workEmail: string;
+  degree?: string | null;
+  academicTitle?: string | null;
+  organization?: string | null;
+  faculty?: string | null;
+  department?: string | null;
+  unit?: string | null;
+  currentTitle?: string | null;
+  mainResearchArea?: string | null;
+  phone?: string | null;
+}
+
 export interface SelectionSession {
   id: number;
   title: string;
@@ -47,8 +73,19 @@ export interface SelectionSession {
   lockedAt?: string | null;
   version: number;
   itemCount?: number;
+  memberCount?: number;
   items?: SelectionSessionItem[];
 }
+
+export const SELECTION_MEMBER_ROLE_MAP: Record<
+  SelectionMemberRole,
+  { text: string; color: string }
+> = {
+  CHU_TICH: { text: 'Chủ tịch HĐ', color: 'gold' },
+  THU_KY: { text: 'Thư ký', color: 'blue' },
+  UY_VIEN: { text: 'Ủy viên', color: 'default' },
+  PHAN_BIEN: { text: 'Phản biện', color: 'purple' },
+};
 
 export const SESSION_STATUS_MAP: Record<SelectionSessionStatus, { label: string; color: string }> = {
   CREATED: { label: 'Đã tạo', color: 'default' },
@@ -61,7 +98,6 @@ export const SESSION_STATUS_MAP: Record<SelectionSessionStatus, { label: string;
 
 export const COUNCIL_RESULT_OPTIONS: { value: CouncilResult; label: string }[] = [
   { value: 'DONG_Y', label: 'Đồng ý' },
-  { value: 'DONG_Y_DIEU_CHINH', label: 'Đồng ý có điều chỉnh' },
   { value: 'KHONG_DONG_Y', label: 'Không đồng ý' },
 ];
 
@@ -139,15 +175,48 @@ export async function bghRejectSelection(
 
 export async function getSelectionSummary(id: number): Promise<
   ApiResponse<{
-    totals: { dongY: number; dieuChinh: number; khongDongY: number; total: number };
+    totals: { dongY: number; khongDongY: number; total: number };
     byUnit: Array<{
       unit: string;
       dongY: number;
-      dieuChinh: number;
       khongDongY: number;
       total: number;
     }>;
   }>
 > {
   return get(`/api/proposal-selection-sessions/${id}/summary`);
+}
+
+/** Thành viên hội đồng phiên xét chọn */
+export async function getSelectionSessionMembers(
+  sessionId: number,
+): Promise<ApiResponse<SelectionSessionMember[]>> {
+  return get(`/api/proposal-selection-sessions/${sessionId}/members`);
+}
+
+export async function getSelectionAvailableMembers(
+  sessionId: number,
+  keyword?: string,
+): Promise<ApiResponse<SelectionAvailableMember[]>> {
+  return get(`/api/proposal-selection-sessions/${sessionId}/available-members`, { keyword });
+}
+
+export async function addSelectionSessionMember(
+  sessionId: number,
+  data: {
+    memberId: number;
+    memberName: string;
+    memberEmail?: string;
+    roleInCouncil: SelectionMemberRole;
+    unit?: string;
+  },
+): Promise<ApiResponse<SelectionSessionMember[]>> {
+  return post(`/api/proposal-selection-sessions/${sessionId}/members`, data);
+}
+
+export async function removeSelectionSessionMember(
+  sessionId: number,
+  memberId: number,
+): Promise<ApiResponse<null>> {
+  return del(`/api/proposal-selection-sessions/${sessionId}/members/${memberId}`);
 }

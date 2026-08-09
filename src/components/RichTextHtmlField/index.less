@@ -1,0 +1,50 @@
+.rich-text-html-field {
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.rich-text-html-field__toolbar {
+  padding: 4px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.rich-text-html-field__body {
+  padding: 10px 12px;
+  outline: none;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+/* Chặn khối “hình chữ nhật” thừa từ paste / thẻ div-p của trình duyệt */
+.rich-text-html-field__body p,
+.rich-text-html-field__body div,
+.rich-text-html-field__body span,
+.rich-text-html-field__body li,
+.rich-text-html-field__body table,
+.rich-text-html-field__body td,
+.rich-text-html-field__body th {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  max-width: 100%;
+}
+
+.rich-text-html-field__body p,
+.rich-text-html-field__body div {
+  margin: 0 0 0.4em;
+}
+
+.rich-text-html-field__body p:last-child,
+.rich-text-html-field__body div:last-child {
+  margin-bottom: 0;
+}
+
+.rich-text-html-field__body:empty::before {
+  content: attr(data-placeholder);
+  color: #bfbfbf;
+  pointer-events: none;
+}
