@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import {
   listPublishedCfp,
-  CFP_LEVEL_OPTIONS,
+  renderCfpProcessTypeTags,
   type CallForProposal,
 } from '@/services/api/callForProposals';
 
@@ -77,8 +77,8 @@ const CfpNewsPage: React.FC = () => {
                       <Text type="secondary">
                         {item.periodKind === 'ACADEMIC' ? 'Năm học' : 'Năm TC'} {item.periodLabel}
                       </Text>
-                      {(item.levels || []).map((lv) => (
-                        <Tag key={lv}>{CFP_LEVEL_OPTIONS.find((o) => o.value === lv)?.label || lv}</Tag>
+                      {renderCfpProcessTypeTags(item).map((t) => (
+                        <Tag key={t.key}>{t.label}</Tag>
                       ))}
                       <Text type="secondary">
                         Hạn nộp:{' '}

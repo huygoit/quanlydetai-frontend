@@ -33,6 +33,9 @@ export interface CallForProposal {
   periodLabel: string;
   deadlineAt: string | null;
   levels: CfpLevel[];
+  /** ID loại quy trình đề tài từ danh mục */
+  projectProcessTypeIds?: number[];
+  projectProcessTypes?: Array<{ id: number; code: string; name: string }>;
   contentHtml?: string | null;
   attachmentUrls?: string[];
   status: CfpStatus;
@@ -58,7 +61,9 @@ export interface CfpWritePayload {
   periodKind: CfpPeriodKind;
   periodLabel: string;
   deadlineAt: string;
-  levels: CfpLevel[];
+  /** Chọn từ danh mục loại quy trình đề tài */
+  projectProcessTypeIds: number[];
+  levels?: CfpLevel[];
   contentHtml?: string | null;
   attachmentUrls?: string[];
 }
@@ -71,12 +76,35 @@ export const CFP_STATUS_MAP: Record<CfpStatus, { text: string; color: string }> 
   PUBLISHED: { text: 'Đã phát hành', color: 'success' },
 };
 
+/** @deprecated Dùng danh mục loại quy trình đề tài */
 export const CFP_LEVEL_OPTIONS = [
   { value: 'NHA_NUOC', label: 'Cấp Nhà nước' },
   { value: 'BO', label: 'Cấp Bộ' },
   { value: 'TRUONG', label: 'Cấp Trường' },
   { value: 'CO_SO', label: 'Cấp cơ sở' },
 ];
+
+export const CFP_LEVEL_LABEL: Record<CfpLevel, string> = {
+  NHA_NUOC: 'Cấp Nhà nước',
+  BO: 'Cấp Bộ',
+  TRUONG: 'Cấp Trường',
+  CO_SO: 'Cấp cơ sở',
+};
+
+/** Hiển thị loại đề tài: ưu tiên danh mục, fallback cấp cũ */
+export function renderCfpProcessTypeTags(r: Pick<CallForProposal, 'projectProcessTypes' | 'levels'>) {
+  const types = r.projectProcessTypes || [];
+  if (types.length > 0) {
+    return types.map((t) => ({
+      key: String(t.id),
+      label: t.code ? `${t.code} — ${t.name}` : t.name,
+    }));
+  }
+  return (r.levels || []).map((lv) => ({
+    key: lv,
+    label: CFP_LEVEL_LABEL[lv] || CFP_LEVEL_OPTIONS.find((o) => o.value === lv)?.label || lv,
+  }));
+}
 
 export const CFP_PERIOD_KIND_OPTIONS = [
   { value: 'ACADEMIC', label: 'Năm học (01/08 → 31/07)' },
@@ -168,20 +196,28 @@ export async function getPublishedCfp(id: number) {
   >;
 }
 
-export async function getActiveSubmissionPeriod(level: CfpLevel) {
+export async function getActiveSubmissionPeriod(
+  level: CfpLevel,
+  projectProcessTypeId?: number | null,
+) {
   return get<{
     callForProposalId: number;
     title: string;
     periodId: number;
     deadlineAt: string;
     levels: CfpLevel[];
-  } | null>('/api/call-for-proposals/active-period', { level }) as Promise<
+    projectProcessTypeIds?: number[];
+  } | null>('/api/call-for-proposals/active-period', {
+    level,
+    projectProcessTypeId: projectProcessTypeId || undefined,
+  }) as Promise<
     ApiResponse<{
       callForProposalId: number;
       title: string;
       periodId: number;
       deadlineAt: string;
       levels: CfpLevel[];
+      projectProcessTypeIds?: number[];
     } | null>
   >;
 }

@@ -1,7 +1,36 @@
 /**
- * API nhân sự (bảng staffs) — admin
+ * API nhân sự (bảng staffs) — master hồ sơ nhân sự
  */
-import { get, ApiResponse } from '../request';
+import { get, post, put, ApiResponse } from '../request';
+
+export const GENDER_OPTIONS = [
+  { value: 'MALE', label: 'Nam' },
+  { value: 'FEMALE', label: 'Nữ' },
+  { value: 'OTHER', label: 'Khác' },
+];
+
+export interface StaffWritePayload {
+  staffCode?: string;
+  fullName?: string;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  placeOfBirth?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  currentAddress?: string | null;
+  departmentId?: number | null;
+  positionTitle?: string | null;
+  staffType?: string | null;
+  currentJob?: string | null;
+  professionalDegree?: string | null;
+  academicTitle?: string | null;
+  major?: string | null;
+  identityNumber?: string | null;
+  identityIssueDate?: string | null;
+  identityIssuePlace?: string | null;
+  userId?: number | null;
+  note?: string | null;
+}
 
 /** Bản ghi danh sách (khớp serializeStaffSummary backend) */
 export interface StaffSummary {
@@ -121,4 +150,26 @@ export async function getStaff(id: number, includeSourceData?: boolean): Promise
     `/api/admin/staffs/${id}`,
     includeSourceData ? { includeSourceData: '1' } : undefined,
   );
+}
+
+export async function createStaff(payload: StaffWritePayload): Promise<ApiResponse<StaffDetail>> {
+  return post<ApiResponse<StaffDetail>>('/api/admin/staffs', payload);
+}
+
+export async function updateStaff(
+  id: number,
+  payload: StaffWritePayload,
+): Promise<ApiResponse<StaffDetail>> {
+  return put<ApiResponse<StaffDetail>>(`/api/admin/staffs/${id}`, payload);
+}
+
+/** Hồ sơ nhân sự của user đang đăng nhập */
+export async function getMyStaffProfile(): Promise<ApiResponse<StaffDetail>> {
+  return get<ApiResponse<StaffDetail>>('/api/me/staff-profile');
+}
+
+export async function updateMyStaffProfile(
+  payload: StaffWritePayload,
+): Promise<ApiResponse<StaffDetail>> {
+  return put<ApiResponse<StaffDetail>>('/api/me/staff-profile', payload);
 }

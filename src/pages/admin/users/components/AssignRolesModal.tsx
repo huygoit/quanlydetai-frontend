@@ -52,7 +52,28 @@ const AssignRolesModal: React.FC<AssignRolesModalProps> = ({
     }
   };
 
-  const activeRoles = roleOptions.filter((r) => r.status === 'ACTIVE');
+  // Gộp vai trò đang gán + danh mục ACTIVE để Select luôn hiện tên, không hiện id
+  const selectOptions = (() => {
+    const map = new Map<number, { value: number; label: string }>();
+    roleOptions
+      .filter((r) => !r.status || r.status === 'ACTIVE')
+      .forEach((r) => {
+        if (!r?.id) return;
+        map.set(Number(r.id), {
+          value: Number(r.id),
+          label: r.name || r.code || `Vai trò #${r.id}`,
+        });
+      });
+    (user?.roles || []).forEach((r) => {
+      const id = Number(r.id);
+      if (!id || map.has(id)) return;
+      map.set(id, {
+        value: id,
+        label: r.name || r.code || `Vai trò #${id}`,
+      });
+    });
+    return Array.from(map.values());
+  })();
 
   return (
     <Modal
@@ -89,14 +110,15 @@ const AssignRolesModal: React.FC<AssignRolesModalProps> = ({
               placeholder="Chọn vai trò cho người dùng"
               value={selectedRoleIds}
               onChange={setSelectedRoleIds}
-              options={activeRoles.map((r) => ({
-                value: r.id,
-                label: r.name,
-              }))}
-              filterOption={(input, option) =>
-                (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase())
-              }
+              options={selectOptions}
               optionFilterProp="label"
+              optionLabelProp="label"
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label ?? '')
+                  .toLowerCase()
+                  .includes(input.toLowerCase())
+              }
             />
           </div>
         </Space>

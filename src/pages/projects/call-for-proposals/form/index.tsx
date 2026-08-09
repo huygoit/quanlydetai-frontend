@@ -27,10 +27,10 @@ import {
   createCallForProposal,
   updateCallForProposal,
   getCallForProposal,
-  CFP_LEVEL_OPTIONS,
   CFP_PERIOD_KIND_OPTIONS,
   type CfpWritePayload,
 } from '@/services/api/callForProposals';
+import { getProjectProcessTypeOptions } from '@/services/api/projectProcessTypes';
 import PublicationAttachmentUpload from '@/components/PublicationForm/PublicationAttachmentUpload';
 
 /** Tự sinh nhãn kỳ theo loại kỳ + ngày hiện tại (field ẩn trên form). */
@@ -243,7 +243,7 @@ const CfpFormPage: React.FC = () => {
           periodKind: d.periodKind,
           periodLabel: d.periodLabel,
           deadlineAt: d.deadlineAt ? dayjs(d.deadlineAt).format('YYYY-MM-DD') : undefined,
-          levels: d.levels,
+          projectProcessTypeIds: d.projectProcessTypeIds || [],
           contentHtml: d.contentHtml || '',
           attachmentUrls: d.attachmentUrls || [],
         });
@@ -269,7 +269,7 @@ const CfpFormPage: React.FC = () => {
             initial || {
               periodKind: 'ACADEMIC',
               periodLabel: sinhNhanKy('ACADEMIC'),
-              levels: ['TRUONG'],
+              projectProcessTypeIds: [],
               contentHtml: '',
               attachmentUrls: [],
             }
@@ -286,7 +286,7 @@ const CfpFormPage: React.FC = () => {
               // Field ẩn: nếu trống thì tự sinh theo loại kỳ
               periodLabel: values.periodLabel || sinhNhanKy(values.periodKind),
               deadlineAt,
-              levels: values.levels,
+              projectProcessTypeIds: (values.projectProcessTypeIds || []).map(Number),
               contentHtml: values.contentHtml || null,
               attachmentUrls: values.attachmentUrls || [],
             };
@@ -367,11 +367,23 @@ const CfpFormPage: React.FC = () => {
             width="md"
           />
           <ProFormSelect
-            name="levels"
+            name="projectProcessTypeIds"
             label="Loại / cấp đề tài"
             mode="multiple"
-            options={CFP_LEVEL_OPTIONS}
-            rules={[{ required: true, message: 'Chọn ít nhất 1 cấp' }]}
+            rules={[{ required: true, message: 'Chọn ít nhất 1 loại từ danh mục' }]}
+            request={async () => {
+              // Lấy từ danh mục loại quy trình đề tài (QT-I…QT-V)
+              const res = await getProjectProcessTypeOptions({ status: 'ACTIVE' });
+              return (res.data || []).map((o) => ({
+                value: o.id,
+                label: `${o.code} — ${o.name}`,
+              }));
+            }}
+            fieldProps={{
+              showSearch: true,
+              optionFilterProp: 'label',
+              placeholder: 'Chọn loại quy trình đề tài',
+            }}
           />
           <Form.Item name="contentHtml" label="Nội dung hướng dẫn (rich text)">
             <RichTextHtmlField />

@@ -395,7 +395,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
                 <div style={head}>4 · Chia giờ cho từng tác giả</div>
                 <div style={box}>
                   <div style={{ marginBottom: 8 }}>
-                    <strong>a) Bài báo / báo cáo (mục 1, 2, 3)</strong> — công thức n/p:
+                    <strong>a) Công bố khoa học (mục 1–5)</strong> — công thức n/p:
                     <div style={{ paddingLeft: 12, lineHeight: 1.8 }}>
                       • Tác giả chính (đầu / liên hệ): <strong>B/(3n) + 2B/(3p)</strong>
                       <br />• Đồng tác giả: <strong>2B/(3p)</strong>
@@ -404,7 +404,7 @@ const ConvertedHoursPreviewModal: React.FC<ConvertedHoursPreviewModalProps> = ({
                     </div>
                   </div>
                   <div>
-                    <strong>b) Sản phẩm khác (mục 4 trở đi — điều 1.4)</strong> — theo % đóng góp:
+                    <strong>b) Sản phẩm khác (mục 6 trở đi — điều 1.4)</strong> — theo % đóng góp:
                     <div style={{ paddingLeft: 12, lineHeight: 1.8 }}>
                       • Giờ mỗi tác giả = <strong>B × (% đóng góp / 100)</strong>
                     </div>

@@ -28,7 +28,7 @@ import {
   extendCallForProposal,
   closeCallForProposal,
   CFP_STATUS_MAP,
-  CFP_LEVEL_OPTIONS,
+  renderCfpProcessTypeTags,
   type CallForProposal,
   type CfpStatus,
 } from '@/services/api/callForProposals';
@@ -168,10 +168,10 @@ const CfpDetailPage: React.FC = () => {
           <Descriptions.Item label="Hạn nộp">
             {data?.deadlineAt ? dayjs(data.deadlineAt).format('DD/MM/YYYY HH:mm') : '—'}
           </Descriptions.Item>
-          <Descriptions.Item label="Cấp đề tài">
-            {(data?.levels || []).map((lv) => (
-              <Tag key={lv}>{CFP_LEVEL_OPTIONS.find((o) => o.value === lv)?.label || lv}</Tag>
-            ))}
+          <Descriptions.Item label="Loại / cấp đề tài">
+            {data
+              ? renderCfpProcessTypeTags(data).map((t) => <Tag key={t.key}>{t.label}</Tag>)
+              : null}
           </Descriptions.Item>
           <Descriptions.Item label="Người tạo">{data?.creatorName || data?.createdBy}</Descriptions.Item>
           <Descriptions.Item label="Số VB / ngày phát hành">

@@ -22,11 +22,19 @@ import {
 import {
   formatAuthorLookupSubtitle,
   formatAuthorLookupTitle,
+  formatAuthorLinkedDisplay,
 } from '@/utils/authorProfileLookupDisplay';
 import {
   formatStudentLookupSubtitle,
   formatStudentLookupTitle,
 } from '@/utils/authorStudentLookupDisplay';
+import {
+  PROPOSAL_MEMBER_ROLE_COLOR,
+  PROPOSAL_MEMBER_ROLE_LABEL,
+  PROPOSAL_MEMBER_ROLE_OPTIONS,
+  resolveProposalMemberRole,
+  type ProposalMemberRole,
+} from '@/constants/proposalMemberRole';
 import './index.less';
 
 const { Text } = Typography;
@@ -58,7 +66,7 @@ interface AuthorsEditorProps {
   showContribution?: boolean;
   /**
    * Ẩn cột Tác giả đầu / Tác giả liên hệ — dùng cho danh sách thành viên đề xuất đề tài.
-   * Khi bật: không bắt buộc ≥1 dòng, bỏ cảnh báo vai trò.
+   * Khi bật: hiện cột Vai trò (Chủ nhiệm / Thư ký / Thành viên); không bắt buộc ≥1 dòng.
    */
   hideRoleColumns?: boolean;
   /** Nhãn nút thêm dòng (mặc định: Thêm tác giả / Thêm thành viên khi hideRoleColumns). */
@@ -97,12 +105,27 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   dataSourceRef.current = dataSource;
 
   useEffect(() => {
-    const mapped = value.map((a, idx) => ({
+    let mapped = value.map((a, idx) => ({
       ...normalizePublicationAuthor(a),
       id: (a.clientRowKey ?? a.id ?? `new-${idx}`) as React.Key,
     }));
+    // Chế độ đề xuất: bổ sung vai trò mặc định nếu thiếu
+    if (hideRoleColumns && mapped.length > 0) {
+      const coChuNhiem = mapped.some(
+        (m) => resolveProposalMemberRole(m.proposalMemberRole) === 'PRINCIPAL',
+      );
+      mapped = mapped.map((m, idx) => ({
+        ...m,
+        proposalMemberRole:
+          m.proposalMemberRole != null
+            ? resolveProposalMemberRole(m.proposalMemberRole)
+            : !coChuNhiem && idx === 0
+              ? 'PRINCIPAL'
+              : 'MEMBER',
+      }));
+    }
     setDataSource(mapped);
-  }, [value]);
+  }, [value, hideRoleColumns]);
 
   const runLookup = useCallback(async (q: string, tab: 'staff' | 'student') => {
     const t = q.trim();
@@ -212,6 +235,19 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       }
     }
 
+    // Đề xuất đề tài: đúng 1 Chủ nhiệm; tối đa 1 Thư ký
+    if (hideRoleColumns && dataSource.length > 0) {
+      const roles = dataSource.map((a) => resolveProposalMemberRole(a.proposalMemberRole));
+      const soChuNhiem = roles.filter((r) => r === 'PRINCIPAL').length;
+      const soThuKy = roles.filter((r) => r === 'SECRETARY').length;
+      if (soChuNhiem !== 1) {
+        errors.push('Danh sách thành viên phải có đúng 1 Chủ nhiệm');
+      }
+      if (soThuKy > 1) {
+        errors.push('Chỉ được có tối đa 1 Thư ký');
+      }
+    }
+
     return { errors, warnings, n, p, isValid: errors.length === 0 };
   }, [dataSource, ownerProfileId, showContribution, hideRoleColumns, nhanDong]);
 
@@ -239,12 +275,13 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       const prevRow = timDongTuongUng(prevDs, row);
       let next = { ...row };
       if (prevRow && laDongChuDangNhap(prevRow, ownerProfileId)) {
-        /** Dòng chủ hồ sơ: chỉ nhận thay đổi vai trò (đầu/liên hệ) và tỉ lệ % đóng góp. */
+        /** Dòng chủ hồ sơ: chỉ nhận thay đổi vai trò và tỉ lệ % đóng góp. */
         return {
           ...prevRow,
           isTopAuthor: next.isTopAuthor,
           isCorresponding: next.isCorresponding,
           contributionPercent: next.contributionPercent,
+          proposalMemberRole: next.proposalMemberRole ?? prevRow.proposalMemberRole,
         };
       }
       if (prevRow) {
@@ -308,10 +345,10 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     setPickerOpen(true);
   };
 
-  /** Họ tên ghi vào ô sau khi chọn — thành viên đề tài kèm học hàm/học vị. */
+  /** Họ tên ghi vào ô sau khi chọn — kèm ID · học hàm · học vị khi đề xuất / thành viên. */
   function tenTuLookup(it: AuthorProfileLookupItem): string {
     if (hideRoleColumns) {
-      return formatAuthorLookupTitle(it);
+      return formatAuthorLinkedDisplay(it.id, it);
     }
     const fn = typeof it.fullName === 'string' ? it.fullName.trim() : '';
     if (fn) return fn;
@@ -342,14 +379,34 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
 
   function tenTuStudentLookup(it: AuthorStudentLookupItem): string {
     const fn = typeof it.fullName === 'string' ? it.fullName.trim() : '';
-    if (fn) return fn;
-    const ma = typeof it.studentCode === 'string' ? it.studentCode.trim() : '';
-    if (ma) return ma;
-    const mail =
+    const ten =
+      fn ||
+      (typeof it.studentCode === 'string' ? it.studentCode.trim() : '') ||
       (typeof it.schoolEmail === 'string' ? it.schoolEmail.trim() : '') ||
-      (typeof it.personalEmail === 'string' ? it.personalEmail.trim() : '');
-    if (mail) return mail;
-    return `Sinh viên #${it.id}`;
+      (typeof it.personalEmail === 'string' ? it.personalEmail.trim() : '') ||
+      `SV #${it.id}`;
+    return `${it.id} · ${ten}`;
+  }
+
+  /** Liên kết → ID · (học hàm · học vị ·) họ tên; nhập tay → đúng như đã nhập. */
+  function nhanHienThiHoTen(record: AuthorEditableRow): string {
+    const ten = String(record.fullName ?? '').trim();
+    if (!ten) return '—';
+    if (record.profileId != null) {
+      const id = String(record.profileId);
+      if (ten === id || ten.startsWith(`${id} `) || ten.startsWith(`${id}·`) || ten.startsWith(`${id} ·`)) {
+        return ten;
+      }
+      return `${id} · ${ten}`;
+    }
+    if (record.studentId != null) {
+      const id = String(record.studentId);
+      if (ten === id || ten.startsWith(`${id} `) || ten.startsWith(`${id}·`) || ten.startsWith(`${id} ·`)) {
+        return ten;
+      }
+      return `${id} · ${ten}`;
+    }
+    return ten;
   }
 
   const applyStudentPick = (item: AuthorStudentLookupItem) => {
@@ -497,41 +554,24 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     {
       title: hideRoleColumns ? 'Họ và tên' : 'Họ tên',
       dataIndex: 'fullName',
-      width: hideRoleColumns ? 220 : 170,
+      width: hideRoleColumns ? 280 : 260,
       editable: (_, record) => choPhepSuaThongTin(record),
       formItemProps: {
         rules: [{ required: true, message: 'Bắt buộc' }],
       },
       fieldProps: {
         placeholder: hideRoleColumns
-          ? 'Thành viên ngoài: nhập tay. NCV nội bộ: nên bấm “Chọn hồ sơ”.'
-          : 'Tác giả ngoài: nhập tay. NCV nội bộ: nên bấm “Chọn hồ sơ”.',
+          ? 'Thành viên ngoài: nhập tay. NCV nội bộ: bấm “Chọn hồ sơ”.'
+          : 'Tác giả ngoài: nhập tay. NCV nội bộ: bấm “Chọn hồ sơ”.',
       },
-    },
-    {
-      title: 'Liên kết hồ sơ',
-      key: 'profileLookup',
-      width: 180,
-      editable: false,
+      /** Hiển thị: ID · học hàm · học vị · họ tên (đã liên kết) hoặc đúng như nhập tay */
       render: (_, record) => (
         <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Text strong>{nhanHienThiHoTen(record)}</Text>
           {laDongChuDangNhap(record, ownerProfileId) && (
-            <Tag color="purple" style={{ marginBottom: 2 }}>
+            <Tag color="purple" style={{ margin: 0 }}>
               Bạn (chỉ đổi vai trò)
             </Tag>
-          )}
-          {record.profileId != null ? (
-            <Tag color="blue">
-              Cán bộ/GV
-              {record.fullName?.trim() ? ` · ${record.fullName.trim()}` : ''} · ID {record.profileId}
-            </Tag>
-          ) : record.studentId != null ? (
-            <Tag color="cyan">
-              Sinh viên
-              {record.fullName?.trim() ? ` · ${record.fullName.trim()}` : ''} · ID {record.studentId}
-            </Tag>
-          ) : (
-            <Tag>Tác giả ngoài / nhập tay</Tag>
           )}
           <Space size={4} wrap>
             <Button
@@ -545,18 +585,49 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
             </Button>
             {(record.profileId != null || record.studentId != null) &&
               !rowMatchesOwner(record, ownerProfileId) && (
+                <Button
+                  type="link"
+                  size="small"
+                  danger
+                  disabled={disabled}
+                  onClick={() => clearProfileLink(record)}
+                  style={{ padding: 0 }}
+                >
+                  Bỏ liên kết
+                </Button>
+              )}
+          </Space>
+        </Space>
+      ),
+      renderFormItem: (_, { defaultRender, record }) => (
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          {defaultRender ? defaultRender(_) : null}
+          {record && (
+            <Space size={4} wrap>
               <Button
                 type="link"
                 size="small"
-                danger
-                disabled={disabled}
-                onClick={() => clearProfileLink(record)}
+                disabled={disabled || laDongChuDangNhap(record, ownerProfileId)}
+                onClick={() => openPicker(record)}
                 style={{ padding: 0 }}
               >
-                Bỏ liên kết
+                Chọn từ hồ sơ NCV
               </Button>
-            )}
-          </Space>
+              {(record.profileId != null || record.studentId != null) &&
+                !rowMatchesOwner(record, ownerProfileId) && (
+                  <Button
+                    type="link"
+                    size="small"
+                    danger
+                    disabled={disabled}
+                    onClick={() => clearProfileLink(record)}
+                    style={{ padding: 0 }}
+                  >
+                    Bỏ liên kết
+                  </Button>
+                )}
+            </Space>
+          )}
         </Space>
       ),
     },
@@ -590,8 +661,32 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         return defaultRender ? defaultRender(_) : null;
       },
     },
-    ...(!hideRoleColumns
+    ...(hideRoleColumns
       ? ([
+          {
+            title: 'Vai trò',
+            dataIndex: 'proposalMemberRole',
+            valueType: 'select',
+            width: 140,
+            fieldProps: {
+              options: PROPOSAL_MEMBER_ROLE_OPTIONS,
+              allowClear: false,
+              placeholder: 'Chọn vai trò',
+            },
+            formItemProps: {
+              rules: [{ required: true, message: 'Chọn vai trò' }],
+            },
+            render: (_: unknown, record: AuthorEditableRow) => {
+              const role = resolveProposalMemberRole(record.proposalMemberRole);
+              return (
+                <Tag color={PROPOSAL_MEMBER_ROLE_COLOR[role]}>
+                  {PROPOSAL_MEMBER_ROLE_LABEL[role]}
+                </Tag>
+              );
+            },
+          },
+        ] as ProColumns<AuthorEditableRow>[])
+      : ([
           {
             title: 'Tác giả đầu',
             dataIndex: 'isTopAuthor',
@@ -624,8 +719,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                 <Text type="secondary">Không</Text>
               ),
           },
-        ] as ProColumns<AuthorEditableRow>[])
-      : []),
+        ] as ProColumns<AuthorEditableRow>[])),
     {
       title: 'Cơ quan công tác',
       dataIndex: 'affiliationUnits',
@@ -783,6 +877,12 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                     dataSource.length === 0
                       ? 0
                       : Math.max(...dataSource.map((r) => (Number.isFinite(Number(r.authorOrder)) ? Number(r.authorOrder) : 0)));
+                  // Dòng đầu đề xuất → Chủ nhiệm; các dòng sau → Thành viên
+                  const vaiTroMacDinh: ProposalMemberRole | undefined = hideRoleColumns
+                    ? dataSource.length === 0
+                      ? 'PRINCIPAL'
+                      : 'MEMBER'
+                    : undefined;
                   return {
                     id: key,
                     clientRowKey: key,
@@ -793,6 +893,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
                     authorOrder: maxOrder + 1,
                     isTopAuthor: false,
                     isCorresponding: false,
+                    ...(vaiTroMacDinh ? { proposalMemberRole: vaiTroMacDinh } : {}),
                     affiliationUnits: [UDN_AFFILIATION_UNITS[0]],
                     affiliationType: 'UDN_ONLY' as AffiliationType,
                     isMultiAffiliationOutsideUdn: false,
@@ -813,11 +914,13 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
             if (laDongChuDangNhap(row as AuthorEditableRow, ownerProfileId)) {
               const prev = dataSourceRef.current.find((r) => String(r.id) === String(rowKey));
               if (prev) {
+                const edited = row as AuthorEditableRow;
                 return {
                   ...prev,
-                  isTopAuthor: (row as AuthorEditableRow).isTopAuthor,
-                  isCorresponding: (row as AuthorEditableRow).isCorresponding,
-                  contributionPercent: (row as AuthorEditableRow).contributionPercent,
+                  isTopAuthor: edited.isTopAuthor,
+                  isCorresponding: edited.isCorresponding,
+                  contributionPercent: edited.contributionPercent,
+                  proposalMemberRole: edited.proposalMemberRole ?? prev.proposalMemberRole,
                 };
               }
             }

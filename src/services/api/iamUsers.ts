@@ -187,5 +187,20 @@ export async function getRoleOptions(): Promise<RoleItem[]> {
     status: 'ACTIVE',
     perPage: 200,
   });
-  return result.data || [];
+  // Chuẩn hóa: data[] hoặc data.data[] tùy lớp bọc response
+  const raw = Array.isArray(result?.data)
+    ? result.data
+    : Array.isArray((result as any)?.data?.data)
+      ? (result as any).data.data
+      : Array.isArray(result)
+        ? (result as unknown as RoleItem[])
+        : [];
+  return raw.map((r: any) => ({
+    id: Number(r.id),
+    code: String(r.code ?? ''),
+    name: String(r.name ?? r.code ?? ''),
+    description: r.description,
+    status: (r.status || 'ACTIVE') as RoleItem['status'],
+    isSystem: r.isSystem ?? r.is_system,
+  }));
 }

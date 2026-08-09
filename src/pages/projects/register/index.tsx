@@ -18,7 +18,6 @@ import {
   Typography,
   Form,
   Input,
-  Radio,
   Timeline,
 } from 'antd';
 import {
@@ -30,7 +29,6 @@ import {
   UndoOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  CommentOutlined,
 } from '@ant-design/icons';
 import { useModel, useAccess, history } from '@umijs/max';
 import dayjs from 'dayjs';
@@ -42,6 +40,7 @@ import {
   withdrawProposal,
   deleteProposal,
   unitReviewProposal,
+  unitReturnProposal,
   getPendingUnitProposalCount,
   PROPOSAL_STATUS_MAP,
   FIELD_OPTIONS,
@@ -65,16 +64,47 @@ const ProjectRegisterPage: React.FC = () => {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<ProjectProposal | null>(null);
   const [audits, setAudits] = useState<ProposalAudit[]>([]);
-  const [unitReviewVisible, setUnitReviewVisible] = useState(false);
-  const [reviewProposal, setReviewProposal] = useState<ProjectProposal | null>(null);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnTarget, setReturnTarget] = useState<ProjectProposal | null>(null);
   const [pendingUnitCount, setPendingUnitCount] = useState(0);
-  const [unitReviewForm] = Form.useForm();
+  const [unitActing, setUnitActing] = useState(false);
+  const [returnForm] = Form.useForm();
 
   const canCreate = access.canCreateProjectProposal;
   const canUnitReview = access.canUnitReviewProjectProposal;
   const canPkhReview = access.canReviewProjectProposal;
   const hideUnitSearch = !canPkhReview && !canUnitReview;
   const currentUserId = Number(currentUser?.id || 0);
+
+  /** Trưởng đơn vị xử lý khi hồ sơ đang Chờ Khoa */
+  const coTheXuLyKhoa = (p: ProjectProposal | null | undefined) =>
+    Boolean(canUnitReview) && (p?.status === 'SUBMITTED' || p?.status === 'UNIT_REVIEWED');
+
+  const nutXuLyKhoa = (record: ProjectProposal | null) => {
+    if (!record || !coTheXuLyKhoa(record)) return null;
+    return (
+      <Space size={8} wrap>
+        <Button
+          danger
+          size="small"
+          icon={<CloseCircleOutlined />}
+          loading={unitActing}
+          onClick={() => openUnitReturn(record)}
+        >
+          Yêu cầu chỉnh sửa
+        </Button>
+        <Button
+          type="primary"
+          size="small"
+          icon={<CheckCircleOutlined />}
+          loading={unitActing}
+          onClick={() => handleUnitApprove(record)}
+        >
+          Duyệt
+        </Button>
+      </Space>
+    );
+  };
 
   useEffect(() => {
     if (!canUnitReview) return;
@@ -88,6 +118,54 @@ const ProjectRegisterPage: React.FC = () => {
     getPendingUnitProposalCount()
       .then((res) => setPendingUnitCount(res.data?.count || 0))
       .catch(() => undefined);
+  };
+
+  const sauKhiXuLyKhoa = async (proposalId: number) => {
+    tableRef.current?.reload();
+    reloadPending();
+    if (drawerVisible && selectedProposal?.id === proposalId) {
+      try {
+        const full = await getProposal(proposalId);
+        setSelectedProposal(full.data || null);
+        const a = await getProposalAudits(proposalId);
+        setAudits(a.data || []);
+      } catch {
+        /* giữ bản cũ trên drawer */
+      }
+    }
+  };
+
+  /** Khoa duyệt → Chờ PKH */
+  const handleUnitApprove = (record: ProjectProposal) => {
+    Modal.confirm({
+      title: 'Xác nhận duyệt',
+      content: 'Bạn có chắc là muốn duyệt đề xuất này không?',
+      okText: 'Duyệt',
+      cancelText: 'Hủy',
+      onOk: async () => {
+        setUnitActing(true);
+        try {
+          await unitReviewProposal(record.id, {
+            unitApproved: true,
+            unitComment: 'Khoa đã duyệt đề xuất',
+          });
+          message.success('Đã duyệt — chuyển chờ PKH');
+          await sauKhiXuLyKhoa(record.id);
+        } catch (e: any) {
+          message.error(e?.data?.message || e?.message || 'Duyệt thất bại');
+          throw e;
+        } finally {
+          setUnitActing(false);
+        }
+      },
+    });
+  };
+
+  /** Mở popup yêu cầu chỉnh sửa */
+  const openUnitReturn = (record: ProjectProposal) => {
+    setReturnTarget(record);
+    returnForm.resetFields();
+    setReturnOpen(true);
   };
 
   const handleView = async (record: ProjectProposal) => {
@@ -123,13 +201,13 @@ const ProjectRegisterPage: React.FC = () => {
   const handleWithdraw = (record: ProjectProposal) => {
     Modal.confirm({
       title: 'Rút đề xuất',
-      content: `Rút đề xuất "${record.title}"?`,
-      okText: 'Rút',
+      content: `Rút đề xuất "${record.title}" về trạng thái Nháp để chỉnh sửa và gửi lại?`,
+      okText: 'Rút về Nháp',
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
           await withdrawProposal(record.id);
-          message.success('Đã rút đề xuất');
+          message.success('Đã rút về Nháp');
           tableRef.current?.reload();
           reloadPending();
         } catch (e: any) {
@@ -193,21 +271,6 @@ const ProjectRegisterPage: React.FC = () => {
       }
     }
 
-    if (canUnitReview && record.status === 'SUBMITTED') {
-      actions.push(
-        <a
-          key="unit"
-          style={{ color: '#1890ff' }}
-          onClick={() => {
-            setReviewProposal(record);
-            setUnitReviewVisible(true);
-          }}
-        >
-          <CommentOutlined /> Xử lý Khoa
-        </a>,
-      );
-    }
-
     if (
       canPkhReview &&
       (record.status === 'CHO_PKH' ||
@@ -251,7 +314,7 @@ const ProjectRegisterPage: React.FC = () => {
       hideInSearch: true,
       render: (_, r) =>
         r.projectProcessType
-          ? `${r.projectProcessType.code}`
+          ? `${r.projectProcessType.code} ${r.projectProcessType.name}`
           : LEVEL_OPTIONS.find((l) => l.value === r.level)?.label || r.level,
     },
     {
@@ -319,12 +382,7 @@ const ProjectRegisterPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer
-      header={{
-        title: 'Đăng ký đề xuất đề tài',
-        subTitle: 'Nộp hồ sơ trực tuyến · Khoa xác nhận · PKH tiếp nhận',
-      }}
-    >
+    <PageContainer header={{ title: 'Đăng ký đề xuất đề tài' }}>
       <ProTable<ProjectProposal>
         actionRef={tableRef}
         rowKey="id"
@@ -377,13 +435,38 @@ const ProjectRegisterPage: React.FC = () => {
 
       <Drawer
         title={selectedProposal?.code || 'Chi tiết đề xuất'}
-        width={720}
+        width="66.666vw"
         open={drawerVisible}
         onClose={() => setDrawerVisible(false)}
+        destroyOnClose
+        extra={nutXuLyKhoa(selectedProposal)}
       >
         {selectedProposal && (
           <>
-            <Descriptions column={1} bordered size="small">
+            {canUnitReview &&
+              selectedProposal.status !== 'SUBMITTED' &&
+              selectedProposal.status !== 'UNIT_REVIEWED' && (
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: 12,
+                    background: '#fffbe6',
+                    border: '1px solid #ffe58f',
+                    borderRadius: 8,
+                    color: '#876800',
+                  }}
+                >
+                  Nút Duyệt / Yêu cầu chỉnh sửa chỉ hiện khi đề xuất ở trạng thái{' '}
+                  <strong>Chờ Khoa</strong> (hiện tại:{' '}
+                  {PROPOSAL_STATUS_MAP[selectedProposal.status]?.label || selectedProposal.status}).
+                </div>
+              )}
+            <Descriptions
+              column={1}
+              bordered
+              size="small"
+              labelStyle={{ width: 200, maxWidth: 200 }}
+            >
               <Descriptions.Item label="Trạng thái">
                 <Tag color={PROPOSAL_STATUS_MAP[selectedProposal.status]?.color}>
                   {PROPOSAL_STATUS_MAP[selectedProposal.status]?.label}
@@ -395,7 +478,7 @@ const ProjectRegisterPage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="Cấp / quy trình">
                 {selectedProposal.projectProcessType
-                  ? `${selectedProposal.projectProcessType.code}: ${selectedProposal.projectProcessType.name}`
+                  ? `${selectedProposal.projectProcessType.code} ${selectedProposal.projectProcessType.name}`
                   : LEVEL_OPTIONS.find((l) => l.value === selectedProposal.level)?.label ||
                     selectedProposal.level}
                 {' · '}
@@ -464,53 +547,44 @@ const ProjectRegisterPage: React.FC = () => {
       </Drawer>
 
       <Modal
-        title="Khoa xử lý hồ sơ"
-        open={unitReviewVisible}
+        title="Yêu cầu chỉnh sửa đề xuất"
+        open={returnOpen}
         onCancel={() => {
-          setUnitReviewVisible(false);
-          unitReviewForm.resetFields();
+          setReturnOpen(false);
+          returnForm.resetFields();
         }}
+        confirmLoading={unitActing}
+        okText="Gửi yêu cầu"
+        okButtonProps={{ danger: true }}
         onOk={async () => {
-          const values = await unitReviewForm.validateFields();
+          const values = await returnForm.validateFields();
+          if (!returnTarget) return;
+          setUnitActing(true);
           try {
-            await unitReviewProposal(reviewProposal!.id, {
-              unitApproved: values.unitApproved,
-              unitComment: values.unitComment,
-            });
-            message.success(
-              values.unitApproved ? 'Đã xác nhận — chuyển chờ PKH' : 'Đã trả lại giảng viên',
-            );
-            setUnitReviewVisible(false);
-            unitReviewForm.resetFields();
-            tableRef.current?.reload();
-            reloadPending();
+            await unitReturnProposal(returnTarget.id, values.reason);
+            message.success('Đã gửi yêu cầu chỉnh sửa cho giảng viên');
+            setReturnOpen(false);
+            returnForm.resetFields();
+            await sauKhiXuLyKhoa(returnTarget.id);
           } catch (e: any) {
             message.error(e?.data?.message || e?.message || 'Thất bại');
+          } finally {
+            setUnitActing(false);
           }
         }}
-        okText="Xác nhận"
       >
-        <Form form={unitReviewForm} layout="vertical">
+        <Form form={returnForm} layout="vertical">
           <Form.Item
-            name="unitApproved"
-            label="Quyết định"
-            rules={[{ required: true, message: 'Chọn quyết định' }]}
+            name="reason"
+            label="Nội dung yêu cầu chỉnh sửa"
+            rules={[{ required: true, message: 'Nhập nội dung yêu cầu chỉnh sửa' }]}
           >
-            <Radio.Group>
-              <Radio value={true}>
-                <CheckCircleOutlined style={{ color: '#52c41a' }} /> Xác nhận hồ sơ (→ Chờ PKH)
-              </Radio>
-              <Radio value={false}>
-                <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> Trả lại giảng viên chỉnh sửa
-              </Radio>
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item
-            name="unitComment"
-            label="Nội dung / yêu cầu chỉnh sửa"
-            rules={[{ required: true, message: 'Bắt buộc' }]}
-          >
-            <Input.TextArea rows={4} placeholder="Nhập nhận xét..." />
+            <Input.TextArea
+              rows={5}
+              placeholder="Mô tả các điểm cần chỉnh sửa..."
+              maxLength={2000}
+              showCount
+            />
           </Form.Item>
         </Form>
       </Modal>

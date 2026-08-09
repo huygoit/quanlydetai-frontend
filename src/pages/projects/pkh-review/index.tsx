@@ -1,5 +1,6 @@
 /**
  * US-03-03 — PKH kiểm tra, tổng hợp và chuẩn bị họp Hội đồng xét chọn
+ * Thao tác Hợp lệ / Bổ sung / Loại nằm trong drawer xem chi tiết (không trên list).
  */
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
@@ -8,6 +9,8 @@ import {
   Card,
   Col,
   DatePicker,
+  Descriptions,
+  Drawer,
   Form,
   Input,
   Modal,
@@ -23,6 +26,7 @@ import {
   CloseOutlined,
   DownloadOutlined,
   EditOutlined,
+  EyeOutlined,
   FieldTimeOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
@@ -31,6 +35,7 @@ import { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import {
   queryProposals,
+  getProposal,
   getPkhProposalStats,
   markProposalValid,
   requestProposalSupplement,
@@ -39,12 +44,17 @@ import {
   exportPkhProposalsExcel,
   createProposalSelectionSession,
   PROPOSAL_STATUS_MAP,
+  LEVEL_OPTIONS,
   type ProjectProposal,
   type ProposalStatus,
   type PkhProposalStats,
 } from '@/services/api/projectProposals';
 import { listCallForProposals, type CallForProposal } from '@/services/api/callForProposals';
 import { downloadBlob } from '@/utils/download';
+import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+
+/** Trạng thái thuộc pipeline PKH (không gồm Chờ Khoa / nháp) */
+const PKH_LIST_STATUSES: ProposalStatus[] = ['CHO_PKH', 'HOP_LE', 'YEU_CAU_BS', 'DA_LOAI'];
 
 const PkhReviewPage: React.FC = () => {
   const access = useAccess();
@@ -52,9 +62,14 @@ const PkhReviewPage: React.FC = () => {
   const [cfpList, setCfpList] = useState<CallForProposal[]>([]);
   const [cfpId, setCfpId] = useState<number | undefined>();
   const [stats, setStats] = useState<PkhProposalStats | null>(null);
-  const [statusFilter, setStatusFilter] = useState<ProposalStatus | undefined>();
+  /** 'ALL' = Tất cả status PKH (không gồm Chờ Khoa) */
+  const [statusFilter, setStatusFilter] = useState<ProposalStatus | 'ALL'>('CHO_PKH');
   const [loadingStats, setLoadingStats] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [acting, setActing] = useState(false);
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selected, setSelected] = useState<ProjectProposal | null>(null);
 
   const [supplementOpen, setSupplementOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -107,15 +122,102 @@ const PkhReviewPage: React.FC = () => {
     actionRef.current?.reload();
   };
 
+  const coTheXuLyPkh = (p: ProjectProposal | null | undefined) =>
+    p?.status === 'CHO_PKH' || p?.status === 'UNIT_REVIEWED';
+
+  const moChiTiet = async (record: ProjectProposal) => {
+    try {
+      const full = await getProposal(record.id);
+      setSelected(full.data || record);
+    } catch {
+      setSelected(record);
+    }
+    setDrawerOpen(true);
+  };
+
+  const taiLaiChiTiet = async (id: number) => {
+    refreshAll();
+    if (drawerOpen && selected?.id === id) {
+      try {
+        const full = await getProposal(id);
+        setSelected(full.data || null);
+      } catch {
+        /* giữ bản cũ */
+      }
+    }
+  };
+
+  const handleMarkValid = (record: ProjectProposal) => {
+    Modal.confirm({
+      title: 'Xác nhận hợp lệ',
+      content: 'Bạn có chắc muốn đánh dấu đề xuất này là Hợp lệ?',
+      okText: 'Hợp lệ',
+      cancelText: 'Hủy',
+      onOk: async () => {
+        setActing(true);
+        try {
+          await markProposalValid(record.id);
+          message.success('Đã xác nhận hợp lệ');
+          await taiLaiChiTiet(record.id);
+        } catch (e: any) {
+          message.error(e?.data?.message || e?.message || 'Thất bại');
+          throw e;
+        } finally {
+          setActing(false);
+        }
+      },
+    });
+  };
+
+  const nutXuLyPkh = (record: ProjectProposal | null) => {
+    if (!record || !coTheXuLyPkh(record)) return null;
+    return (
+      <Space size={8} wrap>
+        <Button
+          type="primary"
+          size="small"
+          icon={<CheckOutlined />}
+          loading={acting}
+          onClick={() => handleMarkValid(record)}
+        >
+          Hợp lệ
+        </Button>
+        <Button
+          size="small"
+          icon={<EditOutlined />}
+          loading={acting}
+          onClick={() => {
+            setCurrent(record);
+            supplementForm.resetFields();
+            setSupplementOpen(true);
+          }}
+        >
+          Bổ sung
+        </Button>
+        <Button
+          danger
+          size="small"
+          icon={<CloseOutlined />}
+          loading={acting}
+          onClick={() => {
+            setCurrent(record);
+            rejectForm.resetFields();
+            setRejectOpen(true);
+          }}
+        >
+          Loại
+        </Button>
+      </Space>
+    );
+  };
+
   const columns: ProColumns<ProjectProposal>[] = [
     { title: 'Mã', dataIndex: 'code', width: 120, copyable: true },
     {
       title: 'Tên đề tài',
       dataIndex: 'title',
       ellipsis: true,
-      render: (_, r) => (
-        <a onClick={() => history.push(`/projects/register/form/${r.id}`)}>{r.title}</a>
-      ),
+      render: (_, r) => <a onClick={() => void moChiTiet(r)}>{r.title}</a>,
     },
     { title: 'Chủ nhiệm', dataIndex: 'ownerName', width: 140 },
     { title: 'Đơn vị', dataIndex: 'ownerUnit', width: 160, ellipsis: true },
@@ -125,7 +227,7 @@ const PkhReviewPage: React.FC = () => {
       ellipsis: true,
       render: (_, r) =>
         r.projectProcessType
-          ? `${r.projectProcessType.code}: ${r.projectProcessType.name}`
+          ? `${r.projectProcessType.code} ${r.projectProcessType.name}`
           : r.level,
     },
     {
@@ -154,52 +256,14 @@ const PkhReviewPage: React.FC = () => {
     {
       title: 'Thao tác',
       valueType: 'option',
-      width: 280,
+      width: 140,
       render: (_, r) => {
         const acts: React.ReactNode[] = [
-          <a key="view" onClick={() => history.push(`/projects/register/form/${r.id}`)}>
-            Xem
+          <a key="view" onClick={() => void moChiTiet(r)}>
+            <EyeOutlined /> Xem
           </a>,
         ];
-        if (r.status === 'CHO_PKH' || r.status === 'UNIT_REVIEWED') {
-          acts.push(
-            <a
-              key="ok"
-              onClick={async () => {
-                try {
-                  await markProposalValid(r.id);
-                  message.success('Đã xác nhận hợp lệ');
-                  refreshAll();
-                } catch (e: any) {
-                  message.error(e?.data?.message || e?.message || 'Thất bại');
-                }
-              }}
-            >
-              <CheckOutlined /> Hợp lệ
-            </a>,
-            <a
-              key="bs"
-              onClick={() => {
-                setCurrent(r);
-                supplementForm.resetFields();
-                setSupplementOpen(true);
-              }}
-            >
-              <EditOutlined /> Bổ sung
-            </a>,
-            <a
-              key="loai"
-              style={{ color: '#ff4d4f' }}
-              onClick={() => {
-                setCurrent(r);
-                rejectForm.resetFields();
-                setRejectOpen(true);
-              }}
-            >
-              <CloseOutlined /> Loại
-            </a>,
-          );
-        }
+        // Gia hạn chỉ khi đang yêu cầu bổ sung — thao tác phụ trên list vẫn ổn
         if (r.status === 'YEU_CAU_BS') {
           acts.push(
             <a
@@ -214,17 +278,6 @@ const PkhReviewPage: React.FC = () => {
             >
               <FieldTimeOutlined /> Gia hạn
             </a>,
-            <a
-              key="loai2"
-              style={{ color: '#ff4d4f' }}
-              onClick={() => {
-                setCurrent(r);
-                rejectForm.resetFields();
-                setRejectOpen(true);
-              }}
-            >
-              Loại
-            </a>,
           );
         }
         return acts;
@@ -233,7 +286,7 @@ const PkhReviewPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer title="PKH — Kiểm tra & tổng hợp đề xuất">
+    <PageContainer title="Kiểm duyệt và tổng hợp đề xuất đề tài">
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Card size="small">
           <Space wrap>
@@ -251,7 +304,6 @@ const PkhReviewPage: React.FC = () => {
               optionFilterProp="label"
             />
             <Select
-              allowClear
               placeholder="Lọc trạng thái"
               style={{ width: 180 }}
               value={statusFilter}
@@ -260,6 +312,7 @@ const PkhReviewPage: React.FC = () => {
                 actionRef.current?.reload();
               }}
               options={[
+                { value: 'ALL', label: 'Tất cả' },
                 { value: 'CHO_PKH', label: 'Chờ PKH' },
                 { value: 'YEU_CAU_BS', label: 'Yêu cầu bổ sung' },
                 { value: 'HOP_LE', label: 'Hợp lệ' },
@@ -351,7 +404,10 @@ const PkhReviewPage: React.FC = () => {
             if (!cfpId) return { data: [], success: true, total: 0 };
             const res = await queryProposals({
               callForProposalId: cfpId,
-              status: statusFilter,
+              // Tất cả = pipeline PKH; không gồm Chờ Khoa (SUBMITTED)
+              ...(statusFilter === 'ALL'
+                ? { statuses: PKH_LIST_STATUSES.join(',') }
+                : { status: statusFilter }),
               page: params.current,
               perPage: params.pageSize,
             });
@@ -364,20 +420,137 @@ const PkhReviewPage: React.FC = () => {
         />
       </Space>
 
+      <Drawer
+        title={
+          selected?.id ? (
+            <a onClick={() => history.push(`/projects/register/form/${selected.id}`)}>
+              {selected.code || 'Chi tiết đề xuất'}
+            </a>
+          ) : (
+            selected?.code || 'Chi tiết đề xuất'
+          )
+        }
+        width="66.666vw"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        destroyOnClose
+        extra={
+          coTheXuLyPkh(selected) ? (
+            nutXuLyPkh(selected)
+          ) : selected?.status === 'YEU_CAU_BS' ? (
+            <Space size={8} wrap>
+              <Button
+                size="small"
+                icon={<FieldTimeOutlined />}
+                onClick={() => {
+                  setCurrent(selected);
+                  extendForm.setFieldsValue({
+                    dueAt: selected.supplementDueAt
+                      ? dayjs(selected.supplementDueAt)
+                      : dayjs().add(3, 'day'),
+                  });
+                  setExtendOpen(true);
+                }}
+              >
+                Gia hạn
+              </Button>
+              <Button
+                danger
+                size="small"
+                icon={<CloseOutlined />}
+                onClick={() => {
+                  setCurrent(selected);
+                  rejectForm.resetFields();
+                  setRejectOpen(true);
+                }}
+              >
+                Loại
+              </Button>
+            </Space>
+          ) : null
+        }
+      >
+        {selected && (
+          <Descriptions
+            column={1}
+            bordered
+            size="small"
+            labelStyle={{ width: 200, maxWidth: 200 }}
+          >
+            <Descriptions.Item label="Trạng thái">
+              <Tag color={PROPOSAL_STATUS_MAP[selected.status]?.color}>
+                {PROPOSAL_STATUS_MAP[selected.status]?.label}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Tên đề tài">{selected.title}</Descriptions.Item>
+            <Descriptions.Item label="Chủ nhiệm">
+              {selected.ownerName} · {selected.ownerUnit}
+            </Descriptions.Item>
+            <Descriptions.Item label="Cấp / quy trình">
+              {selected.projectProcessType
+                ? `${selected.projectProcessType.code} ${selected.projectProcessType.name}`
+                : LEVEL_OPTIONS.find((l) => l.value === selected.level)?.label || selected.level}
+              {' · '}
+              {selected.field}
+            </Descriptions.Item>
+            <Descriptions.Item label="Thời gian / kinh phí">
+              {selected.durationMonths} tháng ·{' '}
+              {selected.requestedBudgetTotal != null
+                ? `${Number(selected.requestedBudgetTotal).toLocaleString('vi-VN')} đ`
+                : '—'}
+            </Descriptions.Item>
+            {selected.researchDirection && (
+              <Descriptions.Item label="Hướng NC">{selected.researchDirection}</Descriptions.Item>
+            )}
+            <Descriptions.Item label="Mục tiêu">{selected.objectives}</Descriptions.Item>
+            <Descriptions.Item label="Tóm tắt">{selected.summary || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Sản phẩm dự kiến">
+              {selected.expectedResults || '—'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Thành viên">
+              {(selected.coAuthors || []).join(', ') || '—'}
+            </Descriptions.Item>
+            <Descriptions.Item label="File biểu mẫu">
+              {selected.attachmentUrl ? (
+                <a
+                  href={resolvePublicAssetUrl(selected.attachmentUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Tải / xem file
+                </a>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            {selected.unitComment && (
+              <Descriptions.Item label="Phản hồi Khoa">{selected.unitComment}</Descriptions.Item>
+            )}
+            {selected.pkhComment && (
+              <Descriptions.Item label="Ghi chú PKH">{selected.pkhComment}</Descriptions.Item>
+            )}
+          </Descriptions>
+        )}
+      </Drawer>
+
       <Modal
         title="Yêu cầu bổ sung hồ sơ"
         open={supplementOpen}
         onCancel={() => setSupplementOpen(false)}
+        confirmLoading={acting}
         onOk={async () => {
           const v = await supplementForm.validateFields();
           if (!current) return;
+          setActing(true);
           try {
             await requestProposalSupplement(current.id, v.note);
             message.success('Đã gửi yêu cầu bổ sung');
             setSupplementOpen(false);
-            refreshAll();
+            await taiLaiChiTiet(current.id);
           } catch (e: any) {
             message.error(e?.data?.message || e?.message || 'Thất bại');
+          } finally {
+            setActing(false);
           }
         }}
         destroyOnClose
@@ -398,16 +571,20 @@ const PkhReviewPage: React.FC = () => {
         open={rejectOpen}
         onCancel={() => setRejectOpen(false)}
         okButtonProps={{ danger: true }}
+        confirmLoading={acting}
         onOk={async () => {
           const v = await rejectForm.validateFields();
           if (!current) return;
+          setActing(true);
           try {
             await rejectProposalByPkh(current.id, v.reason);
             message.success('Đã loại hồ sơ');
             setRejectOpen(false);
-            refreshAll();
+            await taiLaiChiTiet(current.id);
           } catch (e: any) {
             message.error(e?.data?.message || e?.message || 'Thất bại');
+          } finally {
+            setActing(false);
           }
         }}
         destroyOnClose
@@ -433,7 +610,7 @@ const PkhReviewPage: React.FC = () => {
             });
             message.success('Đã gia hạn');
             setExtendOpen(false);
-            refreshAll();
+            await taiLaiChiTiet(current.id);
           } catch (e: any) {
             message.error(e?.data?.message || e?.message || 'Thất bại');
           }
@@ -504,17 +681,22 @@ const PkhReviewPage: React.FC = () => {
           }
         }}
         destroyOnClose
+        width={520}
       >
         <Form form={sessionForm} layout="vertical">
-          <Form.Item name="meetingAt" label="Ngày họp" rules={[{ required: true, message: 'Bắt buộc' }]}>
+          <Form.Item
+            name="meetingAt"
+            label="Thời gian họp"
+            rules={[{ required: true, message: 'Bắt buộc' }]}
+          >
             <DatePicker showTime style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
             name="location"
-            label="Địa điểm họp"
+            label="Địa điểm"
             rules={[{ required: true, message: 'Bắt buộc' }]}
           >
-            <Input placeholder="VD: Hội trường A, tầng 3" />
+            <Input placeholder="Phòng họp / online..." />
           </Form.Item>
         </Form>
       </Modal>

@@ -126,9 +126,9 @@ const ProposalFormPage: React.FC = () => {
     return (row && QT_CODE_TO_LEVEL[row.code]) || 'TRUONG';
   };
 
-  const kiemTraKy = async (level: ProposalLevel) => {
+  const kiemTraKy = async (level: ProposalLevel, processTypeId?: number | null) => {
     try {
-      const res = await getActiveSubmissionPeriod(level);
+      const res = await getActiveSubmissionPeriod(level, processTypeId);
       const d = res?.data;
       if (d) {
         setKyMo({
@@ -163,8 +163,9 @@ const ProposalFormPage: React.FC = () => {
             ? (res as unknown as ProjectProcessTypeOption[])
             : [];
         setProcessTypes(rows);
-        const defaultLevel = QT_CODE_TO_LEVEL[rows.find((r) => r.code === 'QT-I')?.code || ''] || 'TRUONG';
-        void kiemTraKy(defaultLevel);
+        const qtI = rows.find((r) => r.code === 'QT-I');
+        const defaultLevel = (qtI && QT_CODE_TO_LEVEL[qtI.code]) || 'TRUONG';
+        void kiemTraKy(defaultLevel, qtI?.id);
       })
       .catch((e) => {
         if (!cancelled) {
@@ -189,7 +190,7 @@ const ProposalFormPage: React.FC = () => {
         if (!d) return;
         setProposal(d);
         setMembers(Array.isArray(memRes?.data) ? memRes.data : []);
-        void kiemTraKy(d.level);
+        void kiemTraKy(d.level, d.projectProcessTypeId);
         if (
           d.status !== 'DRAFT' &&
           d.status !== 'RETURNED' &&
@@ -249,7 +250,7 @@ const ProposalFormPage: React.FC = () => {
       message.warning('Vui lòng chọn Phân cấp đề tài');
       return;
     }
-    if (!(await kiemTraKy(payload.level || 'TRUONG'))) {
+    if (!(await kiemTraKy(payload.level || 'TRUONG', payload.projectProcessTypeId))) {
       message.error('Không có kỳ tiếp nhận đang mở cho cấp đề tài này.');
       return;
     }
@@ -291,7 +292,7 @@ const ProposalFormPage: React.FC = () => {
       return;
     }
     const dangBoSungPkh = proposal?.status === 'YEU_CAU_BS';
-    if (!dangBoSungPkh && !(await kiemTraKy(payload.level || 'TRUONG'))) {
+    if (!dangBoSungPkh && !(await kiemTraKy(payload.level || 'TRUONG', payload.projectProcessTypeId))) {
       message.error('Kỳ tiếp nhận đã hết hạn — không gửi được.');
       return;
     }
@@ -567,7 +568,8 @@ const ProposalFormPage: React.FC = () => {
                       showSearch: true,
                       optionFilterProp: 'label',
                       loading: loadingTypes,
-                      onChange: (v: number) => void kiemTraKy(levelTuProcessTypeId(v)),
+                      onChange: (v: number) =>
+                        void kiemTraKy(levelTuProcessTypeId(v), v),
                     }}
                     extra="Nguồn: danh mục Loại quy trình đề tài (QT-I … QT-V)"
                   />

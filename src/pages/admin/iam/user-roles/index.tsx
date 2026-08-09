@@ -44,7 +44,7 @@ const UserRolesPage: React.FC = () => {
     },
     {
       title: 'Họ tên',
-      dataIndex: ['full_name', 'fullName'],
+      dataIndex: 'full_name',
       width: 200,
       ellipsis: true,
       hideInSearch: true,

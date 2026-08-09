@@ -117,7 +117,8 @@ const UsersPage: React.FC = () => {
   const columns: ProColumns<IAMUserItem>[] = [
     {
       title: 'Họ tên',
-      dataIndex: ['full_name', 'fullName'],
+      // Một key string — tránh dataIndex mảng khiến form search gửi object lồng { fullName: '...' }
+      dataIndex: 'full_name',
       width: 180,
       ellipsis: true,
       fieldProps: { placeholder: 'Tìm họ tên' },
@@ -287,7 +288,33 @@ const UsersPage: React.FC = () => {
             : []
         }
         request={async (params, sort) => {
-          const { current, pageSize, full_name, email, keyword, department_id, departmentId, role_id, roleId, status } = params;
+          const {
+            current,
+            pageSize,
+            full_name,
+            fullName,
+            email,
+            keyword,
+            department_id,
+            departmentId,
+            role_id,
+            roleId,
+            status,
+          } = params as Record<string, any>;
+
+          // ProTable đôi khi trả object lồng từ dataIndex mảng — chỉ lấy chuỗi tìm kiếm
+          const layChuoiTim = (v: unknown): string | undefined => {
+            if (v == null || v === '') return undefined;
+            if (typeof v === 'string') {
+              const s = v.trim();
+              return s || undefined;
+            }
+            if (typeof v === 'object') {
+              const o = v as Record<string, unknown>;
+              return layChuoiTim(o.fullName ?? o.full_name ?? o.keyword ?? o.value);
+            }
+            return undefined;
+          };
 
           let sortBy: string | undefined;
           let order: 'asc' | 'desc' | undefined;
@@ -302,7 +329,11 @@ const UsersPage: React.FC = () => {
           const result = await queryIAMUsers({
             page: current,
             perPage: pageSize,
-            keyword: keyword || full_name || email,
+            keyword:
+              layChuoiTim(keyword) ||
+              layChuoiTim(full_name) ||
+              layChuoiTim(fullName) ||
+              layChuoiTim(email),
             departmentId: departmentId ?? department_id,
             roleId: roleId ?? role_id,
             status: status as UserStatus,

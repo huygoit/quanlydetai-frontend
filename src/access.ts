@@ -94,12 +94,17 @@ export default function access(initialState: AccessInitialState | undefined) {
     canCreatePersonalProfile: has(PERM.personal_profile.create),
     canEditPersonalProfile: has(PERM.personal_profile.update),
     canChangePersonalProfileStatus: has(PERM.personal_profile.change_status),
+    /** Danh sách nhân sự master (staffs) */
+    canViewStaffDirectory: hasAny([PERM.department.view, PERM.personal_profile.view]),
 
     canViewHome: true,
     canViewProfile: hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
     // Menu cha "Hồ sơ": hiện cho user thường (mục cá nhân) lẫn admin (mục quản lý)
     canViewProfileMenu:
-      canUsePersonalWorkspace || has(PERM.profile.view_all) || has(PERM.personal_profile.view),
+      canUsePersonalWorkspace ||
+      has(PERM.profile.view_all) ||
+      has(PERM.personal_profile.view) ||
+      has(PERM.department.view),
     canViewProfileSelf:
       canUsePersonalWorkspace &&
       hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
@@ -117,7 +122,8 @@ export default function access(initialState: AccessInitialState | undefined) {
     canProposeOrder: has(PERM.council.propose_order),
     canApproveOrder: has(PERM.council.approve_order),
     canViewProjectRegister:
-      hasAny([PERM.project.create, PERM.project.submit]) || has(PERM.project.review),
+      hasAny([PERM.project.create, PERM.project.submit, PERM.project.unit_review]) ||
+      has(PERM.project.review),
     canViewMyProjects: canUsePersonalWorkspace && has(PERM.project.view),
     canCreateProjectProposal: hasAny([PERM.project.create, PERM.project.submit]),
     canUnitReviewProjectProposal: has(PERM.project.unit_review),

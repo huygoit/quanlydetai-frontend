@@ -1,16 +1,20 @@
 /**
- * Danh mục nhân sự (staffs) — đọc từ API admin, lọc theo đơn vị / loại / liên kết user
+ * Danh mục nhân sự (staffs) — master hồ sơ nhân sự.
  */
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { ProColumns, ActionType } from '@ant-design/pro-components';
-import { Badge, Button, Descriptions, Drawer, Space, Spin, Typography } from 'antd';
-import { EyeOutlined } from '@ant-design/icons';
-import { useRef, useState, useEffect, useCallback } from 'react';
-import { queryStaffs, getStaff, type StaffSummary, type StaffDetail, type StaffSortField, type QueryStaffsParams } from '@/services/api/staffs';
+import { Alert, Badge, Button } from 'antd';
+import { EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { useRef, useState, useEffect } from 'react';
+import { history, useAccess } from '@umijs/max';
+import {
+  queryStaffs,
+  type StaffSummary,
+  type StaffSortField,
+  type QueryStaffsParams,
+} from '@/services/api/staffs';
 import { getDepartmentOptions } from '@/services/api/iamUsers';
 import dayjs from 'dayjs';
-
-const { Text } = Typography;
 
 const SORT_WHITELIST: StaffSortField[] = [
   'id',
@@ -23,11 +27,9 @@ const SORT_WHITELIST: StaffSortField[] = [
 ];
 
 const StaffsPage: React.FC = () => {
+  const access = useAccess();
   const actionRef = useRef<ActionType>();
   const [departmentOptions, setDepartmentOptions] = useState<{ id: number; name: string }[]>([]);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detail, setDetail] = useState<StaffDetail | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -38,26 +40,10 @@ const StaffsPage: React.FC = () => {
         console.error(e);
       }
     };
-    load();
-  }, []);
-
-  const openDetail = useCallback(async (id: number) => {
-    setDrawerOpen(true);
-    setDetail(null);
-    setDetailLoading(true);
-    try {
-      const res = await getStaff(id);
-      const row = res?.data;
-      if (row) setDetail(row);
-    } catch {
-      setDetail(null);
-    } finally {
-      setDetailLoading(false);
-    }
+    void load();
   }, []);
 
   const formatDt = (d?: string | null) => (d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '—');
-  const formatD = (d?: string | null) => (d ? dayjs(d).format('DD/MM/YYYY') : '—');
 
   const columns: ProColumns<StaffSummary>[] = [
     { title: 'STT', valueType: 'indexBorder', width: 58, align: 'center', search: false },
@@ -133,12 +119,16 @@ const StaffsPage: React.FC = () => {
       valueType: 'select',
       valueEnum: {
         all: { text: 'Tất cả' },
-        'true': { text: 'Đã liên kết' },
-        'false': { text: 'Chưa liên kết' },
+        true: { text: 'Đã liên kết' },
+        false: { text: 'Chưa liên kết' },
       },
       initialValue: 'all',
       render: (_, r) =>
-        r.userId != null ? <Badge status="success" text="Đã liên kết" /> : <Badge status="default" text="Chưa liên kết" />,
+        r.userId != null ? (
+          <Badge status="success" text="Đã liên kết" />
+        ) : (
+          <Badge status="default" text="Chưa liên kết" />
+        ),
     },
     {
       title: 'Cập nhật',
@@ -152,21 +142,48 @@ const StaffsPage: React.FC = () => {
       valueType: 'option',
       width: 100,
       fixed: 'right',
-      render: (_, record) => (
-        <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => openDetail(record.id)}>
-          Chi tiết
-        </Button>
-      ),
+      render: (_, record) =>
+        access.canEditPersonalProfile ? (
+          <Button
+            type="link"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => history.push(`/admin/staffs/${record.id}/edit`)}
+          >
+            Sửa
+          </Button>
+        ) : null,
     },
   ];
 
   return (
-    <PageContainer>
+    <PageContainer title="Danh sách hồ sơ nhân sự">
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="Danh mục nhân sự chính (staffs)."
+        description="Tạo/sửa ghi trực tiếp vào bảng staffs — dùng cho mail phát hành, import đề tài/bài báo."
+      />
       <ProTable<StaffSummary>
-        headerTitle="Danh sách nhân sự"
+        headerTitle="Danh sách hồ sơ nhân sự"
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
+        toolBarRender={() =>
+          access.canCreatePersonalProfile
+            ? [
+                <Button
+                  key="create"
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => history.push('/admin/staffs/new')}
+                >
+                  Thêm mới
+                </Button>,
+              ]
+            : []
+        }
         request={async (params, sort) => {
           const { current, pageSize, keyword, staffCode, departmentId, staffType, hasUser } = params;
 
@@ -220,59 +237,6 @@ const StaffsPage: React.FC = () => {
         scroll={{ x: 1400 }}
         options={{ density: true, fullScreen: true, reload: true, setting: true }}
       />
-
-      <Drawer
-        title={detail?.fullName || 'Chi tiết nhân sự'}
-        width={720}
-        open={drawerOpen}
-        onClose={() => {
-          setDrawerOpen(false);
-          setDetail(null);
-        }}
-        destroyOnClose
-      >
-        {detailLoading ? (
-          <Spin />
-        ) : detail ? (
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <Descriptions bordered size="small" column={2} title="Thông tin chung">
-              <Descriptions.Item label="Mã NV">{detail.staffCode || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Họ tên">{detail.fullName}</Descriptions.Item>
-              <Descriptions.Item label="Ngày sinh">{formatD(detail.dateOfBirth)}</Descriptions.Item>
-              <Descriptions.Item label="Giới tính">{detail.gender || '—'}</Descriptions.Item>
-              <Descriptions.Item label="CCCD/CMND">{detail.identityNumber || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Điện thoại">{detail.phone || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Email" span={2}>
-                {detail.email || '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Đơn vị" span={2}>
-                {detail.departmentName || '—'}{' '}
-                {detail.departmentCode ? <Text type="secondary">({detail.departmentCode})</Text> : null}
-              </Descriptions.Item>
-              <Descriptions.Item label="Loại CB">{detail.staffType || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Chức danh">{detail.positionTitle || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Công việc hiện tại" span={2}>
-                {detail.currentJob || '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="User ID">{detail.userId ?? '—'}</Descriptions.Item>
-              <Descriptions.Item label="Cập nhật">{formatDt(detail.updatedAt)}</Descriptions.Item>
-            </Descriptions>
-
-            <Descriptions bordered size="small" column={2} title="Đào tạo & học hàm">
-              <Descriptions.Item label="Học vị">{detail.professionalDegree || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Học hàm">{detail.professionalTitle || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Chuyên ngành">{detail.major || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Năm TN">{detail.graduationYear ?? '—'}</Descriptions.Item>
-            </Descriptions>
-
-            <Descriptions bordered size="small" column={1} title="Ghi chú">
-              <Descriptions.Item label="">{detail.note || '—'}</Descriptions.Item>
-            </Descriptions>
-          </Space>
-        ) : (
-          <Text type="secondary">Không tải được dữ liệu.</Text>
-        )}
-      </Drawer>
     </PageContainer>
   );
 };

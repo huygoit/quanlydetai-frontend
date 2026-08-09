@@ -10,7 +10,7 @@ import { useRef } from 'react';
 import {
   listCallForProposals,
   CFP_STATUS_MAP,
-  CFP_LEVEL_OPTIONS,
+  renderCfpProcessTypeTags,
   type CallForProposal,
   type CfpStatus,
 } from '@/services/api/callForProposals';
@@ -37,19 +37,16 @@ const CallForProposalsListPage: React.FC = () => {
         `${r.periodKind === 'ACADEMIC' ? 'NH' : 'TC'} ${r.periodLabel}`,
     },
     {
-      title: 'Cấp đề tài',
-      dataIndex: 'levels',
+      title: 'Loại / cấp đề tài',
+      dataIndex: 'projectProcessTypes',
       search: false,
-      width: 200,
+      width: 260,
       render: (_, r) =>
-        (r.levels || []).map((lv) => {
-          const opt = CFP_LEVEL_OPTIONS.find((o) => o.value === lv);
-          return (
-            <Tag key={lv} style={{ marginBottom: 2 }}>
-              {opt?.label || lv}
-            </Tag>
-          );
-        }),
+        renderCfpProcessTypeTags(r).map((t) => (
+          <Tag key={t.key} style={{ marginBottom: 2 }}>
+            {t.label}
+          </Tag>
+        )),
     },
     {
       title: 'Hạn nộp',

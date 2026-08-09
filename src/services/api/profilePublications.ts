@@ -141,6 +141,15 @@ export function normalizePublicationAuthor(a: PublicationAuthor & Record<string,
     rawContribution == null || rawContribution === '' || !Number.isFinite(Number(rawContribution))
       ? null
       : Number(rawContribution);
+  // Vai trò đề xuất: ưu tiên proposalMemberRole, sau đó role từ API
+  const rawRole = a.proposalMemberRole ?? (a as Record<string, unknown>).role;
+  const roleStr = String(rawRole ?? '')
+    .trim()
+    .toUpperCase();
+  const proposalMemberRole =
+    roleStr === 'PRINCIPAL' || roleStr === 'SECRETARY' || roleStr === 'MEMBER'
+      ? roleStr
+      : undefined;
   return {
     ...a,
     profileId,
@@ -150,6 +159,7 @@ export function normalizePublicationAuthor(a: PublicationAuthor & Record<string,
     affiliationType: derivedAff,
     isMultiAffiliationOutsideUdn: derivedAff === 'MIXED',
     contributionPercent,
+    ...(proposalMemberRole ? { proposalMemberRole } : {}),
   };
 }
 
@@ -315,6 +325,11 @@ export interface PublicationAuthor {
   authorOrder: number;
   isTopAuthor: boolean;
   isCorresponding: boolean;
+  /**
+   * Vai trò thành viên đề xuất (PRINCIPAL/SECRETARY/MEMBER).
+   * Chỉ dùng khi AuthorsEditor hideRoleColumns — không liên quan tác giả bài báo.
+   */
+  proposalMemberRole?: 'PRINCIPAL' | 'SECRETARY' | 'MEMBER';
   affiliationUnits: string[];
   affiliationType: AffiliationType;
   isMultiAffiliationOutsideUdn: boolean;
@@ -616,10 +631,11 @@ export function findResearchOutputNodeById(
   nodes: ResearchOutputTypeTreeNode[],
   targetId: number
 ): ResearchOutputTypeTreeNode | null {
+  const target = Number(targetId);
   for (const n of nodes) {
-    if (n.id === targetId) return n;
+    if (Number(n.id) === target) return n;
     if (n.children?.length) {
-      const f = findResearchOutputNodeById(n.children, targetId);
+      const f = findResearchOutputNodeById(n.children, target);
       if (f) return f;
     }
   }

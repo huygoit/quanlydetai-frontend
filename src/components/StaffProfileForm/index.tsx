@@ -1,5 +1,5 @@
 /**
- * Form hồ sơ cá nhân (dùng chung admin + cán bộ tự sửa).
+ * Form hồ sơ nhân sự (staffs) — admin + cán bộ tự sửa.
  */
 import React from 'react';
 import {
@@ -11,29 +11,26 @@ import {
 } from '@ant-design/pro-components';
 import type { ProFormInstance } from '@ant-design/pro-components';
 import { Card, Col, Row } from 'antd';
-import {
-  GENDER_OPTIONS,
-  EMPLOYMENT_TYPE_OPTIONS,
-  PERSONAL_PROFILE_STATUS_OPTIONS,
-} from '@/services/api/personalProfiles';
+import { GENDER_OPTIONS } from '@/services/api/staffs';
 
-export type PersonalProfileFormMode = 'admin-create' | 'admin-edit' | 'self';
+export type StaffProfileFormMode = 'admin-create' | 'admin-edit' | 'self';
 
-export interface PersonalProfileFormProps {
-  mode: PersonalProfileFormMode;
+export interface StaffProfileFormProps {
+  mode: StaffProfileFormMode;
   formRef: React.MutableRefObject<ProFormInstance | undefined>;
   departmentOptions: { id: number; name: string }[];
   userOptions?: { id: number; label: string }[];
 }
 
-const PersonalProfileForm: React.FC<PersonalProfileFormProps> = ({
+const StaffProfileForm: React.FC<StaffProfileFormProps> = ({
   mode,
   formRef,
   departmentOptions,
   userOptions = [],
 }) => {
-  const hienChonUser = mode === 'admin-create';
-  const hienTrangThaiAdmin = mode === 'admin-create' || mode === 'admin-edit';
+  const hienChonUser = mode === 'admin-create' || mode === 'admin-edit';
+  const khoaMaNv = mode === 'self';
+  const hienGhiChuAdmin = mode === 'admin-create' || mode === 'admin-edit';
 
   return (
     <ProForm formRef={formRef} submitter={false} layout="vertical" style={{ width: '100%' }}>
@@ -45,11 +42,11 @@ const PersonalProfileForm: React.FC<PersonalProfileFormProps> = ({
                 <Col xs={24} md={12}>
                   <ProFormSelect
                     name="userId"
-                    label="Người dùng"
-                    placeholder="Chọn tài khoản"
+                    label="Tài khoản liên kết"
+                    placeholder="Chọn tài khoản (tuỳ chọn)"
                     options={userOptions.map((u) => ({ value: u.id, label: u.label }))}
-                    rules={[{ required: true, message: 'Vui lòng chọn người dùng' }]}
                     showSearch
+                    allowClear
                     fieldProps={{
                       filterOption: (input, option) =>
                         (option?.label?.toString() || '')
@@ -60,7 +57,17 @@ const PersonalProfileForm: React.FC<PersonalProfileFormProps> = ({
                 </Col>
               )}
               <Col xs={24} md={12}>
-                <ProFormText name="staffCode" label="Mã nhân viên" placeholder="Nhập mã NV" />
+                <ProFormText
+                  name="staffCode"
+                  label="Mã nhân viên"
+                  placeholder="Nhập mã NV"
+                  disabled={khoaMaNv}
+                  rules={
+                    mode === 'admin-create'
+                      ? [{ required: true, message: 'Vui lòng nhập mã NV' }]
+                      : undefined
+                  }
+                />
               </Col>
               <Col xs={24} md={12}>
                 <ProFormText
@@ -99,13 +106,14 @@ const PersonalProfileForm: React.FC<PersonalProfileFormProps> = ({
                 <ProFormText name="phone" label="Điện thoại" placeholder="Số điện thoại" />
               </Col>
               <Col xs={24} md={12}>
-                <ProFormText name="personalEmail" label="Email cá nhân" placeholder="Email cá nhân" />
-              </Col>
-              <Col xs={24} md={12}>
-                <ProFormText name="workEmail" label="Email công việc" placeholder="Email công việc" />
+                <ProFormText name="email" label="Email" placeholder="Email công việc" />
               </Col>
               <Col xs={24}>
-                <ProFormText name="address" label="Địa chỉ" placeholder="Địa chỉ thường trú" />
+                <ProFormText
+                  name="currentAddress"
+                  label="Địa chỉ"
+                  placeholder="Địa chỉ hiện tại"
+                />
               </Col>
             </Row>
           </Card>
@@ -129,15 +137,13 @@ const PersonalProfileForm: React.FC<PersonalProfileFormProps> = ({
                 />
               </Col>
               <Col xs={24} md={12}>
-                <ProFormText name="positionTitle" label="Chức danh" placeholder="VD: Giảng viên, NCS" />
+                <ProFormText name="positionTitle" label="Chức danh" placeholder="VD: Giảng viên" />
               </Col>
               <Col xs={24} md={12}>
-                <ProFormSelect
-                  name="employmentType"
-                  label="Loại hình công tác"
-                  placeholder="Chọn loại hình"
-                  options={EMPLOYMENT_TYPE_OPTIONS}
-                />
+                <ProFormText name="staffType" label="Loại cán bộ" placeholder="VD: GV, NV…" />
+              </Col>
+              <Col xs={24} md={12}>
+                <ProFormText name="currentJob" label="Công việc hiện tại" placeholder="Công việc" />
               </Col>
             </Row>
           </Card>
@@ -146,20 +152,17 @@ const PersonalProfileForm: React.FC<PersonalProfileFormProps> = ({
           <Card title="4. Thông tin chuyên môn" style={{ marginBottom: 0 }}>
             <Row gutter={24}>
               <Col xs={24} md={12}>
-                <ProFormText name="academicDegree" label="Học vị" placeholder="VD: ThS, TS" />
+                <ProFormText
+                  name="professionalDegree"
+                  label="Học vị"
+                  placeholder="VD: ThS, TS"
+                />
               </Col>
               <Col xs={24} md={12}>
                 <ProFormText name="academicTitle" label="Học hàm" placeholder="VD: PGS, GS" />
               </Col>
               <Col xs={24} md={12}>
-                <ProFormText name="specialization" label="Chuyên ngành" placeholder="Chuyên ngành" />
-              </Col>
-              <Col xs={24} md={12}>
-                <ProFormText
-                  name="professionalQualification"
-                  label="Chứng chỉ nghề nghiệp"
-                  placeholder="Chứng chỉ"
-                />
+                <ProFormText name="major" label="Chuyên ngành" placeholder="Chuyên ngành" />
               </Col>
             </Row>
           </Card>
@@ -179,28 +182,15 @@ const PersonalProfileForm: React.FC<PersonalProfileFormProps> = ({
                 />
               </Col>
               <Col xs={24} md={12}>
-                <ProFormText name="identityIssuePlace" label="Nơi cấp" placeholder="Nơi cấp giấy tờ" />
+                <ProFormText name="identityIssuePlace" label="Nơi cấp" placeholder="Nơi cấp" />
               </Col>
             </Row>
           </Card>
         </Col>
-        {hienTrangThaiAdmin && (
+        {hienGhiChuAdmin && (
           <Col xs={24} lg={12}>
-            <Card title="6. Trạng thái" style={{ marginBottom: 0 }}>
-              <Row gutter={24}>
-                <Col xs={24} md={12}>
-                  <ProFormSelect
-                    name="status"
-                    label="Trạng thái"
-                    placeholder="Chọn trạng thái"
-                    options={PERSONAL_PROFILE_STATUS_OPTIONS}
-                    rules={[{ required: true, message: 'Vui lòng chọn trạng thái' }]}
-                  />
-                </Col>
-                <Col xs={24}>
-                  <ProFormTextArea name="note" label="Ghi chú" placeholder="Ghi chú nội bộ" rows={3} />
-                </Col>
-              </Row>
+            <Card title="6. Ghi chú" style={{ marginBottom: 0 }}>
+              <ProFormTextArea name="note" label="Ghi chú nội bộ" placeholder="Ghi chú" rows={3} />
             </Card>
           </Col>
         )}
@@ -209,4 +199,4 @@ const PersonalProfileForm: React.FC<PersonalProfileFormProps> = ({
   );
 };
 
-export default PersonalProfileForm;
+export default StaffProfileForm;

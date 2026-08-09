@@ -86,6 +86,8 @@ export interface ProposalQueryParams {
   keyword?: string;
   year?: number;
   status?: ProposalStatus;
+  /** Nhiều trạng thái (vd. màn PKH — Tất cả) */
+  statuses?: ProposalStatus[] | string;
   level?: ProposalLevel;
   field?: string;
   unit?: string;
@@ -302,6 +304,7 @@ export async function getPendingUnitProposalCount(): Promise<ApiResponse<{ count
 export type ProjectProposalMember = PublicationAuthor;
 
 function memberToApiPayload(a: PublicationAuthor) {
+  const role = a.proposalMemberRole || 'MEMBER';
   return {
     id: typeof a.id === 'number' ? a.id : undefined,
     profile_id: a.profileId ?? null,
@@ -311,6 +314,8 @@ function memberToApiPayload(a: PublicationAuthor) {
     affiliation_units: a.affiliationUnits ?? [],
     member_order: a.authorOrder,
     author_order: a.authorOrder,
+    role,
+    proposalMemberRole: role,
     affiliation_type: a.affiliationType,
     is_multi_affiliation_outside_udn: a.isMultiAffiliationOutsideUdn,
     contribution_percent: a.contributionPercent ?? null,
@@ -399,7 +404,7 @@ export const PROPOSAL_AUDIT_ACTION_LABEL: Record<string, string> = {
   CREATE: 'Tạo nháp',
   UPDATE: 'Cập nhật',
   SUBMIT: 'Gửi lên Khoa',
-  WITHDRAW: 'Rút đề xuất',
+  WITHDRAW: 'Rút về Nháp',
   UNIT_CONFIRM: 'Khoa xác nhận',
   UNIT_RETURN: 'Khoa trả lại',
   PKH_MARK_VALID: 'PKH xác nhận hợp lệ',

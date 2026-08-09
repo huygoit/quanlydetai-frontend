@@ -140,7 +140,6 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
       'publishedAt',
       'attachment',
       ...META_BAI_BAO,
-      'contributionRate',
       'authors',
     ],
     batBuocForm: [
@@ -148,12 +147,12 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
       'journalName',
       'publishedAt',
       'attachment',
-      'contributionRate',
       'authors',
     ],
     ghiChuTinhToan: [
       'Không có DOI/xếp hạng Q. Điểm/giờ lấy theo mục lá đã chọn.',
-      'Mục 4 là sản phẩm khác (điều 1.4): chia giờ theo tỉ lệ % đóng góp của tác giả.',
+      // Mục 4 vẫn là công bố khoa học — chia n/p (1.2–1.3), không bắt % đóng góp (điều 1.4).
+      'Chia giờ theo n/p giống bài báo: nhóm chính nhận B/(3n)+2B/(3p).',
     ],
   },
   CONF_ISBN: {
@@ -166,7 +165,6 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
       'attachment',
       'pages',
       'url',
-      'contributionRate',
       'authors',
     ],
     batBuocForm: [
@@ -175,12 +173,12 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
       'isbn',
       'publishedAt',
       'attachment',
-      'contributionRate',
       'authors',
     ],
     ghiChuTinhToan: [
       'Cần ISBN của kỷ yếu để minh chứng đúng loại.',
-      'Mục 5 là sản phẩm khác (điều 1.4): chia giờ theo tỉ lệ % đóng góp của tác giả.',
+      // Mục 5 vẫn là công bố khoa học — chia n/p, không bắt % đóng góp.
+      'Chia giờ theo n/p giống bài báo: nhóm chính nhận B/(3n)+2B/(3p).',
     ],
   },
   REPORT: {

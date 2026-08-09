@@ -21,7 +21,7 @@ function nhanHocVi(key?: string | null): string | undefined {
   return FALLBACK_DEGREE_CATALOG.find((c) => c.value === k)?.label;
 }
 
-/** Dòng tiêu đề: Học hàm. Học vị. Họ và tên */
+/** Dòng tiêu đề: Học hàm · Học vị · Họ và tên */
 export function formatAuthorLookupTitle(item: AuthorProfileLookupItem): string {
   const parts: string[] = [];
   const ham = nhanHocHam(item.academicTitle);
@@ -30,10 +30,22 @@ export function formatAuthorLookupTitle(item: AuthorProfileLookupItem): string {
   if (ham) parts.push(ham);
   if (vi) parts.push(vi);
   if (ten) parts.push(ten);
-  if (parts.length > 0) return parts.join('. ');
+  if (parts.length > 0) return parts.join(' · ');
   const mail = item.workEmail?.trim();
   if (mail) return mail;
   return `Hồ sơ #${item.id}`;
+}
+
+/**
+ * Hiển thị dòng đã liên kết hồ sơ: ID · Học hàm · Học vị · Họ tên
+ * (dùng khi chọn NCV / hiển thị cột thành viên)
+ */
+export function formatAuthorLinkedDisplay(
+  id: number | string,
+  item: Pick<AuthorProfileLookupItem, 'fullName' | 'degree' | 'academicTitle' | 'workEmail'>
+): string {
+  const title = formatAuthorLookupTitle({ ...item, id: Number(id) } as AuthorProfileLookupItem);
+  return `${id} · ${title}`;
 }
 
 /** Dòng phụ: Cơ quan công tác · Department (không email / trạng thái) */

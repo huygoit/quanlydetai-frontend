@@ -509,7 +509,9 @@ const ReportsDashboardPage: React.FC = () => {
           <>
             <Row gutter={[16, 16]}>
               {kpiCards.map((kpi) => {
-                const goStaffs = kpi.path === '/admin/staffs' && access.canViewDepartments;
+                const goStaffs =
+                  kpi.path === '/admin/staffs' &&
+                  (access.canViewStaffDirectory || access.canViewDepartments);
                 const card = (
                   <Card
                     bordered={false}

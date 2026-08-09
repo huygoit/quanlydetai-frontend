@@ -1,7 +1,8 @@
 /**
- * Chi tiết phiên xét chọn — nhập kết quả HĐ, biên bản, trình/phê duyệt BGH (US-03-04)
+ * Chi tiết phiên xét chọn — full page + FooterToolbar cố định
+ * Copy khung từ /projects/register/form
  */
-import { PageContainer } from '@ant-design/pro-components';
+import { FooterToolbar, PageContainer } from '@ant-design/pro-components';
 import {
   Alert,
   Button,
@@ -18,6 +19,7 @@ import {
   Tag,
   message,
 } from 'antd';
+import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
 import { history, useAccess, useParams } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
@@ -113,7 +115,18 @@ const SelectionSessionDetailPage: React.FC = () => {
       {
         title: 'Mã',
         width: 110,
-        render: (_: unknown, r: EditRow) => r.proposal?.code,
+        render: (_: unknown, r: EditRow) =>
+          r.proposal?.id ? (
+            <a
+              href={`/projects/register/form/${r.proposal.id}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {r.proposal.code}
+            </a>
+          ) : (
+            r.proposal?.code || '—'
+          ),
       },
       {
         title: 'Tên đề tài',
@@ -253,13 +266,19 @@ const SelectionSessionDetailPage: React.FC = () => {
       loading={loading}
       title={session?.title || `Phiên #${sid}`}
       subTitle={stMeta ? <Tag color={stMeta.color}>{stMeta.label}</Tag> : undefined}
-      onBack={() => history.push('/projects/selection-sessions')}
     >
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Space direction="vertical" size={16} style={{ width: '100%', paddingBottom: 72 }}>
         {session?.status === 'RETURNED' && session.bghComment && (
-          <Alert type="error" showIcon message="BGH yêu cầu chỉnh sửa" description={session.bghComment} />
+          <Alert
+            type="error"
+            showIcon
+            message="BGH yêu cầu chỉnh sửa"
+            description={session.bghComment}
+          />
         )}
-        {locked && <Alert type="success" showIcon message="Phiên đã khóa — không chỉnh sửa kết quả." />}
+        {locked && (
+          <Alert type="success" showIcon message="Phiên đã khóa — không chỉnh sửa kết quả." />
+        )}
 
         <Card size="small" title="Thông tin phiên">
           <p>
@@ -356,18 +375,30 @@ const SelectionSessionDetailPage: React.FC = () => {
             columns={columns as any}
           />
         </Card>
+      </Space>
 
-        <Space wrap>
-          {editable && (
-            <Button type="primary" loading={saving} onClick={() => void luuKetQua()}>
-              Lưu kết quả
-            </Button>
-          )}
-          {canPkh &&
-            (session?.status === 'OPEN' ||
-              session?.status === 'CREATED' ||
-              session?.status === 'RETURNED' ||
-              session?.status === 'MINUTES_SAVED') && (
+      <FooterToolbar>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => history.push('/projects/selection-sessions')}
+        >
+          Quay lại
+        </Button>
+        {editable && (
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={saving}
+            onClick={() => void luuKetQua()}
+          >
+            Lưu kết quả
+          </Button>
+        )}
+        {canPkh &&
+          (session?.status === 'OPEN' ||
+            session?.status === 'CREATED' ||
+            session?.status === 'RETURNED' ||
+            session?.status === 'MINUTES_SAVED') && (
             <Button
               onClick={async () => {
                 try {
@@ -384,45 +415,44 @@ const SelectionSessionDetailPage: React.FC = () => {
               Lưu biên bản
             </Button>
           )}
-          {canPkh && (session?.status === 'MINUTES_SAVED' || session?.status === 'RETURNED') && (
+        {canPkh && (session?.status === 'MINUTES_SAVED' || session?.status === 'RETURNED') && (
+          <Button
+            type="primary"
+            onClick={async () => {
+              try {
+                await submitSelectionToBgh(sid);
+                message.success('Đã trình BGH');
+                await load();
+              } catch (e: any) {
+                message.error(e?.data?.message || e?.message || 'Trình BGH thất bại');
+              }
+            }}
+          >
+            Trình BGH phê duyệt
+          </Button>
+        )}
+        {canBgh && pendingBgh && (
+          <>
             <Button
               type="primary"
               onClick={async () => {
                 try {
-                  await submitSelectionToBgh(sid);
-                  message.success('Đã trình BGH');
+                  await bghApproveSelection(sid);
+                  message.success('BGH đã phê duyệt — phiên khóa, trạng thái đề xuất đã cập nhật');
                   await load();
                 } catch (e: any) {
-                  message.error(e?.data?.message || e?.message || 'Trình BGH thất bại');
+                  message.error(e?.data?.message || e?.message || 'Phê duyệt thất bại');
                 }
               }}
             >
-              Trình BGH phê duyệt
+              BGH phê duyệt
             </Button>
-          )}
-          {canBgh && pendingBgh && (
-            <>
-              <Button
-                type="primary"
-                onClick={async () => {
-                  try {
-                    await bghApproveSelection(sid);
-                    message.success('BGH đã phê duyệt — phiên khóa, trạng thái đề xuất đã cập nhật');
-                    await load();
-                  } catch (e: any) {
-                    message.error(e?.data?.message || e?.message || 'Phê duyệt thất bại');
-                  }
-                }}
-              >
-                BGH phê duyệt
-              </Button>
-              <Button danger onClick={() => setRejectOpen(true)}>
-                BGH từ chối / yêu cầu sửa
-              </Button>
-            </>
-          )}
-        </Space>
-      </Space>
+            <Button danger onClick={() => setRejectOpen(true)}>
+              BGH từ chối / yêu cầu sửa
+            </Button>
+          </>
+        )}
+      </FooterToolbar>
 
       <Modal
         title="BGH từ chối danh mục"

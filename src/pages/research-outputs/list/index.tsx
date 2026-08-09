@@ -3,7 +3,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { history, useAccess, useParams } from '@umijs/max';
-import { Button, Input, Popconfirm, Tag, Tooltip, Typography, message } from 'antd';
+import { Button, Input, Popconfirm, Select, Tag, Tooltip, Typography, message } from 'antd';
 import type { FormItemProps } from 'antd/es/form';
 import { DeleteOutlined, EditOutlined, PlusOutlined, CalculatorOutlined } from '@ant-design/icons';
 import {
@@ -22,6 +22,7 @@ import {
 } from '@/services/api/adminPublications';
 import { taiCayLoaiKqncQuanLy } from '@/utils/researchOutputCatalogTree';
 import {
+  findResearchOutputNodeById,
   layNhanLoaiKqncTheoCap,
   publicationThuocNhomGoc,
   type ResearchOutputTypeTreeNode,
@@ -57,7 +58,12 @@ const FORM_ITEM_GAN_NHAN: FormItemProps = {
 
 type TimKiemKqnc = {
   keyword?: string;
+  /** Cấp 1 — nhóm gốc trên cây loại KQNC */
   rootTypeId?: number;
+  /** Cấp 2 — con của cấp 1 */
+  level2TypeId?: number;
+  /** Cấp 3 — con của cấp 2 */
+  level3TypeId?: number;
   reviewStatus?: PublicationReviewStatus;
   filterPreset?: PublicationFilterPreset;
   filterRefYear?: number;
@@ -65,6 +71,26 @@ type TimKiemKqnc = {
   current?: number;
   pageSize?: number;
 };
+
+/** Ép id số từ form/query; rỗng → undefined */
+function parseTypeId(v: unknown): number | undefined {
+  if (v == null || v === '') return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Options dropdown từ danh sách con của 1 node trên cây */
+function optionsConTrenCay(
+  tree: ResearchOutputTypeTreeNode[],
+  parentId: number | undefined,
+): { label: string; value: number }[] {
+  if (parentId == null) return [];
+  const node = findResearchOutputNodeById(tree, parentId);
+  return (node?.children ?? []).map((n) => ({
+    label: n.name,
+    value: Number(n.id),
+  }));
+}
 
 const ResearchOutputsListPage: React.FC = () => {
   const { rootTypeKey } = useParams<{ rootTypeKey: string }>();
@@ -134,7 +160,12 @@ const ResearchOutputsListPage: React.FC = () => {
       rootTypeIdFromMenu != null && Number.isFinite(rootTypeIdFromMenu)
         ? Number(rootTypeIdFromMenu)
         : undefined;
-    formRef.current?.setFieldsValue({ rootTypeId: id });
+    // Đổi nhóm menu cấp 1 → xóa lọc cấp 2/3
+    formRef.current?.setFieldsValue({
+      rootTypeId: id,
+      level2TypeId: undefined,
+      level3TypeId: undefined,
+    });
     actionRef.current?.reload();
   }, [rootTypeIdFromMenu, researchOutputTree]);
 
@@ -288,13 +319,13 @@ const ResearchOutputsListPage: React.FC = () => {
       },
     },
     {
-      title: 'Loại kết quả NCKH',
+      title: 'Loại kết quả NCKH cấp 1',
       dataIndex: 'rootTypeId',
       hideInTable: true,
       valueType: 'select',
       valueEnum: rootTypeValueEnum,
-      order: 10,
-      colSize: 3,
+      order: 12,
+      colSize: 1,
       formItemProps: {
         ...FORM_ITEM_GAN_NHAN,
         className: 'kqnc-filter-root-type-item',
@@ -302,17 +333,92 @@ const ResearchOutputsListPage: React.FC = () => {
       fieldProps: {
         allowClear: true,
         className: 'kqnc-filter-root-type',
-        placeholder: 'Tất cả loại',
+        placeholder: 'Tất cả',
         popupMatchSelectWidth: false,
-        dropdownStyle: { minWidth: 400 },
+        dropdownStyle: { minWidth: 280 },
         options: rootTypeOptions,
         loading: !researchOutputTree.length,
         onChange: (v: number | string | undefined) => {
-          const id =
-            v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : undefined;
-          formRef.current?.setFieldsValue({ rootTypeId: id });
+          const id = parseTypeId(v);
+          // Chọn cấp 1 → xóa cấp 2/3 rồi đồng bộ URL menu
+          formRef.current?.setFieldsValue({
+            rootTypeId: id,
+            level2TypeId: undefined,
+            level3TypeId: undefined,
+          });
           history.replace(duongDanMenuNhomGoc(id ?? 'all'));
+          actionRef.current?.reload();
         },
+      },
+    },
+    {
+      title: 'Loại kết quả NCKH cấp 2',
+      dataIndex: 'level2TypeId',
+      hideInTable: true,
+      valueType: 'select',
+      order: 11,
+      colSize: 1,
+      dependencies: ['rootTypeId'],
+      formItemProps: {
+        ...FORM_ITEM_GAN_NHAN,
+        className: 'kqnc-filter-level2-type-item',
+      },
+      // Hiện dropdown khi cấp 1 có con; options lấy từ cây danh mục
+      renderFormItem: (_, _cfg, form) => {
+        const rootId = parseTypeId(form.getFieldValue('rootTypeId'));
+        const options = optionsConTrenCay(researchOutputTree, rootId);
+        if (!rootId || !options.length) return null;
+        return (
+          <Select
+            allowClear
+            className="kqnc-filter-level2-type"
+            placeholder="Tất cả cấp 2"
+            popupMatchSelectWidth={false}
+            dropdownStyle={{ minWidth: 280 }}
+            options={options}
+            value={parseTypeId(form.getFieldValue('level2TypeId'))}
+            onChange={(v) => {
+              form.setFieldsValue({
+                level2TypeId: parseTypeId(v),
+                level3TypeId: undefined,
+              });
+              actionRef.current?.reload();
+            }}
+          />
+        );
+      },
+    },
+    {
+      title: 'Loại kết quả NCKH cấp 3',
+      dataIndex: 'level3TypeId',
+      hideInTable: true,
+      valueType: 'select',
+      order: 10,
+      colSize: 1,
+      dependencies: ['rootTypeId', 'level2TypeId'],
+      formItemProps: {
+        ...FORM_ITEM_GAN_NHAN,
+        className: 'kqnc-filter-level3-type-item',
+      },
+      renderFormItem: (_, _cfg, form) => {
+        const level2Id = parseTypeId(form.getFieldValue('level2TypeId'));
+        const options = optionsConTrenCay(researchOutputTree, level2Id);
+        if (!level2Id || !options.length) return null;
+        return (
+          <Select
+            allowClear
+            className="kqnc-filter-level3-type"
+            placeholder="Tất cả cấp 3"
+            popupMatchSelectWidth={false}
+            dropdownStyle={{ minWidth: 280 }}
+            options={options}
+            value={parseTypeId(form.getFieldValue('level3TypeId'))}
+            onChange={(v) => {
+              form.setFieldsValue({ level3TypeId: parseTypeId(v) });
+              actionRef.current?.reload();
+            }}
+          />
+        );
       },
     },
     {
@@ -515,11 +621,12 @@ const ResearchOutputsListPage: React.FC = () => {
         }}
         scroll={{ x: 1200 }}
         request={async (params) => {
-          const rawRoot = params.rootTypeId ?? rootTypeIdFromMenu;
+          // Ưu tiên lọc theo cấp sâu nhất đang chọn (3 → 2 → 1)
+          const level3TypeId = parseTypeId(params.level3TypeId);
+          const level2TypeId = parseTypeId(params.level2TypeId);
           const rootTypeId =
-            rawRoot != null && rawRoot !== '' && Number.isFinite(Number(rawRoot))
-              ? Number(rawRoot)
-              : undefined;
+            parseTypeId(params.rootTypeId) ?? parseTypeId(rootTypeIdFromMenu);
+          const filterTypeId = level3TypeId ?? level2TypeId ?? rootTypeId;
           const dateRange = layKhoangNgayTuTimKiem(params);
           const from = dateRange?.[0];
           const to = dateRange?.[1];
@@ -529,7 +636,7 @@ const ResearchOutputsListPage: React.FC = () => {
               page: params.current,
               perPage: params.pageSize,
               keyword: params.keyword,
-              rootTypeId,
+              rootTypeId: filterTypeId,
               reviewStatus: params.reviewStatus,
               publishedFrom:
                 coBoLocNgayDangBat(from, to) && from ? from.format('YYYY-MM-DD') : undefined,
@@ -539,9 +646,9 @@ const ResearchOutputsListPage: React.FC = () => {
 
             let data = res.data ?? [];
 
-            if (rootTypeId != null && researchOutputTree.length) {
+            if (filterTypeId != null && researchOutputTree.length) {
               data = data.filter((p) =>
-                publicationThuocNhomGoc(researchOutputTree, p, rootTypeId)
+                publicationThuocNhomGoc(researchOutputTree, p, filterTypeId)
               );
             }
 

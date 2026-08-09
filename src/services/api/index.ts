@@ -59,8 +59,5 @@ export * from './userRoles';
 // IAM - Users Management
 export * from './iamUsers';
 
-// Personal Profiles
-export * from './personalProfiles';
-
-// Staffs (danh mục nhân sự)
+// Staffs (danh mục nhân sự — master hồ sơ)
 export * from './staffs';

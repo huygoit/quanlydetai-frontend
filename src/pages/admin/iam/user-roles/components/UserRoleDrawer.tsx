@@ -75,9 +75,19 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
         setAssignments(assignmentsRes.data);
       }
 
-      if (rolesRes?.data) {
-        setAvailableRoles(rolesRes.data);
-      }
+      // Chuẩn hóa danh sách vai trò (tránh Select hiện id thay vì tên)
+      const rolesRaw = Array.isArray(rolesRes?.data)
+        ? rolesRes.data
+        : Array.isArray((rolesRes as any)?.data?.data)
+          ? (rolesRes as any).data.data
+          : [];
+      setAvailableRoles(
+        rolesRaw.map((r: RoleItem) => ({
+          ...r,
+          id: Number(r.id),
+          name: r.name || r.code || `Vai trò #${r.id}`,
+        })),
+      );
     } catch (error) {
       message.error('Không thể tải dữ liệu');
     } finally {
@@ -205,19 +215,14 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
                 value={selectedRoleId}
                 onChange={setSelectedRoleId}
                 options={unassignedRoles.map((role) => ({
-                  value: role.id,
-                  label: (
-                    <Space>
-                      <span>{role.name}</span>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        ({role.code})
-                      </Text>
-                    </Space>
-                  ),
+                  value: Number(role.id),
+                  // Dùng chuỗi để Select hiện tên, không hiện id
+                  label: role.code ? `${role.name} (${role.code})` : role.name,
                 }))}
+                optionLabelProp="label"
                 showSearch
                 filterOption={(input, option) =>
-                  (option?.label?.toString() || '')
+                  String(option?.label ?? '')
                     .toLowerCase()
                     .includes(input.toLowerCase())
                 }
