@@ -38,6 +38,7 @@ import {
   type ScientificProfile,
   type ProfileStatus,
   type Degree,
+  type AcademicTitle,
 } from '@/services/api/profile';
 import {
   coHienThiHocHam,
@@ -46,7 +47,10 @@ import {
   nhanNhanHocVi,
   type HocViHocHamSelectOption,
 } from '@/utils/profileCatalogOptions';
-import { FALLBACK_DEGREE_CATALOG } from '@/constants/scientificProfileCatalog';
+import {
+  FALLBACK_ACADEMIC_TITLE_CATALOG,
+  FALLBACK_DEGREE_CATALOG,
+} from '@/constants/scientificProfileCatalog';
 import './index.less';
 
 const ProfileListPage: React.FC = () => {
@@ -68,9 +72,10 @@ const ProfileListPage: React.FC = () => {
     })),
   );
 
+  // Tùy chọn lọc học hàm — fallback trước, rồi thay bằng catalog API
   const [academicTitleFilterOptions, setAcademicTitleFilterOptions] = useState<
     HocViHocHamSelectOption[]
-  >([]);
+  >(() => FALLBACK_ACADEMIC_TITLE_CATALOG.map((d) => ({ value: d.value, label: d.label })));
 
   useEffect(() => {
     loadScientificProfileCatalogOptions().then(({ degreeOptions, academicTitleOptions }) => {
@@ -171,6 +176,8 @@ const ProfileListPage: React.FC = () => {
       valueType: 'select',
       fieldProps: {
         options: degreeFilterOptions,
+        allowClear: true,
+        placeholder: 'Chọn học vị',
       },
       render: (_, record) => (
         <Space direction="vertical" size={0}>
@@ -183,6 +190,18 @@ const ProfileListPage: React.FC = () => {
           )}
         </Space>
       ),
+    },
+    {
+      // Cột chỉ dùng cho form tìm kiếm — học hàm đã hiện tag dưới cột Học vị
+      title: 'Học hàm',
+      dataIndex: 'academicTitle',
+      valueType: 'select',
+      hideInTable: true,
+      fieldProps: {
+        options: academicTitleFilterOptions,
+        allowClear: true,
+        placeholder: 'Chọn học hàm',
+      },
     },
     {
       title: 'Hướng NC chính',
@@ -291,6 +310,7 @@ const ProfileListPage: React.FC = () => {
             keyword: params.fullName,
             faculty: params.faculty,
             degree: params.degree as Degree,
+            academicTitle: params.academicTitle as AcademicTitle | undefined,
             mainResearchArea: params.mainResearchArea,
             status: params.status as ProfileStatus,
             page: params.current,

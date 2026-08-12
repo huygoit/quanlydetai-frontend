@@ -172,6 +172,8 @@ export interface ProfileQueryParams {
   keyword?: string;
   faculty?: string;
   degree?: Degree;
+  /** Lọc học hàm — NONE | ASSOCIATE_PROFESSOR | PROFESSOR */
+  academicTitle?: AcademicTitle;
   mainResearchArea?: string;
   status?: ProfileStatus;
   page?: number;
