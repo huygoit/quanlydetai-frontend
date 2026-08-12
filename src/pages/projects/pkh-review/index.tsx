@@ -220,7 +220,7 @@ const PkhReviewPage: React.FC = () => {
     { title: 'Chủ nhiệm', dataIndex: 'ownerName', width: 140 },
     { title: 'Đơn vị', dataIndex: 'ownerUnit', width: 160, ellipsis: true },
     {
-      title: 'Phân cấp',
+      title: 'Cấp ý tưởng/đề tài',
       width: 160,
       ellipsis: true,
       render: (_, r) =>
@@ -476,7 +476,7 @@ const PkhReviewPage: React.FC = () => {
             <Descriptions.Item label="Chủ nhiệm">
               {selected.ownerName} · {selected.ownerUnit}
             </Descriptions.Item>
-            <Descriptions.Item label="Cấp / quy trình">
+            <Descriptions.Item label="Cấp ý tưởng/đề tài">
               {selected.projectProcessType
                 ? `${selected.projectProcessType.code} ${selected.projectProcessType.name}`
                 : LEVEL_OPTIONS.find((l) => l.value === selected.level)?.label || selected.level}

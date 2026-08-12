@@ -1,5 +1,5 @@
 /**
- * API danh mục Loại quy trình đề tài (QT-I … QT-V)
+ * API danh mục Cấp ý tưởng/đề tài (QT-I … QT-V)
  * - Admin: /api/admin/project-process-types
  * - Catalog: /api/project-process-types, /options
  */

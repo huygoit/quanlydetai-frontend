@@ -1,7 +1,7 @@
 /**
- * Form hồ sơ nhân sự (staffs) — admin + cán bộ tự sửa.
+ * Form hồ sơ nhân sự — 2 multi-select chức vụ (lưu ID cách phẩy).
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ProForm,
   ProFormText,
@@ -12,6 +12,15 @@ import {
 import type { ProFormInstance } from '@ant-design/pro-components';
 import { Card, Col, Row } from 'antd';
 import { GENDER_OPTIONS } from '@/services/api/staffs';
+import {
+  getStaffPositionOptions,
+  STAFF_POSITION_KIND_MAP,
+  type StaffPositionOption,
+} from '@/services/api/staffPositions';
+import {
+  catalogThanhSelectOptions,
+  gopIdChucVuVaoOptions,
+} from '@/utils/staffPositionIds';
 
 export type StaffProfileFormMode = 'admin-create' | 'admin-edit' | 'self';
 
@@ -31,6 +40,30 @@ const StaffProfileForm: React.FC<StaffProfileFormProps> = ({
   const hienChonUser = mode === 'admin-create' || mode === 'admin-edit';
   const khoaMaNv = mode === 'self';
   const hienGhiChuAdmin = mode === 'admin-create' || mode === 'admin-edit';
+
+  const [optsPosition, setOptsPosition] = useState<StaffPositionOption[]>([]);
+  const [optsParty, setOptsParty] = useState<StaffPositionOption[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      getStaffPositionOptions({ kind: 'POSITION' }),
+      getStaffPositionOptions({ kind: 'PARTY' }),
+    ]).then(([pos, party]) => {
+      setOptsPosition(pos.data || []);
+      setOptsParty(party.data || []);
+    });
+  }, []);
+
+  const selectMulti = {
+    mode: 'multiple' as const,
+    showSearch: true,
+    allowClear: true,
+    filterOption: (input: string, option?: { label?: React.ReactNode }) =>
+      (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase()),
+  };
+
+  const positionIds: number[] = formRef.current?.getFieldValue?.('positionIds') || [];
+  const partyPositionIds: number[] = formRef.current?.getFieldValue?.('partyPositionIds') || [];
 
   return (
     <ProForm formRef={formRef} submitter={false} layout="vertical" style={{ width: '100%' }}>
@@ -137,9 +170,6 @@ const StaffProfileForm: React.FC<StaffProfileFormProps> = ({
                 />
               </Col>
               <Col xs={24} md={12}>
-                <ProFormText name="positionTitle" label="Chức danh" placeholder="VD: Giảng viên" />
-              </Col>
-              <Col xs={24} md={12}>
                 <ProFormText name="staffType" label="Loại cán bộ" placeholder="VD: GV, NV…" />
               </Col>
               <Col xs={24} md={12}>
@@ -149,7 +179,37 @@ const StaffProfileForm: React.FC<StaffProfileFormProps> = ({
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title="4. Thông tin chuyên môn" style={{ marginBottom: 0 }}>
+          <Card title="4. Chức vụ" style={{ marginBottom: 0 }}>
+            <Row gutter={24}>
+              <Col xs={24}>
+                <ProFormSelect
+                  name="positionIds"
+                  label={STAFF_POSITION_KIND_MAP.POSITION.text}
+                  placeholder="Chọn một hoặc nhiều chức vụ"
+                  options={gopIdChucVuVaoOptions(
+                    catalogThanhSelectOptions(optsPosition),
+                    positionIds,
+                  )}
+                  fieldProps={selectMulti}
+                />
+              </Col>
+              <Col xs={24}>
+                <ProFormSelect
+                  name="partyPositionIds"
+                  label={STAFF_POSITION_KIND_MAP.PARTY.text}
+                  placeholder="Chọn một hoặc nhiều chức vụ Đảng"
+                  options={gopIdChucVuVaoOptions(
+                    catalogThanhSelectOptions(optsParty),
+                    partyPositionIds,
+                  )}
+                  fieldProps={selectMulti}
+                />
+              </Col>
+            </Row>
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card title="5. Thông tin chuyên môn" style={{ marginBottom: 0 }}>
             <Row gutter={24}>
               <Col xs={24} md={12}>
                 <ProFormText
@@ -168,7 +228,7 @@ const StaffProfileForm: React.FC<StaffProfileFormProps> = ({
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title="5. Giấy tờ cơ bản" style={{ marginBottom: 0 }}>
+          <Card title="6. Giấy tờ cơ bản" style={{ marginBottom: 0 }}>
             <Row gutter={24}>
               <Col xs={24} md={12}>
                 <ProFormText name="identityNumber" label="Số CMND/CCCD" placeholder="Số giấy tờ" />
@@ -189,7 +249,7 @@ const StaffProfileForm: React.FC<StaffProfileFormProps> = ({
         </Col>
         {hienGhiChuAdmin && (
           <Col xs={24} lg={12}>
-            <Card title="6. Ghi chú" style={{ marginBottom: 0 }}>
+            <Card title="7. Ghi chú" style={{ marginBottom: 0 }}>
               <ProFormTextArea name="note" label="Ghi chú nội bộ" placeholder="Ghi chú" rows={3} />
             </Card>
           </Col>

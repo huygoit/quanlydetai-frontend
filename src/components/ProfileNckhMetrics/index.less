@@ -3,7 +3,8 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
-  max-width: 420px;
+  max-width: 720px;
+  min-width: 520px;
   width: 100%;
   padding: 12px 14px;
   border-radius: 14px;
@@ -19,6 +20,9 @@
 
 .profile-nckh-metrics__filter {
   width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  overflow-x: auto;
 }
 
 .profile-nckh-metrics__filterIcon {
@@ -163,6 +167,7 @@
 @media (max-width: 992px) {
   .profile-nckh-metrics {
     max-width: none;
+    min-width: 0;
     align-items: stretch;
   }
 

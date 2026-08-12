@@ -113,7 +113,11 @@ export function nhanNhanHocHam(
 
 /** Chuẩn hóa field catalog trên hồ sơ sau GET (map dữ liệu Việt cũ → key). */
 export function chuanHoaProfileCatalogFields<T extends Partial<ScientificProfile>>(profile: T): T {
-  const raw = profile as T & { academic_title_year?: number | null };
+  const raw = profile as T & {
+    academic_title_year?: number | null;
+    education_records?: ScientificProfile['educationRecords'];
+    training_courses?: ScientificProfile['trainingCourses'];
+  };
   const academicTitleYear =
     profile.academicTitleYear ?? raw.academic_title_year ?? undefined;
 
@@ -134,6 +138,8 @@ export function chuanHoaProfileCatalogFields<T extends Partial<ScientificProfile
       : profile.degree,
     academicTitle,
     academicTitleYear: coHienThiHocHam(academicTitle) ? namHocHam : null,
+    educationRecords: profile.educationRecords ?? raw.education_records ?? [],
+    trainingCourses: profile.trainingCourses ?? raw.training_courses ?? [],
   };
 }
 

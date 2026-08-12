@@ -488,7 +488,7 @@ const OutlineFormPage: React.FC = () => {
               <Col span={12}>
                 <ProFormSelect
                   name="projectProcessTypeId"
-                  label="Loại đề tài"
+                  label="Cấp ý tưởng/đề tài"
                   options={processTypes.map((t) => ({
                     value: t.id,
                     label: `${t.code} — ${t.name}`,

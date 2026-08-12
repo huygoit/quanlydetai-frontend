@@ -1,41 +1,33 @@
 /**
  * Thống kê giờ NCKH (biểu mẫu in/PDF - Cách B: HTML + print)
- * Lấy dữ liệu giờ NCKH đã tính (kpi_results) gom theo Khoa/đơn vị.
+ * Lọc theo khoảng ngày xuất bản (cùng bộ lọc /research-outputs/all) + đơn vị.
  */
 import { PageContainer } from '@ant-design/pro-components';
-import { Alert, Button, Card, Empty, Select, Space, Spin, message } from 'antd';
+import { Button, Card, Empty, Select, Space, Spin, message } from 'antd';
 import { PrinterOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { getNckhHoursReport, NckhHoursReport } from '@/services/api/kpiReports';
+import ReportPeriodFilters, {
+  nhanKhoangKyTuState,
+  stateThanhQueryBaoCao,
+  trangThaiLocKyMacDinh,
+  type ReportPeriodFilterState,
+} from '@/components/ReportPeriodFilters';
 import './index.less';
-
-// Tạo danh sách năm học gần đây để chọn (vd 2023-2024 ... 2027-2028)
-function buildAcademicYearOptions(): { label: string; value: string }[] {
-  const now = new Date();
-  // Năm học bắt đầu từ tháng 8; trước tháng 8 vẫn thuộc năm học trước
-  const startYear = now.getMonth() + 1 >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-  const list: { label: string; value: string }[] = [];
-  for (let y = startYear + 1; y >= startYear - 3; y--) {
-    const v = `${y}-${y + 1}`;
-    list.push({ label: `Năm học ${v}`, value: v });
-  }
-  return list;
-}
 
 const ORG_TOP = 'ĐẠI HỌC ĐÀ NẴNG';
 const ORG_SUB = 'TRƯỜNG ĐẠI HỌC SƯ PHẠM';
 
 const NckhHoursReportPage: React.FC = () => {
-  const yearOptions = useMemo(() => buildAcademicYearOptions(), []);
-  const [academicYear, setAcademicYear] = useState<string>(yearOptions[1]?.value ?? yearOptions[0].value);
+  const [periodFilter, setPeriodFilter] = useState<ReportPeriodFilterState>(trangThaiLocKyMacDinh);
   const [faculty, setFaculty] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<NckhHoursReport | null>(null);
 
-  const fetchReport = async (year: string, fac?: string) => {
+  const fetchReport = async (period: ReportPeriodFilterState, fac?: string) => {
     setLoading(true);
     try {
-      const res = await getNckhHoursReport(year, fac);
+      const res = await getNckhHoursReport(stateThanhQueryBaoCao(period, fac));
       if (res.success) {
         setReport(res.data);
       } else {
@@ -49,16 +41,10 @@ const NckhHoursReportPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchReport(academicYear, faculty);
+    fetchReport(periodFilter, faculty);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleChangeYear = (val: string) => {
-    setAcademicYear(val);
-    fetchReport(val, faculty);
-  };
-
-  // Tất cả đơn vị (value rỗng) + các đơn vị có hồ sơ
   const facultyOptions = useMemo(
     () => [
       { label: 'Tất cả đơn vị', value: '' },
@@ -68,6 +54,8 @@ const NckhHoursReportPage: React.FC = () => {
   );
 
   const hasData = !!report && report.units.length > 0;
+  const periodLabel =
+    report?.period_label || nhanKhoangKyTuState(periodFilter) || report?.academic_year || '';
 
   return (
     <PageContainer
@@ -81,19 +69,18 @@ const NckhHoursReportPage: React.FC = () => {
               placeholder="Chọn đơn vị"
               onChange={(val) => {
                 setFaculty(val);
-                fetchReport(academicYear, val);
+                fetchReport(periodFilter, val);
               }}
               options={facultyOptions}
               style={{ width: 280 }}
               showSearch
             />
-            <Select
-              value={academicYear}
-              onChange={handleChangeYear}
-              options={yearOptions}
-              style={{ width: 200 }}
+            <ReportPeriodFilters
+              value={periodFilter}
+              onChange={setPeriodFilter}
+              onApply={(next) => fetchReport(next, faculty)}
             />
-            <Button icon={<ReloadOutlined />} onClick={() => fetchReport(academicYear, faculty)}>
+            <Button icon={<ReloadOutlined />} onClick={() => fetchReport(periodFilter, faculty)}>
               Tải lại
             </Button>
             <Button
@@ -111,10 +98,11 @@ const NckhHoursReportPage: React.FC = () => {
       <Card>
         <Spin spinning={loading}>
           {!hasData && !loading ? (
-            <Empty description={`Chưa có dữ liệu giờ NCKH cho ${academicYear}. Hãy chạy "Tính lại KPI" cho năm học này.`} />
+            <Empty
+              description={`Chưa có dữ liệu giờ NCKH cho khoảng ${periodLabel || 'đã chọn'}.`}
+            />
           ) : (
             <div id="nckh-print-area" className="nckh-doc">
-              {/* Phần đầu trang: quốc hiệu */}
               <div className="nckh-header">
                 <div className="nckh-header-left">
                   <div>{ORG_TOP}</div>
@@ -128,13 +116,11 @@ const NckhHoursReportPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tiêu đề */}
               <div className="nckh-title">
                 <div className="nckh-title-main">THỐNG KÊ GIỜ NGHIÊN CỨU KHOA HỌC</div>
-                <div className="nckh-title-sub">Năm học {report?.academic_year}</div>
+                <div className="nckh-title-sub">{periodLabel}</div>
               </div>
 
-              {/* Bảng theo từng Khoa/đơn vị */}
               {report?.units.map((u) => (
                 <div className="nckh-unit" key={u.unit}>
                   <div className="nckh-unit-name">{u.unit}</div>
@@ -170,13 +156,11 @@ const NckhHoursReportPage: React.FC = () => {
                 </div>
               ))}
 
-              {/* Tổng cộng toàn trường */}
               <div className="nckh-grand">
                 Tổng cộng: <span className="nckh-bold">{report?.grand_total}</span> giờ /{' '}
                 {report?.total_people} người
               </div>
 
-              {/* Chữ ký */}
               <div className="nckh-sign">
                 <div className="nckh-sign-box">
                   <div className="nckh-bold">HIỆU TRƯỞNG</div>

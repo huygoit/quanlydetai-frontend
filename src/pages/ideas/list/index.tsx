@@ -8,20 +8,22 @@ import type { ProColumns, ActionType } from '@ant-design/pro-components';
 import { Badge, Button, Card, Col, Drawer, Descriptions, Progress, Row, Space, Tag, Typography, Alert } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, EyeOutlined, LinkOutlined, TrophyOutlined } from '@ant-design/icons';
 import { THRESHOLD_SCORE, MAX_WEIGHTED_SCORE, SCORING_CRITERIA } from '@/services/api/ideaCouncil';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   queryIdeas,
-  IDEA_FIELDS,
-  IDEA_UNITS,
   IDEA_STATUS_MAP,
   IDEA_PRIORITY_MAP,
-  PROJECT_LEVEL_MAP,
   type Idea,
-  type IdeaStatus,
   type ProjectLevel,
 } from '@/services/api/ideas';
-
-const PROJECT_LEVELS: ProjectLevel[] = Object.keys(PROJECT_LEVEL_MAP) as ProjectLevel[];
+import {
+  labelLevel,
+  loadDepartmentSelectOptions,
+  loadFieldSelectOptions,
+  loadIdeaLevelOptions,
+  type LevelMeta,
+  type SelectOption,
+} from '@/utils/researchCatalogOptions';
 
 const REJECT_STAGE_MAP: Record<string, string> = {
   PHONG_KH_SO_LOAI: 'Bị từ chối ở giai đoạn sơ loại (Phòng KH)',
@@ -35,6 +37,25 @@ const IdeaListPage: React.FC = () => {
   const actionRef = useRef<ActionType>();
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [currentIdea, setCurrentIdea] = useState<Idea | null>(null);
+  const [unitOptions, setUnitOptions] = useState<SelectOption[]>([]);
+  const [fieldOptions, setFieldOptions] = useState<SelectOption[]>([]);
+  const [levelOptions, setLevelOptions] = useState<SelectOption[]>([]);
+  const [levelMeta, setLevelMeta] = useState<Record<string, LevelMeta>>({});
+
+  // Tải đơn vị / lĩnh vực / cấp từ danh mục
+  useEffect(() => {
+    void (async () => {
+      const [units, fields, levels] = await Promise.all([
+        loadDepartmentSelectOptions(),
+        loadFieldSelectOptions(),
+        loadIdeaLevelOptions(),
+      ]);
+      setUnitOptions(units);
+      setFieldOptions(fields);
+      setLevelOptions(levels.options);
+      setLevelMeta(levels.meta);
+    })();
+  }, []);
 
   // Xem chi tiết ý tưởng
   const handleView = (record: Idea) => {
@@ -67,41 +88,51 @@ const IdeaListPage: React.FC = () => {
       dataIndex: 'ownerUnit',
       width: 130,
       valueType: 'select',
-      valueEnum: IDEA_UNITS.reduce((acc, unit) => {
-        acc[unit] = { text: unit };
-        return acc;
-      }, {} as Record<string, { text: string }>),
+      fieldProps: {
+        options: unitOptions,
+        showSearch: true,
+        optionFilterProp: 'label',
+        placeholder: 'Chọn đơn vị',
+      },
     },
     {
       title: 'Lĩnh vực',
       dataIndex: 'field',
       width: 140,
       valueType: 'select',
-      valueEnum: IDEA_FIELDS.reduce((acc, field) => {
-        acc[field] = { text: field };
-        return acc;
-      }, {} as Record<string, { text: string }>),
+      fieldProps: {
+        options: fieldOptions,
+        showSearch: true,
+        optionFilterProp: 'label',
+        placeholder: 'Chọn lĩnh vực',
+      },
     },
     {
-      title: 'Cấp đề tài phù hợp',
+      title: 'Cấp ý tưởng',
       dataIndex: 'suitableLevels',
-      width: 220,
+      width: 260,
       valueType: 'select',
       fieldProps: {
         mode: 'multiple',
-        placeholder: 'Chọn cấp đề tài',
+        options: levelOptions,
+        showSearch: true,
+        optionFilterProp: 'label',
+        placeholder: 'Chọn cấp ý tưởng',
+        // Input cùng chiều rộng mặc định như "Mã ý tưởng"; dropdown rộng để đọc hết
+        popupMatchSelectWidth: false,
+        listHeight: 360,
+        dropdownStyle: { minWidth: 420 },
       },
-      valueEnum: PROJECT_LEVELS.reduce((acc, level) => {
-        acc[level] = { text: PROJECT_LEVEL_MAP[level].text };
-        return acc;
-      }, {} as Record<string, { text: string }>),
       render: (_, record) => (
         <Space size={[0, 4]} wrap>
-          {record.suitableLevels.map(level => (
-            <Tag key={level} color={PROJECT_LEVEL_MAP[level].color}>
-              {PROJECT_LEVEL_MAP[level].text}
-            </Tag>
-          ))}
+          {record.suitableLevels.map((level) => {
+            const meta = labelLevel(level, levelMeta);
+            return (
+              <Tag key={level} color={meta.color}>
+                {meta.text}
+              </Tag>
+            );
+          })}
         </Space>
       ),
     },
@@ -196,12 +227,15 @@ const IdeaListPage: React.FC = () => {
         rowKey="id"
         columns={columns}
         request={async (params) => {
-          const { current, pageSize, code, title, suitableLevels, ...rest } = params;
+          const { current, pageSize, code, title, suitableLevels, ownerUnit, unit, ...rest } =
+            params;
           const result = await queryIdeas({
             page: current,
             perPage: pageSize,
             keyword: code || title,
             suitableLevels: suitableLevels as ProjectLevel[],
+            // ProTable gửi ownerUnit; BE nhận unit
+            unit: (ownerUnit || unit) as string | undefined,
             ...rest,
           });
           return {
@@ -361,11 +395,11 @@ const IdeaListPage: React.FC = () => {
               <Descriptions.Item label="Mã ý tưởng">{currentIdea.code}</Descriptions.Item>
               <Descriptions.Item label="Tiêu đề">{currentIdea.title}</Descriptions.Item>
               <Descriptions.Item label="Lĩnh vực">{currentIdea.field}</Descriptions.Item>
-              <Descriptions.Item label="Cấp đề tài phù hợp">
+              <Descriptions.Item label="Cấp ý tưởng/đề tài">
                 <Space size={[0, 4]} wrap>
                   {currentIdea.suitableLevels.map(level => (
-                    <Tag key={level} color={PROJECT_LEVEL_MAP[level].color}>
-                      {PROJECT_LEVEL_MAP[level].text}
+                    <Tag key={level} color={labelLevel(level, levelMeta).color}>
+                      {labelLevel(level, levelMeta).text}
                     </Tag>
                   ))}
                 </Space>

@@ -27,7 +27,6 @@ import {
   Form,
   Input,
   InputNumber,
-  DatePicker,
   Popconfirm,
   Cascader,
   Upload,
@@ -132,6 +131,11 @@ import {
   layNamNhanBangToiDa,
   NAM_NHAN_BANG_TOI_THIEU,
 } from '@/constants/scientificProfileCatalog';
+import ReportPeriodFilters, {
+  nhanKhoangKyTuState,
+  type ReportPeriodFilterState,
+} from '@/components/ReportPeriodFilters';
+import ProfileEducationTrainingTables from '@/components/ProfileEducationTrainingTables';
 import {
   listMyPublications,
   createMyPublication,
@@ -157,16 +161,10 @@ import type { OpenAlexPublicationDraft } from '@/services/api/openalex';
 import { dayjsRaPublishedAt, layPublishedAtTuApi, publishedAtRaDayjs } from '@/utils/publicationDate';
 import {
   coBoLocNgayDangBat,
-  khoangNgayTheoPreset,
-  layDanhSachNamLoc,
   moTaKhoangLoc,
-  namThamChieuBoLoc,
-  presetCanChonNam,
-  PRESET_LOC_KQNC,
   publicationTrongKhoangNgay,
-  type PublicationFilterPreset,
 } from '@/utils/publicationDateFilter';
-import dayjs, { type Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 import {
   HINT_KHONG_QUY_DOI_THIEU_NHOM_CHINH,
   laLoiThieuNhomChinh,
@@ -205,7 +203,6 @@ const AUTHOR_ROLE_MAP: Record<string, { text: string; color: string }> = {
 import './index.less';
 
 const { Title, Text } = Typography;
-const { RangePicker } = DatePicker;
 
 /** Breadcrumb — mục cha không có path (tránh link /profile trắng trang) */
 const BREADCRUMB_HO_SO_CUA_TOI = {
@@ -253,9 +250,12 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   onOpenPubIdHandled,
 }) => {
   const [form] = Form.useForm();
-  const [filterPreset, setFilterPreset] = useState<PublicationFilterPreset>('all');
-  const [filterRefYear, setFilterRefYear] = useState(() => dayjs().year());
-  const [filterDateRange, setFilterDateRange] = useState<[Dayjs, Dayjs] | null>(null);
+  // Cùng bộ lọc kỳ với Báo cáo và thống kê
+  const [periodFilter, setPeriodFilter] = useState<ReportPeriodFilterState>({
+    filterPreset: 'all',
+    filterRefYear: dayjs().year(),
+    publishedAtRange: null,
+  });
   const [selectedPub, setSelectedPub] = useState<PublicationItem | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   
@@ -278,8 +278,6 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   );
   const [daMoPubTuThongBao, setDaMoPubTuThongBao] = useState(false);
 
-  const filterYears = useMemo(() => layDanhSachNamLoc(publications), [publications]);
-
   const kqncCanHieuChinh = useMemo(
     () => publications.filter((p) => p.reviewStatus === 'CORRECTION_REQUESTED'),
     [publications]
@@ -291,43 +289,23 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
   }, [rootTypeFilterId, researchOutputTree]);
 
   const filteredPublications = useMemo(() => {
-    const from = filterDateRange?.[0];
-    const to = filterDateRange?.[1];
+    const from = periodFilter.publishedAtRange?.[0];
+    const to = periodFilter.publishedAtRange?.[1];
     let list = publications;
     if (rootTypeFilterId != null) {
       list = list.filter((pub) => publicationThuocNhomGoc(researchOutputTree, pub, rootTypeFilterId));
     }
-    if (filterPreset !== 'all' && coBoLocNgayDangBat(from, to)) {
+    if (periodFilter.filterPreset !== 'all' && coBoLocNgayDangBat(from, to)) {
       list = list.filter((pub) => publicationTrongKhoangNgay(pub, from, to));
     }
     return list;
-  }, [publications, filterDateRange, filterPreset, rootTypeFilterId, researchOutputTree]);
+  }, [publications, periodFilter, rootTypeFilterId, researchOutputTree]);
 
-  const moTaBoLoc = moTaKhoangLoc(filterDateRange?.[0], filterDateRange?.[1]);
-
-  const datLocVeTatCa = () => {
-    setFilterPreset('all');
-    setFilterDateRange(null);
-  };
-
-  const doiPresetLoc = (preset: PublicationFilterPreset) => {
-    setFilterPreset(preset);
-    if (preset === 'all') {
-      setFilterDateRange(null);
-      return;
-    }
-    if (preset === 'custom') return;
-    const range = khoangNgayTheoPreset(preset, namThamChieuBoLoc(preset, filterRefYear));
-    setFilterDateRange(range);
-  };
-
-  const doiNamPreset = (year: number) => {
-    setFilterRefYear(year);
-    if (presetCanChonNam(filterPreset)) {
-      const range = khoangNgayTheoPreset(filterPreset, year);
-      setFilterDateRange(range);
-    }
-  };
+  const moTaBoLoc =
+    periodFilter.filterPreset === 'all'
+      ? ''
+      : nhanKhoangKyTuState(periodFilter) ||
+        moTaKhoangLoc(periodFilter.publishedAtRange?.[0], periodFilter.publishedAtRange?.[1]);
 
   /** Bài OpenAlex đã lưu hồ sơ — khớp sourceId để disable「Nạp vào form」 */
   const importedOpenAlexSourceIds = useMemo(() => {
@@ -677,9 +655,9 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
           </Space>
         </div>
 
-        {/* Bộ lọc theo ngày xuất bản (publishedAt) */}
+        {/* Bộ lọc theo ngày xuất bản — cùng ReportPeriodFilters với báo cáo */}
         <div className="publications-filters" style={{ marginTop: 16 }}>
-          <Space wrap align="start" size="middle">
+          <Space wrap={false} align="center" size="middle" style={{ flexWrap: 'nowrap' }}>
             {tenNhomGocDangLoc && (
               <Tag
                 closable
@@ -692,41 +670,11 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                 Nhóm: {tenNhomGocDangLoc}
               </Tag>
             )}
-            <Select
-              style={{ minWidth: 200 }}
-              value={filterPreset}
-              onChange={(v) => doiPresetLoc((v ?? 'all') as PublicationFilterPreset)}
-              options={PRESET_LOC_KQNC.filter((o) => o.value !== 'custom').map((o) => ({
-                label: o.label,
-                value: o.value,
-              }))}
+            <ReportPeriodFilters
+              value={periodFilter}
+              onChange={setPeriodFilter}
+              singleRow
             />
-            {presetCanChonNam(filterPreset) && (
-              <Select
-                style={{ width: 100 }}
-                value={filterRefYear}
-                onChange={doiNamPreset}
-                options={filterYears.map((y) => ({ label: String(y), value: y }))}
-              />
-            )}
-            <RangePicker
-              format="DD/MM/YYYY"
-              placeholder={['Từ ngày', 'Đến ngày']}
-              value={filterDateRange}
-              onChange={(vals) => {
-                if (!vals?.[0] || !vals?.[1]) {
-                  datLocVeTatCa();
-                  return;
-                }
-                setFilterDateRange([vals[0], vals[1]]);
-                setFilterPreset('custom');
-              }}
-            />
-            {coBoLocNgayDangBat(filterDateRange?.[0], filterDateRange?.[1]) && (
-              <Button type="link" onClick={datLocVeTatCa}>
-                Xóa bộ lọc
-              </Button>
-            )}
           </Space>
           <div className="filter-stats" style={{ marginTop: 8 }}>
             <Text type="secondary">
@@ -1416,27 +1364,23 @@ const MyProfilePage: React.FC = () => {
     }
   }, [searchParams]);
 
-  const namLocChiSo = useMemo(
-    () => layDanhSachNamLoc(profile?.publications ?? []),
-    [profile?.publications],
-  );
-
   /** Tổng giờ/điểm — BE lọc theo from_date / to_date (publishedAt). */
   useEffect(() => {
     if (!profile?.id) return;
-    const from = kpiPeriod.dateRange?.[0];
-    const to = kpiPeriod.dateRange?.[1];
-    if (!coBoLocNgayDangBat(from, to)) {
-      setNckhHours(null);
-      setNckhPoints(null);
-      return;
-    }
+    const from = kpiPeriod.publishedAtRange?.[0];
+    const to = kpiPeriod.publishedAtRange?.[1];
+    // «Tất cả»: lấy khoảng rộng để tính tổng
+    const fromDate =
+      kpiPeriod.filterPreset === 'all' || !from
+        ? '1990-01-01'
+        : from.format('YYYY-MM-DD');
+    const toDate =
+      kpiPeriod.filterPreset === 'all' || !to
+        ? dayjs().add(1, 'year').format('YYYY-MM-DD')
+        : to.format('YYYY-MM-DD');
     let cancelled = false;
     setNckhLoading(true);
-    getTeacherKpi(profile.id, {
-      fromDate: from.format('YYYY-MM-DD'),
-      toDate: to.format('YYYY-MM-DD'),
-    })
+    getTeacherKpi(profile.id, { fromDate, toDate })
       .then((res) => {
         if (cancelled) return;
         if (res.success && res.data) {
@@ -1461,7 +1405,12 @@ const MyProfilePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [profile?.id, kpiPeriod.dateRange, kpiPeriod.preset, kpiPeriod.refYear]);
+  }, [
+    profile?.id,
+    kpiPeriod.publishedAtRange,
+    kpiPeriod.filterPreset,
+    kpiPeriod.filterRefYear,
+  ]);
 
   const dismissOnboarding = () => {
     history.replace('/profile/me');
@@ -1888,7 +1837,6 @@ const MyProfilePage: React.FC = () => {
               loading={nckhLoading}
               period={kpiPeriod}
               onPeriodChange={setKpiPeriod}
-              yearOptions={namLocChiSo}
             />
           ) : undefined
         }
@@ -2243,6 +2191,13 @@ const MyProfilePage: React.FC = () => {
                           </Col>
                         </Row>
                       </div>
+
+                      <Divider />
+
+                      <ProfileEducationTrainingTables
+                        profile={profile}
+                        onProfileChange={setProfile}
+                      />
 
                       <Divider />
 

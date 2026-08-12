@@ -1,6 +1,6 @@
 /**
  * Form nộp hồ sơ đề xuất đề tài — full page + FooterToolbar cố định
- * Phân cấp đề tài = danh mục Loại quy trình đề tài (QT-I … QT-V)
+ * Phân cấp đề tài = danh mục Cấp ý tưởng/đề tài (QT-I … QT-V)
  */
 import {
   PageContainer,
@@ -43,7 +43,6 @@ import {
   extendProposalAdjustment,
   getProposalMembers,
   saveProposalMembers,
-  FIELD_OPTIONS,
   PROPOSAL_STATUS_MAP,
   type ProposalCreateData,
   type ProposalLevel,
@@ -59,6 +58,7 @@ import {
 import { openOrCreateOutlineFromProposal } from '@/services/api/projectOutlines';
 import ProposalAttachmentUpload from '@/components/ProposalAttachmentUpload';
 import AuthorsEditor from '@/components/AuthorsEditor';
+import { loadFieldSelectOptions, type SelectOption } from '@/utils/researchCatalogOptions';
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -85,6 +85,7 @@ const ProposalFormPage: React.FC = () => {
   const [loadingTypes, setLoadingTypes] = useState(true);
   const [proposal, setProposal] = useState<ProjectProposal | null>(null);
   const [processTypes, setProcessTypes] = useState<ProjectProcessTypeOption[]>([]);
+  const [fieldOptions, setFieldOptions] = useState<SelectOption[]>([]);
   const [kyMo, setKyMo] = useState<{
     title: string;
     deadlineAt: string;
@@ -151,12 +152,12 @@ const ProposalFormPage: React.FC = () => {
     }
   };
 
-  // Load danh mục loại quy trình đề tài
+  // Load danh mục cấp ý tưởng/đề tài + lĩnh vực
   useEffect(() => {
     let cancelled = false;
     setLoadingTypes(true);
-    getProjectProcessTypeOptions()
-      .then((res) => {
+    Promise.all([getProjectProcessTypeOptions(), loadFieldSelectOptions()])
+      .then(([res, fields]) => {
         if (cancelled) return;
         // Hỗ trợ cả { data: [] } và mảng trực tiếp
         const rows = Array.isArray(res?.data)
@@ -165,6 +166,7 @@ const ProposalFormPage: React.FC = () => {
             ? (res as unknown as ProjectProcessTypeOption[])
             : [];
         setProcessTypes(rows);
+        setFieldOptions(fields);
         const qtI = rows.find((r) => r.code === 'QT-I');
         const defaultLevel = (qtI && QT_CODE_TO_LEVEL[qtI.code]) || 'TRUONG';
         void kiemTraKy(defaultLevel, qtI?.id);
@@ -172,7 +174,8 @@ const ProposalFormPage: React.FC = () => {
       .catch((e) => {
         if (!cancelled) {
           setProcessTypes([]);
-          message.error(e?.message || 'Không tải được danh mục loại quy trình đề tài');
+          setFieldOptions([]);
+          message.error(e?.message || 'Không tải được danh mục cấp ý tưởng/đề tài');
         }
       })
       .finally(() => {
@@ -249,7 +252,7 @@ const ProposalFormPage: React.FC = () => {
     const raw = formRef.current?.getFieldsValue?.(true) || {};
     const payload = buildPayload(raw as Record<string, unknown>);
     if (!payload.projectProcessTypeId) {
-      message.warning('Vui lòng chọn Phân cấp đề tài');
+      message.warning('Vui lòng chọn Cấp ý tưởng/đề tài');
       return;
     }
     if (!(await kiemTraKy(payload.level || 'TRUONG', payload.projectProcessTypeId))) {
@@ -516,8 +519,8 @@ const ProposalFormPage: React.FC = () => {
           <Alert
             type="warning"
             showIcon
-            message="Chưa có dữ liệu danh mục Loại quy trình đề tài"
-            description="Vào Hệ thống → Danh mục hệ thống → Loại quy trình đề tài để kiểm tra / seed dữ liệu."
+            message="Chưa có dữ liệu danh mục Cấp ý tưởng/đề tài"
+            description="Vào Hệ thống → Danh mục hệ thống → Cấp ý tưởng/đề tài để kiểm tra / seed dữ liệu."
           />
         )}
         {stMeta && (
@@ -563,13 +566,13 @@ const ProposalFormPage: React.FC = () => {
                       projectProcessTypeId: defaultProcessTypeId,
                       year: dayjs().year(),
                       durationMonths: 12,
-                      field: FIELD_OPTIONS[0],
+                      field: fieldOptions[0]?.value,
                     }
               }
               key={
                 proposal
                   ? `p-${proposal.id}-${proposal.updatedAt}`
-                  : `new-${processTypes.map((p) => p.id).join('-')}`
+                  : `new-${processTypes.map((p) => p.id).join('-')}-${fieldOptions.length}`
               }
             >
               <Row gutter={[16, 0]}>
@@ -586,13 +589,13 @@ const ProposalFormPage: React.FC = () => {
                 <Col xs={24} md={12}>
                   <ProFormSelect
                     name="projectProcessTypeId"
-                    label="Phân cấp đề tài"
+                    label="Cấp ý tưởng/đề tài"
                     options={processTypeOptions}
                     rules={[{ required: true, message: 'Bắt buộc' }]}
                     disabled={khoaTruongKhac}
                     placeholder={
                       processTypeOptions.length
-                        ? 'Chọn loại quy trình đề tài'
+                        ? 'Chọn cấp ý tưởng/đề tài'
                         : 'Không có dữ liệu danh mục'
                     }
                     fieldProps={{
@@ -603,17 +606,23 @@ const ProposalFormPage: React.FC = () => {
                       onChange: (v: number) =>
                         void kiemTraKy(levelTuProcessTypeId(v), v),
                     }}
-                    extra="Nguồn: danh mục Loại quy trình đề tài (QT-I … QT-V)"
+                    extra="Nguồn: danh mục Cấp ý tưởng/đề tài (QT-I … QT-V)"
                   />
                 </Col>
                 <Col xs={24} md={12}>
                   <ProFormSelect
                     name="field"
                     label="Lĩnh vực"
-                    options={FIELD_OPTIONS.map((f) => ({ label: f, value: f }))}
+                    options={fieldOptions}
                     rules={[{ required: true, message: 'Bắt buộc' }]}
                     disabled={khoaTruongKhac}
-                    fieldProps={{ size: 'large' }}
+                    fieldProps={{
+                      size: 'large',
+                      showSearch: true,
+                      optionFilterProp: 'label',
+                      loading: loadingTypes,
+                    }}
+                    extra="Nguồn: danh mục lĩnh vực"
                   />
                 </Col>
                 <Col xs={24} md={8}>

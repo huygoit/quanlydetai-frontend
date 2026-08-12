@@ -198,9 +198,17 @@
     padding: 16px;
     background: #fafbfc;
     border-radius: 8px;
+    width: 100%;
+    overflow-x: auto;
 
     .filter-stats {
       font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    /* Đủ chỗ cho preset + khoảng ngày + năm */
+    .report-period-filters--single-row {
+      flex-shrink: 0;
     }
   }
 

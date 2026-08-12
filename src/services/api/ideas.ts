@@ -48,6 +48,8 @@ export interface Idea {
   rejectedByRole?: 'PHONG_KH' | 'HOI_DONG' | 'LANH_DAO';
   rejectedAt?: string;
   linkedProjectId?: string;
+  /** ID đề xuất đề tài tạo từ ý tưởng (nếu có) */
+  linkedProposalId?: number | null;
   councilSessionId?: number;
   councilAvgWeightedScore?: number;
   councilAvgNoveltyScore?: number;
@@ -161,12 +163,17 @@ export async function proposeOrderIdea(
 
 /**
  * Lãnh đạo: Phê duyệt đặt hàng (PROPOSED_FOR_ORDER → APPROVED_FOR_ORDER)
+ * BE tự tạo đề xuất đề tài DRAFT từ ý tưởng.
  */
 export async function approveOrderIdea(
   id: number,
   data: { noteForReview?: string }
-): Promise<ApiResponse<Idea>> {
-  return post<ApiResponse<Idea>>(`/api/ideas/${id}/approve-order`, data);
+): Promise<
+  ApiResponse<Idea> & {
+    proposal?: { id: number; code: string; created: boolean } | null;
+  }
+> {
+  return post(`/api/ideas/${id}/approve-order`, data);
 }
 
 /**
@@ -180,18 +187,25 @@ export async function rejectIdea(
 }
 
 /**
- * Khởi tạo đề tài từ ý tưởng
+ * Khởi tạo / lấy lại đề xuất đề tài từ ý tưởng đã phê duyệt đặt hàng (idempotent).
  */
 export async function createProjectFromIdea(
   id: number
-): Promise<ApiResponse<{ ideaId: number; linkedProjectId: string }>> {
-  return post<ApiResponse<{ ideaId: number; linkedProjectId: string }>>(`/api/ideas/${id}/create-project`);
+): Promise<
+  ApiResponse<{
+    ideaId: number;
+    linkedProjectId: string;
+    linkedProposalId: number;
+    created: boolean;
+  }>
+> {
+  return post(`/api/ideas/${id}/create-project`);
 }
 
-// Constants
-export const IDEA_FIELDS = ['Công nghệ thông tin', 'Kinh tế', 'Y học', 'Nông nghiệp', 'Giáo dục', 'Kỹ thuật'];
-export const IDEA_UNITS = ['Khoa CNTT', 'Khoa Kinh tế', 'Khoa Y', 'Khoa Nông nghiệp', 'Khoa Sư phạm', 'Phòng KH'];
-
+/**
+ * Map màu/nhãn cấp ý tưởng (fallback khi chưa tải catalogs).
+ * Options thật lấy từ GET /api/catalogs/by-type/IDEA_LEVEL.
+ */
 export const PROJECT_LEVEL_MAP: Record<ProjectLevel, { text: string; color: string }> = {
   TRUONG_THUONG_NIEN: { text: 'Cấp trường thường niên', color: 'blue' },
   TRUONG_DAT_HANG: { text: 'Cấp trường đặt hàng', color: 'cyan' },

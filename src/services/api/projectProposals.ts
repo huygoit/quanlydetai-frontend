@@ -346,17 +346,9 @@ export async function saveProposalMembers(
   );
 }
 
-export const FIELD_OPTIONS = [
-  'Công nghệ thông tin',
-  'Kinh tế - Quản lý',
-  'Khoa học xã hội',
-  'Kỹ thuật - Công nghệ',
-  'Y - Dược',
-  'Nông nghiệp - Sinh học',
-  'Khoa học tự nhiên',
-  'Giáo dục',
-];
+export const FIELD_OPTIONS: string[] = [];
 
+/** Fallback khi chưa tải catalogs PROJECT_LEVEL — options thật lấy từ danh mục. */
 export const LEVEL_OPTIONS = [
   { value: 'CO_SO' as ProposalLevel, label: 'Cấp cơ sở' },
   { value: 'TRUONG' as ProposalLevel, label: 'Cấp Trường' },
@@ -364,17 +356,7 @@ export const LEVEL_OPTIONS = [
   { value: 'NHA_NUOC' as ProposalLevel, label: 'Cấp Nhà nước' },
 ];
 
-export const UNIT_OPTIONS = [
-  'Khoa Công nghệ thông tin',
-  'Khoa Kinh tế',
-  'Khoa Ngoại ngữ',
-  'Khoa Luật',
-  'Khoa Y',
-  'Khoa Dược',
-  'Khoa Nông nghiệp',
-  'Viện Nghiên cứu CNTT',
-  'Trung tâm Khoa học Xã hội',
-];
+export const UNIT_OPTIONS: string[] = [];
 
 export const PRIORITY_OPTIONS: { label: string; value: Priority; color: string }[] = [
   { label: 'Thấp', value: 'LOW', color: 'default' },

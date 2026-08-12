@@ -58,6 +58,7 @@ import {
   nhanNhanHocVi,
   type HocViHocHamSelectOption,
 } from '@/utils/profileCatalogOptions';
+import { EDUCATION_RECORD_LEVEL_OPTIONS } from '@/services/api/profile';
 import { FALLBACK_ACADEMIC_TITLE_CATALOG, FALLBACK_DEGREE_CATALOG } from '@/constants/scientificProfileCatalog';
 import {
   getProfileById,
@@ -92,7 +93,7 @@ import ProfileNckhMetrics, {
   type KpiPeriodState,
 } from '@/components/ProfileNckhMetrics';
 import { getTeacherKpi } from '@/services/api/kpis';
-import { coBoLocNgayDangBat, layDanhSachNamLoc } from '@/utils/publicationDateFilter';
+import dayjs from 'dayjs';
 import './index.less';
 
 const { Title, Text, Paragraph } = Typography;
@@ -148,25 +149,23 @@ const ProfileDetailPage: React.FC = () => {
   const canViewHoursConversion = access.canViewProfileAll || access.canVerifyProfile;
   const canViewKpiMetrics = canViewHoursConversion;
 
-  const namLocChiSo = useMemo(
-    () => layDanhSachNamLoc(profile?.publications ?? []),
-    [profile?.publications],
-  );
-
   useEffect(() => {
     if (!canViewKpiMetrics || !profile?.id) return;
-    const from = kpiPeriod.dateRange?.[0];
-    const to = kpiPeriod.dateRange?.[1];
-    if (!coBoLocNgayDangBat(from, to)) {
-      setNckhHours(null);
-      setNckhPoints(null);
-      return;
-    }
+    const from = kpiPeriod.publishedAtRange?.[0];
+    const to = kpiPeriod.publishedAtRange?.[1];
+    const fromDate =
+      kpiPeriod.filterPreset === 'all' || !from
+        ? '1990-01-01'
+        : from.format('YYYY-MM-DD');
+    const toDate =
+      kpiPeriod.filterPreset === 'all' || !to
+        ? dayjs().add(1, 'year').format('YYYY-MM-DD')
+        : to.format('YYYY-MM-DD');
     let cancelled = false;
     setNckhLoading(true);
     getTeacherKpi(profile.id, {
-      fromDate: from.format('YYYY-MM-DD'),
-      toDate: to.format('YYYY-MM-DD'),
+      fromDate,
+      toDate,
     })
       .then((res) => {
         if (cancelled) return;
@@ -190,7 +189,13 @@ const ProfileDetailPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [canViewKpiMetrics, profile?.id, kpiPeriod.dateRange, kpiPeriod.preset, kpiPeriod.refYear]);
+  }, [
+    canViewKpiMetrics,
+    profile?.id,
+    kpiPeriod.publishedAtRange,
+    kpiPeriod.filterPreset,
+    kpiPeriod.filterRefYear,
+  ]);
 
   // Handle preview hours
   const handlePreviewHours = (pub: PublicationItem) => {
@@ -382,7 +387,6 @@ const ProfileDetailPage: React.FC = () => {
               loading={nckhLoading}
               period={kpiPeriod}
               onPeriodChange={setKpiPeriod}
-              yearOptions={namLocChiSo}
             />
           ) : undefined
         }
@@ -500,6 +504,54 @@ const ProfileDetailPage: React.FC = () => {
                             </Descriptions.Item>
                           )}
                         </Descriptions>
+                        {(profile.educationRecords?.length || 0) > 0 && (
+                          <div style={{ marginTop: 12 }}>
+                            <Text strong>Quá trình đào tạo</Text>
+                            <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+                              {profile.educationRecords!.map((r) => {
+                                const bac =
+                                  EDUCATION_RECORD_LEVEL_OPTIONS.find((o) => o.value === r.level)
+                                    ?.label || r.level || '—';
+                                const nam =
+                                  r.startYear || r.endYear
+                                    ? ` (${[r.startYear, r.endYear].filter(Boolean).join('–')})`
+                                    : '';
+                                return (
+                                  <li key={r.id}>
+                                    <strong>{bac}</strong>
+                                    {r.major ? ` — ${r.major}` : ''}
+                                    {r.institution ? `, ${r.institution}` : ''}
+                                    {r.country ? ` (${r.country})` : ''}
+                                    {nam}
+                                    {r.trainingForm ? ` · ${r.trainingForm}` : ''}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+                        {(profile.trainingCourses?.length || 0) > 0 && (
+                          <div style={{ marginTop: 12 }}>
+                            <Text strong>Tập huấn / bồi dưỡng</Text>
+                            <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+                              {profile.trainingCourses!.map((r) => {
+                                const nam =
+                                  r.startYear || r.endYear
+                                    ? ` (${[r.startYear, r.endYear].filter(Boolean).join('–')})`
+                                    : '';
+                                return (
+                                  <li key={r.id}>
+                                    <strong>{r.name || '—'}</strong>
+                                    {r.organizer ? ` — ${r.organizer}` : ''}
+                                    {r.location ? `, ${r.location}` : ''}
+                                    {nam}
+                                    {r.certificate ? ` · CN: ${r.certificate}` : ''}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
                       </div>
 
                       {/* Work */}

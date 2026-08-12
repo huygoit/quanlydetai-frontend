@@ -28,12 +28,55 @@ export type VerifyAction = 'VERIFY' | 'REQUEST_MORE_INFO' | 'CANCEL_VERIFY';
 export type SuggestionStatus = 'PENDING' | 'CONFIRMED' | 'IGNORED';
 
 export interface ProfileLanguage {
-  id: number;
+  id: number | string;
   language: string;
   level?: string;
   certificate?: string;
   certificateUrl?: string;
 }
+
+/** Bậc đào tạo trong quá trình học (bảng nhiều dòng) */
+export type EducationRecordLevel =
+  | 'UNDERGRADUATE'
+  | 'BACHELOR'
+  | 'MASTER'
+  | 'PHD_CANDIDATE'
+  | 'DOCTORATE'
+  | 'OTHER';
+
+export interface EducationRecord {
+  id: string;
+  level?: EducationRecordLevel | string | null;
+  major?: string;
+  institution?: string;
+  country?: string;
+  startYear?: number | null;
+  endYear?: number | null;
+  /** Hình thức: chính quy, vừa học vừa làm… */
+  trainingForm?: string;
+  note?: string;
+}
+
+/** Khóa tập huấn / bồi dưỡng chuyên môn */
+export interface TrainingCourse {
+  id: string;
+  name?: string;
+  organizer?: string;
+  location?: string;
+  startYear?: number | null;
+  endYear?: number | null;
+  certificate?: string;
+  note?: string;
+}
+
+export const EDUCATION_RECORD_LEVEL_OPTIONS: { value: EducationRecordLevel; label: string }[] = [
+  { value: 'UNDERGRADUATE', label: 'Đại học' },
+  { value: 'BACHELOR', label: 'Cử nhân' },
+  { value: 'MASTER', label: 'Thạc sĩ' },
+  { value: 'PHD_CANDIDATE', label: 'Nghiên cứu sinh' },
+  { value: 'DOCTORATE', label: 'Tiến sĩ' },
+  { value: 'OTHER', label: 'Khác' },
+];
 
 export interface ProfileAttachment {
   id: number;
@@ -140,12 +183,19 @@ export interface ScientificProfile {
   managementRole?: string;
   startWorkingAt?: string;
   degree?: Degree;
+  /** Nhãn tiếng Việt từ BE (nếu có) */
+  degreeLabel?: string | null;
   academicTitle?: AcademicTitle;
+  academicTitleLabel?: string | null;
   /** Năm đạt học hàm — BE có thể trả thêm `academic_title_year` */
   academicTitleYear?: number | null;
   degreeYear?: number;
   degreeInstitution?: string;
   degreeCountry?: string;
+  /** Quá trình đào tạo theo bậc */
+  educationRecords?: EducationRecord[];
+  /** Khóa tập huấn / bồi dưỡng */
+  trainingCourses?: TrainingCourse[];
   mainResearchArea?: string;
   /** FK lĩnh vực nghiên cứu (danh mục fields) */
   researchFieldId?: number | null;
@@ -166,6 +216,10 @@ export interface ScientificProfile {
   needMoreInfoReason?: string;
   createdAt: string;
   updatedAt: string;
+  /** Chuỗi ID chức vụ từ staffs (POSITION) */
+  positionTitle?: string | null;
+  /** Tên chức vụ đã resolve để hiển thị */
+  positionTitleLabel?: string | null;
 }
 
 export interface ProfileQueryParams {
@@ -174,10 +228,17 @@ export interface ProfileQueryParams {
   degree?: Degree;
   /** Lọc học hàm — NONE | ASSOCIATE_PROFESSOR | PROFESSOR */
   academicTitle?: AcademicTitle;
+  /** Lọc chức vụ — ID danh mục POSITION (join staffs) */
+  positionTitle?: string | number;
+  /** Lọc chức vụ Đảng — ID danh mục PARTY (join staffs) */
+  partyPosition?: string | number;
   mainResearchArea?: string;
   status?: ProfileStatus;
   page?: number;
   perPage?: number;
+  /** updatedAt | fullName | positionTitle | faculty | degree */
+  sortBy?: string;
+  order?: 'asc' | 'desc';
 }
 
 // API Functions - Profile của bản thân

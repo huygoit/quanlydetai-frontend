@@ -37,7 +37,7 @@ const CallForProposalsListPage: React.FC = () => {
         `${r.periodKind === 'ACADEMIC' ? 'NH' : 'TC'} ${r.periodLabel}`,
     },
     {
-      title: 'Loại / cấp đề tài',
+      title: 'Cấp ý tưởng/đề tài',
       dataIndex: 'projectProcessTypes',
       search: false,
       width: 260,

@@ -34,7 +34,6 @@ import {
   requestMoreInfo,
   PROFILE_STATUS_MAP,
   RESEARCH_AREAS,
-  FACULTIES,
   type ScientificProfile,
   type ProfileStatus,
   type Degree,
@@ -51,7 +50,25 @@ import {
   FALLBACK_ACADEMIC_TITLE_CATALOG,
   FALLBACK_DEGREE_CATALOG,
 } from '@/constants/scientificProfileCatalog';
+import {
+  getStaffPositionOptions,
+  STAFF_POSITION_KIND_MAP,
+  type StaffPositionOption,
+} from '@/services/api/staffPositions';
+import {
+  loadProfileKhoaPhongBanOptions,
+  type DonViSelectOption,
+} from '@/utils/profileDepartmentOptions';
+import { nhanChucVuTuIds } from '@/utils/staffPositionIds';
 import './index.less';
+
+type ChucVuFilterOpt = { value: number; label: string };
+
+const chuoiIdLocChucVu = (v: unknown): string | undefined => {
+  if (v === undefined || v === null || v === '') return undefined;
+  const s = String(v).trim();
+  return s || undefined;
+};
 
 const ProfileListPage: React.FC = () => {
   const { initialState } = useModel('@@initialState');
@@ -77,11 +94,32 @@ const ProfileListPage: React.FC = () => {
     HocViHocHamSelectOption[]
   >(() => FALLBACK_ACADEMIC_TITLE_CATALOG.map((d) => ({ value: d.value, label: d.label })));
 
+  // Tùy chọn lọc 2 loại chức vụ (value = ID danh mục)
+  const [optsPosition, setOptsPosition] = useState<ChucVuFilterOpt[]>([]);
+  const [optsParty, setOptsParty] = useState<ChucVuFilterOpt[]>([]);
+  const [catalogPosition, setCatalogPosition] = useState<StaffPositionOption[]>([]);
+  // Đơn vị công tác — từ danh mục departments (không hardcode)
+  const [optsDonVi, setOptsDonVi] = useState<DonViSelectOption[]>([]);
+
   useEffect(() => {
     loadScientificProfileCatalogOptions().then(({ degreeOptions, academicTitleOptions }) => {
       setDegreeFilterOptions(degreeOptions);
       setAcademicTitleFilterOptions(academicTitleOptions);
     });
+    loadProfileKhoaPhongBanOptions().then(({ khoaPhongOptions }) => {
+      setOptsDonVi(khoaPhongOptions);
+    });
+    const loadPos = async () => {
+      const [pos, party] = await Promise.all([
+        getStaffPositionOptions({ kind: 'POSITION' }),
+        getStaffPositionOptions({ kind: 'PARTY' }),
+      ]);
+      const posList = pos.data || [];
+      setCatalogPosition(posList);
+      setOptsPosition(posList.map((r) => ({ value: r.id, label: r.name })));
+      setOptsParty((party.data || []).map((r) => ({ value: r.id, label: r.name })));
+    };
+    void loadPos();
   }, []);
 
   const canVerify = access.canVerifyProfile;
@@ -153,12 +191,42 @@ const ProfileListPage: React.FC = () => {
       ),
     },
     {
+      title: 'Học vị',
+      dataIndex: 'degree',
+      width: 100,
+      valueType: 'select',
+      sorter: true,
+      fieldProps: {
+        options: degreeFilterOptions,
+        allowClear: true,
+        placeholder: 'Chọn học vị',
+      },
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          {coHienThiHocHam(record.academicTitle) && (
+            <Tag color="gold" style={{ marginBottom: 4 }}>
+              {nhanNhanHocHam(academicTitleFilterOptions, record.academicTitle) ||
+                record.academicTitle}
+            </Tag>
+          )}
+          <span>{nhanNhanHocVi(degreeFilterOptions, record.degree) || record.degree || '-'}</span>
+        </Space>
+      ),
+    },
+    {
       title: 'Đơn vị công tác',
       dataIndex: 'faculty',
       width: 200,
       valueType: 'select',
+      sorter: true,
+      defaultSortOrder: 'ascend',
       fieldProps: {
-        options: FACULTIES.map(f => ({ label: f, value: f })),
+        options: optsDonVi,
+        allowClear: true,
+        showSearch: true,
+        placeholder: 'Chọn đơn vị',
+        filterOption: (input: string, option?: { label?: React.ReactNode }) =>
+          (option?.label?.toString() || '').toLowerCase().includes(input.toLowerCase()),
       },
       render: (_, record) => (
         <div>
@@ -167,28 +235,6 @@ const ProfileListPage: React.FC = () => {
             <div className="text-secondary">{record.department}</div>
           )}
         </div>
-      ),
-    },
-    {
-      title: 'Học vị',
-      dataIndex: 'degree',
-      width: 100,
-      valueType: 'select',
-      fieldProps: {
-        options: degreeFilterOptions,
-        allowClear: true,
-        placeholder: 'Chọn học vị',
-      },
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <span>{nhanNhanHocVi(degreeFilterOptions, record.degree) || record.degree || '-'}</span>
-          {coHienThiHocHam(record.academicTitle) && (
-            <Tag color="gold" style={{ marginTop: 4 }}>
-              {nhanNhanHocHam(academicTitleFilterOptions, record.academicTitle) ||
-                record.academicTitle}
-            </Tag>
-          )}
-        </Space>
       ),
     },
     {
@@ -201,6 +247,37 @@ const ProfileListPage: React.FC = () => {
         options: academicTitleFilterOptions,
         allowClear: true,
         placeholder: 'Chọn học hàm',
+        showSearch: true,
+      },
+    },
+    {
+      title: STAFF_POSITION_KIND_MAP.POSITION.text,
+      dataIndex: 'positionTitle',
+      width: 180,
+      ellipsis: true,
+      valueType: 'select',
+      sorter: true,
+      fieldProps: {
+        options: optsPosition,
+        allowClear: true,
+        showSearch: true,
+        placeholder: 'Chọn chức vụ',
+      },
+      render: (_, record) =>
+        record.positionTitleLabel ||
+        nhanChucVuTuIds(record.positionTitle, catalogPosition) ||
+        '—',
+    },
+    {
+      title: STAFF_POSITION_KIND_MAP.PARTY.text,
+      dataIndex: 'partyPosition',
+      valueType: 'select',
+      hideInTable: true,
+      fieldProps: {
+        options: optsParty,
+        allowClear: true,
+        showSearch: true,
+        placeholder: 'Chọn chức vụ Đảng',
       },
     },
     {
@@ -306,15 +383,36 @@ const ProfileListPage: React.FC = () => {
         actionRef={actionRef}
         columns={columns}
         request={async (params, sort) => {
+          let sortBy = 'faculty';
+          let order: 'asc' | 'desc' = 'asc';
+          const sortEntries = Object.entries(sort || {}).filter(([, v]) => v);
+          if (sortEntries.length > 0) {
+            const [key, ord] = sortEntries[0];
+            if (
+              key === 'positionTitle' ||
+              key === 'fullName' ||
+              key === 'updatedAt' ||
+              key === 'faculty' ||
+              key === 'degree'
+            ) {
+              sortBy = key;
+              order = ord === 'ascend' ? 'asc' : 'desc';
+            }
+          }
+
           const result = await queryProfiles({
             keyword: params.fullName,
             faculty: params.faculty,
             degree: params.degree as Degree,
             academicTitle: params.academicTitle as AcademicTitle | undefined,
+            positionTitle: chuoiIdLocChucVu(params.positionTitle),
+            partyPosition: chuoiIdLocChucVu(params.partyPosition),
             mainResearchArea: params.mainResearchArea,
             status: params.status as ProfileStatus,
             page: params.current,
             perPage: params.pageSize,
+            sortBy,
+            order,
           });
 
           return {
@@ -335,7 +433,7 @@ const ProfileListPage: React.FC = () => {
         }}
         dateFormatter="string"
         toolBarRender={() => []}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1400 }}
       />
 
       {/* Verify Drawer */}

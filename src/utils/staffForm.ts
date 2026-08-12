@@ -1,5 +1,6 @@
 import dayjs, { type Dayjs } from 'dayjs';
 import type { StaffDetail, StaffWritePayload } from '@/services/api/staffs';
+import { chuoiChucVuIds, parseChucVuIds } from '@/utils/staffPositionIds';
 
 export type StaffFormValues = {
   userId?: number;
@@ -12,7 +13,10 @@ export type StaffFormValues = {
   email?: string;
   currentAddress?: string;
   departmentId?: number;
-  positionTitle?: string;
+  /** Multi-select — ID danh mục POSITION */
+  positionIds?: number[];
+  /** Multi-select — ID danh mục PARTY */
+  partyPositionIds?: number[];
   staffType?: string;
   currentJob?: string;
   professionalDegree?: string;
@@ -37,7 +41,8 @@ export function staffVaoForm(data: StaffDetail): StaffFormValues {
     email: data.email ?? undefined,
     currentAddress: data.currentAddress ?? undefined,
     departmentId: data.departmentId ?? undefined,
-    positionTitle: data.positionTitle ?? undefined,
+    positionIds: parseChucVuIds(data.positionTitle),
+    partyPositionIds: parseChucVuIds(data.partyPosition),
     staffType: data.staffType ?? undefined,
     currentJob: data.currentJob ?? undefined,
     professionalDegree: data.professionalDegree ?? undefined,
@@ -50,7 +55,7 @@ export function staffVaoForm(data: StaffDetail): StaffFormValues {
   };
 }
 
-/** Form → payload API staff */
+/** Form → payload API staff (position_title / party_position = chuỗi ID) */
 export function formValuesToStaffPayload(
   values: StaffFormValues,
   opts?: { includeAdminFields?: boolean },
@@ -65,7 +70,8 @@ export function formValuesToStaffPayload(
     email: values.email || null,
     currentAddress: values.currentAddress || null,
     departmentId: values.departmentId ?? null,
-    positionTitle: values.positionTitle || null,
+    positionTitle: chuoiChucVuIds(values.positionIds),
+    partyPosition: chuoiChucVuIds(values.partyPositionIds),
     staffType: values.staffType || null,
     currentJob: values.currentJob || null,
     professionalDegree: values.professionalDegree || null,

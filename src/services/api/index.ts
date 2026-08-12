@@ -40,8 +40,9 @@ export * from './projectOutlineBudgets';
 // Call for proposals (Thông báo tuyển chọn)
 export * from './callForProposals';
 
-// Loại quy trình đề tài (QT-I … QT-V)
+// Cấp ý tưởng/đề tài (QT-I … QT-V)
 export * from './projectProcessTypes';
+export * from './staffPositions';
 
 // Idea Council
 export * from './ideaCouncil';

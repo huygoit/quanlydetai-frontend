@@ -30,11 +30,8 @@ import {
   approveOrderIdea,
   rejectIdea,
   createProjectFromIdea,
-  IDEA_FIELDS,
-  IDEA_UNITS,
   IDEA_STATUS_MAP,
   IDEA_PRIORITY_MAP,
-  PROJECT_LEVEL_MAP,
   type Idea,
   type IdeaStatus,
   type IdeaPriority,
@@ -46,6 +43,14 @@ import {
   MAX_WEIGHTED_SCORE,
   type IdeaCouncilResult,
 } from '@/services/api/ideaCouncil';
+import {
+  labelLevel,
+  loadDepartmentSelectOptions,
+  loadFieldSelectOptions,
+  loadIdeaLevelOptions,
+  type LevelMeta,
+  type SelectOption,
+} from '@/utils/researchCatalogOptions';
 
 const REJECT_STAGE_MAP: Record<string, string> = {
   PHONG_KH_SO_LOAI: 'Bị từ chối ở giai đoạn sơ loại (Phòng KH)',
@@ -82,6 +87,23 @@ const IdeaReviewPage: React.FC = () => {
   const [currentIdea, setCurrentIdea] = useState<Idea | null>(null);
   const [activeTab, setActiveTab] = useState<string>('pending');
   const [councilResult, setCouncilResult] = useState<IdeaCouncilResult | null>(null);
+  const [unitOptions, setUnitOptions] = useState<SelectOption[]>([]);
+  const [fieldOptions, setFieldOptions] = useState<SelectOption[]>([]);
+  const [levelMeta, setLevelMeta] = useState<Record<string, LevelMeta>>({});
+
+  // Tải đơn vị / lĩnh vực / cấp từ danh mục
+  useEffect(() => {
+    void (async () => {
+      const [units, fields, levels] = await Promise.all([
+        loadDepartmentSelectOptions(),
+        loadFieldSelectOptions(),
+        loadIdeaLevelOptions(),
+      ]);
+      setUnitOptions(units);
+      setFieldOptions(fields);
+      setLevelMeta(levels.meta);
+    })();
+  }, []);
 
   // ========== DEFAULT STATUS FILTER BY ROLE ==========
   const getDefaultStatusByRole = (): IdeaStatus | undefined => {
@@ -149,13 +171,19 @@ const IdeaReviewPage: React.FC = () => {
   // ========== LÃNH ĐẠO ACTIONS ==========
   
   // Phê duyệt đặt hàng (PROPOSED_FOR_ORDER → APPROVED_FOR_ORDER)
+  // BE tự tạo đề xuất đề tài DRAFT
   const handleApproveOrder = async (record: Idea, note?: string) => {
     const result = await approveOrderIdea(record.id, { noteForReview: note });
     if (result.success) {
-      message.success('Đã phê duyệt đặt hàng');
+      const maDeXuat = result.proposal?.code || result.data?.linkedProjectId;
+      message.success(
+        maDeXuat
+          ? `Đã phê duyệt đặt hàng và tạo đề xuất ${maDeXuat}`
+          : 'Đã phê duyệt đặt hàng',
+      );
       actionRef.current?.reload();
     } else {
-      message.error('Không thể phê duyệt ý tưởng này');
+      message.error(result.message || 'Không thể phê duyệt ý tưởng này');
     }
   };
 
@@ -192,15 +220,30 @@ const IdeaReviewPage: React.FC = () => {
     }
   };
 
-  // Khởi tạo đề tài (ACTION - không phải status change)
+  // Bổ sung đề xuất nếu chưa tạo được lúc phê duyệt (idempotent)
   const handleCreateProject = async (record: Idea) => {
     const result = await createProjectFromIdea(record.id);
     if (result.success && result.data) {
-      message.success(`Đã khởi tạo đề tài: ${result.data.linkedProjectId}`);
+      message.success(
+        result.data.created
+          ? `Đã tạo đề xuất ${result.data.linkedProjectId}`
+          : `Đề xuất ${result.data.linkedProjectId} đã tồn tại`,
+      );
       actionRef.current?.reload();
+      if (result.data.linkedProposalId) {
+        history.push(`/projects/register/form/${result.data.linkedProposalId}`);
+      }
     } else {
-      message.error('Chỉ có thể khởi tạo đề tài từ ý tưởng đã được phê duyệt đặt hàng');
+      message.error(result.message || 'Không thể tạo đề xuất từ ý tưởng');
     }
+  };
+
+  const moDeXuat = (record: Idea) => {
+    if (record.linkedProposalId) {
+      history.push(`/projects/register/form/${record.linkedProposalId}`);
+      return;
+    }
+    void handleCreateProject(record);
   };
 
   // ========== FILTER BY TAB ==========
@@ -253,33 +296,40 @@ const IdeaReviewPage: React.FC = () => {
       dataIndex: 'ownerUnit',
       width: 120,
       valueType: 'select',
-      valueEnum: IDEA_UNITS.reduce((acc, unit) => {
-        acc[unit] = { text: unit };
-        return acc;
-      }, {} as Record<string, { text: string }>),
+      fieldProps: {
+        options: unitOptions,
+        showSearch: true,
+        optionFilterProp: 'label',
+        placeholder: 'Chọn đơn vị',
+      },
     },
     {
       title: 'Lĩnh vực',
       dataIndex: 'field',
       width: 130,
       valueType: 'select',
-      valueEnum: IDEA_FIELDS.reduce((acc, field) => {
-        acc[field] = { text: field };
-        return acc;
-      }, {} as Record<string, { text: string }>),
+      fieldProps: {
+        options: fieldOptions,
+        showSearch: true,
+        optionFilterProp: 'label',
+        placeholder: 'Chọn lĩnh vực',
+      },
     },
     {
-      title: 'Cấp đề tài',
+      title: 'Cấp ý tưởng/đề tài',
       dataIndex: 'suitableLevels',
       width: 180,
       hideInSearch: true,
       render: (_, record) => (
         <Space size={[0, 4]} wrap>
-          {record.suitableLevels.slice(0, 2).map(level => (
-            <Tag key={level} color={PROJECT_LEVEL_MAP[level].color}>
-              {PROJECT_LEVEL_MAP[level].text}
-            </Tag>
-          ))}
+          {record.suitableLevels.slice(0, 2).map((level) => {
+            const meta = labelLevel(level, levelMeta);
+            return (
+              <Tag key={level} color={meta.color}>
+                {meta.text}
+              </Tag>
+            );
+          })}
           {record.suitableLevels.length > 2 && (
             <Tag>+{record.suitableLevels.length - 2}</Tag>
           )}
@@ -391,7 +441,7 @@ const IdeaReviewPage: React.FC = () => {
             <Popconfirm
               key="approve-order"
               title="Phê duyệt đặt hàng?"
-              description="Ý tưởng sẽ được phê duyệt và có thể khởi tạo đề tài."
+              description="Hệ thống sẽ tự tạo đề xuất đề tài (nháp) từ ý tưởng này."
               onConfirm={() => handleApproveOrder(record)}
               okText="Xác nhận"
               cancelText="Hủy"
@@ -403,30 +453,36 @@ const IdeaReviewPage: React.FC = () => {
           );
         }
 
-        // ========== KHỞI TẠO ĐỀ TÀI (ACTION) ==========
-        if (record.status === 'APPROVED_FOR_ORDER' && !record.linkedProjectId) {
+        // ========== ĐỀ XUẤT ĐỀ TÀI ==========
+        if (record.status === 'APPROVED_FOR_ORDER' && !record.linkedProjectId && !record.linkedProposalId) {
           actions.push(
             <Popconfirm
               key="create-project"
-              title="Khởi tạo đề tài từ ý tưởng?"
-              description="Hệ thống sẽ tạo hồ sơ đề tài mới từ ý tưởng này."
+              title="Tạo đề xuất đề tài từ ý tưởng?"
+              description="Dùng khi chưa tạo được lúc phê duyệt đặt hàng."
               onConfirm={() => handleCreateProject(record)}
               okText="Xác nhận"
               cancelText="Hủy"
             >
               <Button type="link" size="small" icon={<RocketOutlined />} style={{ color: '#722ed1' }}>
-                Khởi tạo đề tài
+                Tạo đề xuất
               </Button>
             </Popconfirm>
           );
         }
 
-        // Hiển thị mã đề tài đã khởi tạo
-        if (record.linkedProjectId) {
+        // Mở đề xuất đã liên kết
+        if (record.linkedProjectId || record.linkedProposalId) {
           actions.push(
-            <Tag key="project" color="purple" icon={<LinkOutlined />}>
-              {record.linkedProjectId}
-            </Tag>
+            <Button
+              key="open-proposal"
+              type="link"
+              size="small"
+              icon={<LinkOutlined />}
+              onClick={() => moDeXuat(record)}
+            >
+              {record.linkedProjectId || 'Xem đề xuất'}
+            </Button>
           );
         }
 
@@ -526,6 +582,8 @@ const IdeaReviewPage: React.FC = () => {
             perPage: pageSize,
             keyword: code || title,
             status: apiStatus,
+            field: rest.field as string | undefined,
+            unit: (rest.ownerUnit || rest.unit) as string | undefined,
           });
           
           // Filter dữ liệu theo tab (để đảm bảo chỉ hiển thị đúng tab)
@@ -646,7 +704,9 @@ const IdeaReviewPage: React.FC = () => {
                 Phê duyệt đặt hàng
               </Button>
             )}
-            {currentIdea?.status === 'APPROVED_FOR_ORDER' && !currentIdea?.linkedProjectId && (
+            {currentIdea?.status === 'APPROVED_FOR_ORDER' &&
+              !currentIdea?.linkedProjectId &&
+              !currentIdea?.linkedProposalId && (
               <Button 
                 type="primary"
                 style={{ background: '#722ed1' }}
@@ -656,7 +716,20 @@ const IdeaReviewPage: React.FC = () => {
                   setDrawerVisible(false);
                 }}
               >
-                Khởi tạo đề tài
+                Tạo đề xuất
+              </Button>
+            )}
+            {currentIdea?.status === 'APPROVED_FOR_ORDER' &&
+              !!(currentIdea?.linkedProjectId || currentIdea?.linkedProposalId) && (
+              <Button
+                type="primary"
+                icon={<LinkOutlined />}
+                onClick={() => {
+                  moDeXuat(currentIdea);
+                  setDrawerVisible(false);
+                }}
+              >
+                Mở đề xuất {currentIdea.linkedProjectId || ''}
               </Button>
             )}
             <Button onClick={() => setDrawerVisible(false)}>Đóng</Button>
@@ -802,13 +875,16 @@ const IdeaReviewPage: React.FC = () => {
               <Descriptions.Item label="Mã ý tưởng">{currentIdea.code}</Descriptions.Item>
               <Descriptions.Item label="Tiêu đề">{currentIdea.title}</Descriptions.Item>
               <Descriptions.Item label="Lĩnh vực">{currentIdea.field}</Descriptions.Item>
-              <Descriptions.Item label="Cấp đề tài phù hợp">
+              <Descriptions.Item label="Cấp ý tưởng/đề tài">
                 <Space size={[0, 4]} wrap>
-                  {currentIdea.suitableLevels.map(level => (
-                    <Tag key={level} color={PROJECT_LEVEL_MAP[level].color}>
-                      {PROJECT_LEVEL_MAP[level].text}
-                    </Tag>
-                  ))}
+                  {currentIdea.suitableLevels.map((level) => {
+                    const meta = labelLevel(level, levelMeta);
+                    return (
+                      <Tag key={level} color={meta.color}>
+                        {meta.text}
+                      </Tag>
+                    );
+                  })}
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="Người đề xuất">{currentIdea.ownerName}</Descriptions.Item>

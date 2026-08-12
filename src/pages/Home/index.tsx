@@ -1,14 +1,15 @@
 /**
- * Home / Dashboard: có quyền báo cáo → charts; không → trang chủ theo vai trò
+ * Home / Dashboard theo vai trò
+ * Cán bộ/GV → HomeForCNDT (tổng quan hồ sơ từ DB)
+ * Phòng KH / Lãnh đạo → dashboard nghiệp vụ tương ứng
  */
 import { Spin } from 'antd';
 import { useModel, useAccess } from '@umijs/max';
-import ReportsDashboard from '@/pages/reports/dashboard';
 import { HomeForCNDT, HomeForPhongKH, HomeForLanhDao } from './components';
 import styles from './index.less';
 
 const HomePage: React.FC = () => {
-  const { initialState, loading } = useModel('@@initialState');
+  const { loading } = useModel('@@initialState');
   const access = useAccess();
 
   if (loading) {
@@ -19,11 +20,7 @@ const HomePage: React.FC = () => {
     );
   }
 
-  if (access.canViewReports) {
-    return <ReportsDashboard />;
-  }
-
-  // Ưu tiên permission: Lãnh đạo (approve order) → PhongKH (manage idea/council) → CNDT
+  // Lãnh đạo → Phong KH → cán bộ/GV (không ưu tiên báo cáo tổng quan che trang cá nhân)
   if (access.canApproveOrder) {
     return <HomeForLanhDao />;
   }

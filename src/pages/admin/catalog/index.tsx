@@ -6,11 +6,12 @@ import React, { useState } from 'react';
 import { PageContainer } from '@ant-design/pro-components';
 import { Tabs, Card } from 'antd';
 import { useAccess } from '@umijs/max';
-import { AppstoreOutlined, SettingOutlined, ApartmentOutlined, ReadOutlined, ClusterOutlined, PartitionOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, SettingOutlined, ApartmentOutlined, ReadOutlined, ClusterOutlined, PartitionOutlined, IdcardOutlined } from '@ant-design/icons';
 import ResearchOutputTypes from './ResearchOutputTypes';
 import Fields from './Fields';
 import Specializations from './Specializations';
 import ProjectProcessTypes from './ProjectProcessTypes';
+import StaffPositions from './StaffPositions';
 import Departments from '@/pages/admin/departments';
 
 const AdminCatalogPage: React.FC = () => {
@@ -63,10 +64,20 @@ const AdminCatalogPage: React.FC = () => {
       label: (
         <span>
           <PartitionOutlined />
-          Loại quy trình đề tài
+          Cấp ý tưởng/đề tài
         </span>
       ),
       children: <ProjectProcessTypes />,
+    },
+    access.canViewStaffPositions && {
+      key: 'staff-positions',
+      label: (
+        <span>
+          <IdcardOutlined />
+          Chức vụ
+        </span>
+      ),
+      children: <StaffPositions />,
     },
     access.canViewCatalog && {
       key: 'other',

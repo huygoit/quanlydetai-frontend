@@ -218,11 +218,11 @@ const CfpFormPage: React.FC = () => {
           />
           <ProFormSelect
             name="projectProcessTypeIds"
-            label="Loại / cấp đề tài"
+            label="Cấp ý tưởng/đề tài"
             mode="multiple"
-            rules={[{ required: true, message: 'Chọn ít nhất 1 loại từ danh mục' }]}
+            rules={[{ required: true, message: 'Chọn ít nhất 1 cấp từ danh mục' }]}
             request={async () => {
-              // Lấy từ danh mục loại quy trình đề tài (QT-I…QT-V)
+              // Lấy từ danh mục cấp ý tưởng/đề tài (QT-I…QT-V)
               const res = await getProjectProcessTypeOptions({ status: 'ACTIVE' });
               return (res.data || []).map((o) => ({
                 value: o.id,
@@ -232,7 +232,7 @@ const CfpFormPage: React.FC = () => {
             fieldProps={{
               showSearch: true,
               optionFilterProp: 'label',
-              placeholder: 'Chọn loại quy trình đề tài',
+              placeholder: 'Chọn cấp ý tưởng/đề tài',
             }}
           />
           <Form.Item name="contentHtml" label="Nội dung hướng dẫn (rich text)">

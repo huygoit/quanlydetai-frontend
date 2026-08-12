@@ -19,7 +19,10 @@ export interface StaffWritePayload {
   email?: string | null;
   currentAddress?: string | null;
   departmentId?: number | null;
+  /** Chuỗi ID danh mục POSITION, cách nhau bởi dấu phẩy */
   positionTitle?: string | null;
+  /** Chuỗi ID danh mục PARTY, cách nhau bởi dấu phẩy */
+  partyPosition?: string | null;
   staffType?: string | null;
   currentJob?: string | null;
   professionalDegree?: string | null;
@@ -44,6 +47,8 @@ export interface StaffSummary {
   departmentName: string | null;
   staffType: string | null;
   positionTitle: string | null;
+  /** Chức danh (nv_chức danh) */
+  professionalTitle?: string | null;
   currentJob: string | null;
   userId: number | null;
   createdAt: string;
@@ -57,7 +62,9 @@ export type StaffSortField =
   | 'departmentName'
   | 'createdAt'
   | 'staffType'
-  | 'email';
+  | 'email'
+  | 'positionTitle'
+  | 'professionalTitle';
 
 export interface QueryStaffsParams {
   page?: number;
@@ -67,6 +74,10 @@ export interface QueryStaffsParams {
   departmentId?: number;
   departmentCode?: string;
   staffType?: string;
+  /** Lọc theo ID danh mục POSITION (có trong chuỗi position_title) */
+  positionTitle?: string | number;
+  /** Lọc theo ID danh mục PARTY (có trong chuỗi party_position) */
+  partyPosition?: string | number;
   /** Chuỗi 'true' | 'false' theo query backend */
   hasUser?: string;
   sortBy?: StaffSortField;

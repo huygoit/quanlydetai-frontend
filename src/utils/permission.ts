@@ -63,12 +63,19 @@ export const PERM = {
     update: 'specialization.update',
     delete: 'specialization.delete',
   },
-  /** Loại quy trình đề tài (QT-I … QT-V) */
+  /** Cấp ý tưởng/đề tài (QT-I … QT-V) */
   project_process_type: {
     view: 'project_process_type.view',
     create: 'project_process_type.create',
     update: 'project_process_type.update',
     delete: 'project_process_type.delete',
+  },
+  /** Danh mục chức vụ nhân sự (4 loại) */
+  staff_position: {
+    view: 'staff_position.view',
+    create: 'staff_position.create',
+    update: 'staff_position.update',
+    delete: 'staff_position.delete',
   },
   user: {
     view: 'user.view',

@@ -44,9 +44,7 @@ import {
   unitReturnProposal,
   getPendingUnitProposalCount,
   PROPOSAL_STATUS_MAP,
-  FIELD_OPTIONS,
   LEVEL_OPTIONS,
-  UNIT_OPTIONS,
   PROPOSAL_AUDIT_ACTION_LABEL,
   type ProjectProposal,
   type ProposalStatus,
@@ -55,6 +53,12 @@ import {
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import { formatVnd } from '@/utils/format';
 import { openOrCreateOutlineFromProposal } from '@/services/api/projectOutlines';
+import {
+  loadDepartmentSelectOptions,
+  loadFieldSelectOptions,
+  loadProjectLevelOptions,
+  type SelectOption,
+} from '@/utils/researchCatalogOptions';
 
 const { Title, Paragraph } = Typography;
 
@@ -72,6 +76,30 @@ const ProjectRegisterPage: React.FC = () => {
   const [pendingUnitCount, setPendingUnitCount] = useState(0);
   const [unitActing, setUnitActing] = useState(false);
   const [returnForm] = Form.useForm();
+  const [unitOptions, setUnitOptions] = useState<SelectOption[]>([]);
+  const [fieldOptions, setFieldOptions] = useState<SelectOption[]>([]);
+  const [levelOptions, setLevelOptions] = useState(LEVEL_OPTIONS);
+
+  // Tải đơn vị / lĩnh vực / cấp từ danh mục
+  useEffect(() => {
+    void (async () => {
+      const [units, fields, levels] = await Promise.all([
+        loadDepartmentSelectOptions(),
+        loadFieldSelectOptions(),
+        loadProjectLevelOptions(),
+      ]);
+      setUnitOptions(units);
+      setFieldOptions(fields);
+      if (levels.options.length > 0) {
+        setLevelOptions(
+          levels.options.map((o) => ({
+            value: o.value as ProjectProposal['level'],
+            label: o.label,
+          })),
+        );
+      }
+    })();
+  }, []);
 
   const canCreate = access.canCreateProjectProposal;
   const canUnitReview = access.canUnitReviewProjectProposal;
@@ -325,7 +353,7 @@ const ProjectRegisterPage: React.FC = () => {
       dataIndex: 'ownerUnit',
       width: 160,
       valueType: 'select',
-      fieldProps: { options: UNIT_OPTIONS.map((u) => ({ label: u, value: u })), showSearch: true },
+      fieldProps: { options: unitOptions, showSearch: true, optionFilterProp: 'label' },
       hideInSearch: hideUnitSearch,
     },
     {
@@ -333,17 +361,17 @@ const ProjectRegisterPage: React.FC = () => {
       dataIndex: 'field',
       width: 140,
       valueType: 'select',
-      fieldProps: { options: FIELD_OPTIONS.map((f) => ({ label: f, value: f })), showSearch: true },
+      fieldProps: { options: fieldOptions, showSearch: true, optionFilterProp: 'label' },
     },
     {
-      title: 'Cấp / quy trình',
+      title: 'Cấp ý tưởng/đề tài',
       dataIndex: 'projectProcessTypeId',
       width: 180,
       hideInSearch: true,
       render: (_, r) =>
         r.projectProcessType
           ? `${r.projectProcessType.code} ${r.projectProcessType.name}`
-          : LEVEL_OPTIONS.find((l) => l.value === r.level)?.label || r.level,
+          : levelOptions.find((l) => l.value === r.level)?.label || r.level,
     },
     {
       title: 'Kinh phí',
@@ -502,10 +530,10 @@ const ProjectRegisterPage: React.FC = () => {
               <Descriptions.Item label="Chủ nhiệm">
                 {selectedProposal.ownerName} · {selectedProposal.ownerUnit}
               </Descriptions.Item>
-              <Descriptions.Item label="Cấp / quy trình">
+              <Descriptions.Item label="Cấp ý tưởng/đề tài">
                 {selectedProposal.projectProcessType
                   ? `${selectedProposal.projectProcessType.code} ${selectedProposal.projectProcessType.name}`
-                  : LEVEL_OPTIONS.find((l) => l.value === selectedProposal.level)?.label ||
+                  : levelOptions.find((l) => l.value === selectedProposal.level)?.label ||
                     selectedProposal.level}
                 {' · '}
                 {selectedProposal.field}

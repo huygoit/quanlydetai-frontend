@@ -2,23 +2,37 @@
  * Tạo ý tưởng mới
  * Trang full form để đề xuất ý tưởng nghiên cứu
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageContainer, ProForm, ProFormText, ProFormSelect, ProFormTextArea, ProFormCheckbox } from '@ant-design/pro-components';
 import { Card, Button, message } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons';
 import { history } from '@umijs/max';
 import {
   createIdea,
-  IDEA_FIELDS,
-  PROJECT_LEVEL_MAP,
   type IdeaCreateData,
-  type ProjectLevel,
 } from '@/services/api/ideas';
-
-const PROJECT_LEVELS: ProjectLevel[] = Object.keys(PROJECT_LEVEL_MAP) as ProjectLevel[];
+import {
+  loadFieldSelectOptions,
+  loadIdeaLevelOptions,
+  type SelectOption,
+} from '@/utils/researchCatalogOptions';
 
 const NewIdeaPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [fieldOptions, setFieldOptions] = useState<SelectOption[]>([]);
+  const [levelOptions, setLevelOptions] = useState<SelectOption[]>([]);
+
+  // Tải lĩnh vực + cấp từ danh mục
+  useEffect(() => {
+    void (async () => {
+      const [fields, levels] = await Promise.all([
+        loadFieldSelectOptions(),
+        loadIdeaLevelOptions(),
+      ]);
+      setFieldOptions(fields);
+      setLevelOptions(levels.options);
+    })();
+  }, []);
 
   const handleSubmit = async (values: IdeaCreateData) => {
     setLoading(true);
@@ -53,7 +67,7 @@ const NewIdeaPage: React.FC = () => {
           layout="vertical"
           onFinish={handleSubmit}
           submitter={{
-            render: (_, dom) => (
+            render: () => (
               <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading}>
                 Lưu nháp
               </Button>
@@ -71,17 +85,15 @@ const NewIdeaPage: React.FC = () => {
             name="field"
             label="Lĩnh vực"
             placeholder="Chọn lĩnh vực"
-            options={IDEA_FIELDS.map((f) => ({ label: f, value: f }))}
+            options={fieldOptions}
             rules={[{ required: true, message: 'Vui lòng chọn lĩnh vực' }]}
+            fieldProps={{ showSearch: true, optionFilterProp: 'label' }}
           />
           <ProFormCheckbox.Group
             name="suitableLevels"
-            label="Cấp đề tài phù hợp"
-            rules={[{ required: true, message: 'Vui lòng chọn ít nhất một cấp đề tài' }]}
-            options={PROJECT_LEVELS.map((level) => ({
-              label: PROJECT_LEVEL_MAP[level].text,
-              value: level,
-            }))}
+            label="Cấp ý tưởng/đề tài"
+            rules={[{ required: true, message: 'Vui lòng chọn ít nhất một cấp ý tưởng/đề tài' }]}
+            options={levelOptions}
           />
           <ProFormTextArea
             name="summary"

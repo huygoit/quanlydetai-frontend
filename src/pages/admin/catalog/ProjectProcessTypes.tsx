@@ -1,5 +1,5 @@
 /**
- * Quản lý danh mục Loại quy trình đề tài (QT-I … QT-V)
+ * Quản lý danh mục Cấp ý tưởng/đề tài (QT-I … QT-V)
  */
 import {
   ProTable,
@@ -94,7 +94,7 @@ const ProjectProcessTypes: React.FC = () => {
       sorter: true,
     },
     {
-      title: 'Tên loại quy trình',
+      title: 'Tên cấp',
       dataIndex: 'name',
       ellipsis: true,
       sorter: true,
@@ -173,7 +173,7 @@ const ProjectProcessTypes: React.FC = () => {
   return (
     <>
       <ProTable<ProjectProcessType>
-        headerTitle="Loại quy trình đề tài"
+        headerTitle="Cấp ý tưởng/đề tài"
         actionRef={actionRef}
         rowKey="id"
         columns={columns}
@@ -189,7 +189,7 @@ const ProjectProcessTypes: React.FC = () => {
                     setModalVisible(true);
                   }}
                 >
-                  Thêm loại quy trình
+                  Thêm cấp
                 </Button>,
               ]
             : []
@@ -223,7 +223,7 @@ const ProjectProcessTypes: React.FC = () => {
           defaultPageSize: 20,
           showSizeChanger: true,
           showTotal: (total, range) =>
-            `Đang xem ${range[0]}-${range[1]} trên tổng ${total} loại quy trình`,
+            `Đang xem ${range[0]}-${range[1]} trên tổng ${total} cấp`,
         }}
         options={{ density: true, fullScreen: true, reload: true, setting: true }}
       />
@@ -232,8 +232,8 @@ const ProjectProcessTypes: React.FC = () => {
         key={editingRecord ? `edit-${editingRecord.id}` : 'create'}
         title={
           editingRecord
-            ? `Sửa loại quy trình: ${editingRecord.code}`
-            : 'Thêm loại quy trình đề tài'
+            ? `Sửa cấp: ${editingRecord.code}`
+            : 'Thêm cấp ý tưởng/đề tài'
         }
         open={modalVisible}
         onOpenChange={(visible) => {
@@ -277,7 +277,7 @@ const ProjectProcessTypes: React.FC = () => {
         />
         <ProFormText
           name="name"
-          label="Tên loại quy trình"
+          label="Tên cấp"
           placeholder="VD: Đề tài cấp Trường"
           rules={[
             { required: true, message: 'Bắt buộc' },

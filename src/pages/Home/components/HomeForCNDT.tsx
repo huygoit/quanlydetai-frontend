@@ -42,7 +42,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { useEffect, useState, useRef } from 'react';
-import { useModel } from '@umijs/max';
+import { history, useModel } from '@umijs/max';
 import {
   fetchHomeSummary,
   fetchHomeTasks,
@@ -55,6 +55,20 @@ import {
   type HomeProjectShort,
   type HomeIdeaShort,
 } from '@/services/api/home';
+import { getMyProfile, type ScientificProfile } from '@/services/api/profile';
+import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+import {
+  loadScientificProfileCatalogOptions,
+  nhanNhanHocHam,
+  nhanNhanHocVi,
+  type HocViHocHamSelectOption,
+} from '@/utils/profileCatalogOptions';
+import {
+  BankOutlined,
+  ExperimentOutlined,
+  MailOutlined,
+  ReadOutlined,
+} from '@ant-design/icons';
 import styles from './HomeForCNDT.less';
 
 const { Title, Text, Paragraph } = Typography;
@@ -478,25 +492,37 @@ const HomeForCNDT: React.FC = () => {
   const [notifications, setNotifications] = useState<HomeNotification[]>([]);
   const [projects, setProjects] = useState<HomeProjectShort[]>([]);
   const [ideas, setIdeas] = useState<HomeIdeaShort[]>([]);
+  const [profile, setProfile] = useState<ScientificProfile | null>(null);
+  const [degreeOptions, setDegreeOptions] = useState<HocViHocHamSelectOption[]>([]);
+  const [academicTitleOptions, setAcademicTitleOptions] = useState<HocViHocHamSelectOption[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [summaryRes, taskRes, notiRes, projectRes, ideaRes] = await Promise.all([
-          fetchHomeSummary(),
-          fetchHomeTasks(),
-          fetchHomeNotifications(),
-          fetchHomeProjects(),
-          fetchHomeIdeas(),
-        ]);
+        const [summaryRes, taskRes, notiRes, projectRes, ideaRes, profileRes, catalog] =
+          await Promise.all([
+            fetchHomeSummary(),
+            fetchHomeTasks(),
+            fetchHomeNotifications(),
+            fetchHomeProjects(),
+            fetchHomeIdeas(),
+            getMyProfile(),
+            loadScientificProfileCatalogOptions(),
+          ]);
 
-        if (summaryRes.success) setSummaryCards(summaryRes.data);
-        if (taskRes.success) setTasks(taskRes.data);
-        if (notiRes.success) setNotifications(notiRes.data);
-        if (projectRes.success) setProjects(projectRes.data);
-        if (ideaRes.success) setIdeas(ideaRes.data);
+        if (summaryRes.success) setSummaryCards(summaryRes.data || []);
+        if (taskRes.success) setTasks(taskRes.data || []);
+        if (notiRes.success) setNotifications(notiRes.data || []);
+        if (projectRes.success) setProjects(projectRes.data || []);
+        if (ideaRes.success) setIdeas(ideaRes.data || []);
+        const p = profileRes?.data ?? null;
+        setProfile(p && typeof p === 'object' && 'id' in p ? (p as ScientificProfile) : null);
+        setDegreeOptions(catalog.degreeOptions);
+        setAcademicTitleOptions(catalog.academicTitleOptions);
       } catch (error) {
         console.error('Error loading home data:', error);
       } finally {
@@ -506,6 +532,29 @@ const HomeForCNDT: React.FC = () => {
 
     loadData();
   }, []);
+
+  const hienThiHoacRong = (v?: string | null) => {
+    const s = (v || '').trim();
+    return s || '—';
+  };
+
+  const nhanHocVi = profile
+    ? profile.degreeLabel ||
+      nhanNhanHocVi(degreeOptions, profile.degree) ||
+      ''
+    : '';
+  const nhanHocHam = profile
+    ? profile.academicTitleLabel ||
+      nhanNhanHocHam(academicTitleOptions, profile.academicTitle) ||
+      ''
+    : '';
+  // Ẩn học hàm «Không» / NONE
+  const hienHocHam =
+    nhanHocHam &&
+    nhanHocHam !== 'Không' &&
+    String(profile?.academicTitle || '').toUpperCase() !== 'NONE';
+
+  const avatarSrc = resolvePublicAssetUrl(profile?.avatarUrl);
 
   // Project table columns - Spec 2.5
   const projectColumns: ProColumns<HomeProjectShort>[] = [
@@ -575,13 +624,16 @@ const HomeForCNDT: React.FC = () => {
       dataIndex: 'progress',
       width: 120,
       sorter: (a, b) => (a.progress || 0) - (b.progress || 0),
-      render: (progress) => (
-        <Progress
-          percent={progress as number}
-          size="small"
-          status={(progress as number) === 100 ? 'success' : 'active'}
-        />
-      ),
+      render: (progress) =>
+        progress == null ? (
+          <Text type="secondary">—</Text>
+        ) : (
+          <Progress
+            percent={progress as number}
+            size="small"
+            status={(progress as number) === 100 ? 'success' : 'active'}
+          />
+        ),
     },
   ];
 
@@ -647,33 +699,131 @@ const HomeForCNDT: React.FC = () => {
       loading={loading && !currentUser}
     >
       <div className={styles.container}>
-        {/* Header chào mừng */}
+        {/* Hero tổng quan hồ sơ — dữ liệu từ scientific_profiles */}
         <ProCard className={styles.headerCard} bordered={false}>
           {loading ? (
-            <Skeleton active avatar paragraph={{ rows: 1 }} />
+            <Skeleton active avatar paragraph={{ rows: 4 }} />
           ) : (
-            <div className={styles.headerContent}>
-              <Avatar
-                size={60}
-                icon={<UserOutlined />}
-                className={styles.avatar}
-              />
-              <div className={styles.headerText}>
-                <Title level={3} className={styles.greeting}>
-                  Xin chào, {currentUser?.name}! 👋
-                </Title>
-                <Space size={8}>
-                  <Text className={styles.roleLabel}>Vai trò hiện tại:</Text>
-                  <Tag color="blue" icon={<UserOutlined />} className={styles.roleTag}>
-                    Chủ nhiệm đề tài
-                  </Tag>
-                </Space>
+            <div className={styles.heroLayout}>
+              <div className={styles.heroIdentity}>
+                <Avatar
+                  size={88}
+                  src={avatarSrc || undefined}
+                  icon={<UserOutlined />}
+                  className={styles.avatar}
+                />
+                <div className={styles.headerText}>
+                  <Title level={3} className={styles.greeting}>
+                    {hienThiHoacRong(profile?.fullName || currentUser?.name)}
+                  </Title>
+                  <Space size={[8, 8]} wrap>
+                    {nhanHocVi ? <Tag className={styles.roleTag}>{nhanHocVi}</Tag> : null}
+                    {hienHocHam ? <Tag className={styles.roleTag}>{nhanHocHam}</Tag> : null}
+                    {profile?.currentTitle ? (
+                      <Tag className={styles.roleTag}>{profile.currentTitle}</Tag>
+                    ) : null}
+                  </Space>
+                  <div className={styles.heroActions}>
+                    <Button
+                      type="default"
+                      ghost
+                      size="small"
+                      onClick={() => history.push('/profile/me')}
+                    >
+                      Xem hồ sơ khoa học
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.overviewGrid}>
+                <div className={styles.overviewBlock}>
+                  <div className={styles.overviewBlockTitle}>
+                    <MailOutlined /> Thông tin liên hệ
+                  </div>
+                  <div className={styles.overviewRow}>
+                    <span className={styles.overviewLabel}>Email</span>
+                    <span className={styles.overviewValue}>
+                      {hienThiHoacRong(profile?.workEmail)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={styles.overviewBlock}>
+                  <div className={styles.overviewBlockTitle}>
+                    <ReadOutlined /> Đào tạo
+                  </div>
+                  <div className={styles.overviewRow}>
+                    <span className={styles.overviewLabel}>Học vị</span>
+                    <span className={styles.overviewValue}>{hienThiHoacRong(nhanHocVi)}</span>
+                  </div>
+                  <div className={styles.overviewRow}>
+                    <span className={styles.overviewLabel}>Học hàm</span>
+                    <span className={styles.overviewValue}>
+                      {hienHocHam ? nhanHocHam : '—'}
+                    </span>
+                  </div>
+                  <div className={styles.overviewRow}>
+                    <span className={styles.overviewLabel}>Cơ sở đào tạo</span>
+                    <span className={styles.overviewValue}>
+                      {hienThiHoacRong(
+                        [profile?.degreeInstitution, profile?.degreeCountry]
+                          .filter(Boolean)
+                          .join(' · ') || profile?.degreeCountry,
+                      )}
+                    </span>
+                  </div>
+                  <div className={styles.overviewRow}>
+                    <span className={styles.overviewLabel}>Chuyên ngành</span>
+                    <span className={styles.overviewValue}>
+                      {hienThiHoacRong(profile?.specialization)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={styles.overviewBlock}>
+                  <div className={styles.overviewBlockTitle}>
+                    <BankOutlined /> Công tác
+                  </div>
+                  <div className={styles.overviewRow}>
+                    <span className={styles.overviewLabel}>Cơ quan công tác</span>
+                    <span className={styles.overviewValue}>
+                      {hienThiHoacRong(profile?.organization)}
+                    </span>
+                  </div>
+                  <div className={styles.overviewRow}>
+                    <span className={styles.overviewLabel}>Đơn vị</span>
+                    <span className={styles.overviewValue}>
+                      {hienThiHoacRong(profile?.faculty || profile?.department)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={styles.overviewBlock}>
+                  <div className={styles.overviewBlockTitle}>
+                    <ExperimentOutlined /> Hướng nghiên cứu
+                  </div>
+                  <div className={styles.overviewRow}>
+                    <span className={styles.overviewLabel}>Hướng NC chính</span>
+                    <span className={styles.overviewValue}>
+                      {hienThiHoacRong(profile?.mainResearchArea)}
+                    </span>
+                  </div>
+                  {!!profile?.subResearchAreas?.length && (
+                    <div className={styles.overviewRow}>
+                      <span className={styles.overviewLabel}>Hướng phụ</span>
+                      <span className={styles.overviewValue}>
+                        {profile.subResearchAreas.join(', ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
         </ProCard>
 
-        {/* 4 KPI Cards - Spec 2.1 */}
+        {/* 4 KPI Cards — số liệu từ DB */}
         <div className={styles.kpiRow}>
           {loading
             ? [1, 2, 3, 4].map((i) => (

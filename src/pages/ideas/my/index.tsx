@@ -8,7 +8,7 @@ import type { ProColumns, ActionType } from '@ant-design/pro-components';
 import { Badge, Button, Card, Col, Drawer, Descriptions, Progress, Row, Space, Tag, Typography, message, Popconfirm, Empty, Alert } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SendOutlined, LinkOutlined, TrophyOutlined } from '@ant-design/icons';
 import { THRESHOLD_SCORE, MAX_WEIGHTED_SCORE, SCORING_CRITERIA } from '@/services/api/ideaCouncil';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useModel } from '@umijs/max';
 import {
   queryMyIdeas,
@@ -16,16 +16,18 @@ import {
   updateIdea,
   deleteIdea,
   submitIdea,
-  IDEA_FIELDS,
   IDEA_STATUS_MAP,
   IDEA_PRIORITY_MAP,
-  PROJECT_LEVEL_MAP,
   type Idea,
   type IdeaCreateData,
-  type ProjectLevel,
 } from '@/services/api/ideas';
-
-const PROJECT_LEVELS: ProjectLevel[] = Object.keys(PROJECT_LEVEL_MAP) as ProjectLevel[];
+import {
+  labelLevel,
+  loadFieldSelectOptions,
+  loadIdeaLevelOptions,
+  type LevelMeta,
+  type SelectOption,
+} from '@/utils/researchCatalogOptions';
 
 const REJECT_STAGE_MAP: Record<string, string> = {
   PHONG_KH_SO_LOAI: 'Bị từ chối ở giai đoạn sơ loại (Phòng KH)',
@@ -44,6 +46,22 @@ const MyIdeasPage: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [currentIdea, setCurrentIdea] = useState<Idea | null>(null);
   const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
+  const [fieldOptions, setFieldOptions] = useState<SelectOption[]>([]);
+  const [levelOptions, setLevelOptions] = useState<SelectOption[]>([]);
+  const [levelMeta, setLevelMeta] = useState<Record<string, LevelMeta>>({});
+
+  // Tải lĩnh vực + cấp từ danh mục
+  useEffect(() => {
+    void (async () => {
+      const [fields, levels] = await Promise.all([
+        loadFieldSelectOptions(),
+        loadIdeaLevelOptions(),
+      ]);
+      setFieldOptions(fields);
+      setLevelOptions(levels.options);
+      setLevelMeta(levels.meta);
+    })();
+  }, []);
 
   // Xem chi tiết
   const handleView = (record: Idea) => {
@@ -138,23 +156,28 @@ const MyIdeasPage: React.FC = () => {
       dataIndex: 'field',
       width: 140,
       valueType: 'select',
-      valueEnum: IDEA_FIELDS.reduce((acc, field) => {
-        acc[field] = { text: field };
-        return acc;
-      }, {} as Record<string, { text: string }>),
+      fieldProps: {
+        options: fieldOptions,
+        showSearch: true,
+        optionFilterProp: 'label',
+        placeholder: 'Chọn lĩnh vực',
+      },
     },
     {
-      title: 'Cấp đề tài phù hợp',
+      title: 'Cấp ý tưởng/đề tài',
       dataIndex: 'suitableLevels',
       width: 200,
       hideInSearch: true,
       render: (_, record) => (
         <Space size={[0, 4]} wrap>
-          {record.suitableLevels.slice(0, 2).map(level => (
-            <Tag key={level} color={PROJECT_LEVEL_MAP[level].color}>
-              {PROJECT_LEVEL_MAP[level].text}
-            </Tag>
-          ))}
+          {record.suitableLevels.slice(0, 2).map((level) => {
+            const meta = labelLevel(level, levelMeta);
+            return (
+              <Tag key={level} color={meta.color}>
+                {meta.text}
+              </Tag>
+            );
+          })}
           {record.suitableLevels.length > 2 && (
             <Tag>+{record.suitableLevels.length - 2}</Tag>
           )}
@@ -369,17 +392,15 @@ const MyIdeasPage: React.FC = () => {
           name="field"
           label="Lĩnh vực"
           placeholder="Chọn lĩnh vực"
-          options={IDEA_FIELDS.map(f => ({ label: f, value: f }))}
+          options={fieldOptions}
           rules={[{ required: true, message: 'Vui lòng chọn lĩnh vực' }]}
+          fieldProps={{ showSearch: true, optionFilterProp: 'label' }}
         />
         <ProFormCheckbox.Group
           name="suitableLevels"
-          label="Cấp đề tài phù hợp"
-          rules={[{ required: true, message: 'Vui lòng chọn ít nhất một cấp đề tài' }]}
-          options={PROJECT_LEVELS.map(level => ({
-            label: PROJECT_LEVEL_MAP[level].text,
-            value: level,
-          }))}
+          label="Cấp ý tưởng/đề tài"
+          rules={[{ required: true, message: 'Vui lòng chọn ít nhất một cấp ý tưởng/đề tài' }]}
+          options={levelOptions}
         />
         <ProFormTextArea
           name="summary"
@@ -539,13 +560,16 @@ const MyIdeasPage: React.FC = () => {
               <Descriptions.Item label="Mã ý tưởng">{currentIdea.code}</Descriptions.Item>
               <Descriptions.Item label="Tiêu đề">{currentIdea.title}</Descriptions.Item>
               <Descriptions.Item label="Lĩnh vực">{currentIdea.field}</Descriptions.Item>
-              <Descriptions.Item label="Cấp đề tài phù hợp">
+              <Descriptions.Item label="Cấp ý tưởng/đề tài">
                 <Space size={[0, 4]} wrap>
-                  {currentIdea.suitableLevels.map(level => (
-                    <Tag key={level} color={PROJECT_LEVEL_MAP[level].color}>
-                      {PROJECT_LEVEL_MAP[level].text}
-                    </Tag>
-                  ))}
+                  {currentIdea.suitableLevels.map((level) => {
+                    const meta = labelLevel(level, levelMeta);
+                    return (
+                      <Tag key={level} color={meta.color}>
+                        {meta.text}
+                      </Tag>
+                    );
+                  })}
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="Trạng thái">

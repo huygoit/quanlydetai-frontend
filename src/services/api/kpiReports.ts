@@ -1,8 +1,19 @@
 /**
  * API Báo cáo KPI / giờ NCKH
- * - GET /api/kpis/nckh-hours-report?academic_year=2024-2025
+ * - GET /api/kpis/nckh-hours-report?publishedFrom=&publishedTo=&faculty=
+ * - GET /api/kpis/nckh-data-report?...
+ * - GET|PUT /api/kpis/nckh-data-report/column-config
  */
-import { get, ApiResponse } from '../request';
+import { get, put, ApiResponse } from '../request';
+
+export interface NckhReportPeriodParams {
+  /** ISO date YYYY-MM-DD — bỏ trống cả cặp + all=true khi «Tất cả» */
+  publishedFrom?: string;
+  publishedTo?: string;
+  /** true = không lọc ngày */
+  all?: boolean;
+  faculty?: string;
+}
 
 export interface NckhReportRow {
   stt: number;
@@ -21,6 +32,9 @@ export interface NckhReportUnit {
 
 export interface NckhHoursReport {
   academic_year: string;
+  period_from?: string | null;
+  period_to?: string | null;
+  period_label?: string;
   faculty: string;
   faculties: string[];
   generated_at: string;
@@ -29,47 +43,100 @@ export interface NckhHoursReport {
   units: NckhReportUnit[];
 }
 
-export const getNckhHoursReport = (academicYear: string, faculty?: string) =>
-  get<NckhHoursReport>('/api/kpis/nckh-hours-report', {
-    academic_year: academicYear,
-    faculty: faculty || '',
-  }) as Promise<ApiResponse<NckhHoursReport>>;
-
-export interface NckhDataCounts {
-  wos_scopus: number;
-  intl_other: number;
-  isbn_proc: number;
-  dt_nha_nuoc: number;
-  dt_bo: number;
-  dt_truong: number;
-  sv_nckh: number;
-  hours: number;
-  textbook: number;
-  monograph: number;
-  reference: number;
-  training_doc: number;
-  ip: number;
+function buildReportQuery(params: NckhReportPeriodParams) {
+  const q: Record<string, string> = {
+    faculty: params.faculty || '',
+  };
+  if (params.all) {
+    q.all = '1';
+  } else if (params.publishedFrom && params.publishedTo) {
+    q.publishedFrom = params.publishedFrom;
+    q.publishedTo = params.publishedTo;
+  }
+  return q;
 }
 
-export interface NckhDataRow extends NckhDataCounts {
+export const getNckhHoursReport = (params: NckhReportPeriodParams) =>
+  get<NckhHoursReport>(
+    '/api/kpis/nckh-hours-report',
+    buildReportQuery(params),
+  ) as Promise<ApiResponse<NckhHoursReport>>;
+
+/** Node cột header báo cáo (L1/L2/L3 đã chọn). */
+export interface NckhDataColumnNode {
+  id: number;
+  code: string;
+  name: string;
+  level: number;
+  children: NckhDataColumnNode[];
+}
+
+export interface NckhDataLeafColumn {
+  id: number;
+  code: string;
+  name: string;
+  level1Id: number;
+  level2Id: number;
+}
+
+export interface NckhDataColumnSelection {
+  level1Ids: number[];
+  level2Ids: number[];
+  level3Ids: number[];
+}
+
+export interface NckhDataRow {
   stt: number;
   fullName: string;
   hoTenDem: string;
   ten: string;
+  hours: number;
   note: string;
+  /** Số lượng theo id loại L3 (key = string id) */
+  counts: Record<string, number>;
+}
+
+export interface NckhDataTotals {
+  hours: number;
+  counts: Record<string, number>;
 }
 
 export interface NckhDataReport {
   academic_year: string;
+  period_from?: string | null;
+  period_to?: string | null;
+  period_label?: string;
   faculty: string;
   generated_at: string;
   faculties: string[];
+  isDefaultAll?: boolean;
+  selection?: NckhDataColumnSelection;
+  columnTree: NckhDataColumnNode[];
+  leafColumns: NckhDataLeafColumn[];
   rows: NckhDataRow[];
-  totals: NckhDataCounts;
+  totals: NckhDataTotals;
 }
 
-export const getNckhDataReport = (academicYear: string, faculty?: string) =>
-  get<NckhDataReport>('/api/kpis/nckh-data-report', {
-    academic_year: academicYear,
-    faculty: faculty || '',
-  }) as Promise<ApiResponse<NckhDataReport>>;
+export interface NckhDataColumnConfig {
+  selection: NckhDataColumnSelection;
+  isDefaultAll: boolean;
+  canConfigure: boolean;
+  catalogTree: NckhDataColumnNode[];
+}
+
+export const getNckhDataReport = (params: NckhReportPeriodParams) =>
+  get<NckhDataReport>(
+    '/api/kpis/nckh-data-report',
+    buildReportQuery(params),
+  ) as Promise<ApiResponse<NckhDataReport>>;
+
+export const getNckhDataColumnConfig = () =>
+  get<NckhDataColumnConfig>(
+    '/api/kpis/nckh-data-report/column-config',
+  ) as Promise<ApiResponse<NckhDataColumnConfig>>;
+
+export const saveNckhDataColumnConfig = (selection: NckhDataColumnSelection) =>
+  put<{ selection: NckhDataColumnSelection }>(
+    '/api/kpis/nckh-data-report/column-config',
+    selection,
+  ) as Promise<ApiResponse<{ selection: NckhDataColumnSelection }>>;
