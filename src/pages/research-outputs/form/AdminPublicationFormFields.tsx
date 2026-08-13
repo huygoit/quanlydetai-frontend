@@ -112,6 +112,7 @@ const AdminPublicationFormFields: React.FC<AdminPublicationFormFieldsProps> = ({
                 // Xoá giá trị các trường bị ẩn ở loại mới (tránh gửi dữ liệu thừa).
                 const canXoa: Array<[FormFieldKey, string]> = [
                   ['journalName', 'journalOrConference'],
+                  ['fundingOrganization', 'fundingOrganization'],
                   ['isbn', 'isbn'],
                   ['hdgsnnScore', 'hdgsnnScore'],
                   ['doi', 'doi'],
@@ -145,6 +146,18 @@ const AdminPublicationFormFields: React.FC<AdminPublicationFormFieldsProps> = ({
           <Col span={24}>
             <Form.Item name="journalOrConference" label={nhan('Tên tạp chí / hội thảo', req('journalName'))}>
               <Input placeholder="Tên tạp chí hoặc tên hội thảo/kỷ yếu" />
+            </Form.Item>
+          </Col>
+        )}
+
+        {show('fundingOrganization') && (
+          <Col span={24}>
+            <Form.Item
+              name="fundingOrganization"
+              label={nhan('Đơn vị tài trợ', req('fundingOrganization'))}
+              tooltip="Thông tin phục vụ xét khen thưởng sau này"
+            >
+              <Input placeholder="VD: Quỹ NAFOSTED, Bộ GD&ĐT, doanh nghiệp…" />
             </Form.Item>
           </Col>
         )}

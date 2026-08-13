@@ -130,6 +130,30 @@ export const getNckhDataReport = (params: NckhReportPeriodParams) =>
     buildReportQuery(params),
   ) as Promise<ApiResponse<NckhDataReport>>;
 
+/** Tải Excel theo cùng filter + cột cấu hình */
+export async function exportNckhDataReportExcel(
+  params: NckhReportPeriodParams,
+): Promise<Blob> {
+  const { getToken, API_BASE_URL } = await import('../request');
+  const token = getToken();
+  const q = new URLSearchParams(buildReportQuery(params));
+  const url = `${API_BASE_URL}/api/kpis/nckh-data-report/export-excel?${q.toString()}`;
+  const res = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let msg = 'Xuất Excel thất bại';
+    try {
+      const j = await res.json();
+      msg = j?.message || msg;
+    } catch {
+      /* bỏ qua */
+    }
+    throw new Error(msg);
+  }
+  return res.blob();
+}
+
 export const getNckhDataColumnConfig = () =>
   get<NckhDataColumnConfig>(
     '/api/kpis/nckh-data-report/column-config',

@@ -67,3 +67,9 @@ export * from './iamUsers';
 
 // Staffs (danh mục nhân sự — master hồ sơ)
 export * from './staffs';
+
+// Danh mục quốc gia
+export * from './countries';
+
+// Danh mục trường đại học
+export * from './universities';

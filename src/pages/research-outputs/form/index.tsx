@@ -131,6 +131,7 @@ const ResearchOutputFormPage: React.FC = () => {
           researchOutputTypePath: path ?? undefined,
           title: pub.title,
           journalOrConference: pub.journalOrConference,
+          fundingOrganization: pub.fundingOrganization ?? undefined,
           publishedAt: publishedAtRaDayjs(pub),
           publicationStatus: pub.publicationStatus ?? 'PUBLISHED',
           hdgsnnScore: pub.hdgsnnScore ?? undefined,

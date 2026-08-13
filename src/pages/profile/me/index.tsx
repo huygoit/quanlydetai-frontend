@@ -65,7 +65,6 @@ import {
   ProFormSelect,
   ProFormDatePicker,
   ProFormDependency,
-  ProFormDigit,
   EditableProTable,
   ProList,
 } from '@ant-design/pro-components';
@@ -94,6 +93,8 @@ import {
 import { THU_MUC_UPLOAD_MAC_DINH, uploadFileDon } from '@/services/api/fileUpload';
 import { getFieldOptions } from '@/services/api/fields';
 import { getSpecializationOptions } from '@/services/api/specializations';
+import { getCountryOptions } from '@/services/api/countries';
+import { getUniversityOptions } from '@/services/api/universities';
 import {
   parsePublicationAttachmentUrls,
   serializePublicationAttachmentUrls,
@@ -130,6 +131,7 @@ import {
   FALLBACK_DEGREE_CATALOG,
   layNamNhanBangToiDa,
   NAM_NHAN_BANG_TOI_THIEU,
+  taoOptionsNam,
 } from '@/constants/scientificProfileCatalog';
 import ReportPeriodFilters, {
   nhanKhoangKyTuState,
@@ -371,6 +373,7 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
       title: pub.title,
       academicYear: pub.academicYear,
       journalOrConference: pub.journalOrConference,
+      fundingOrganization: pub.fundingOrganization ?? undefined,
       publishedAt: publishedAtRaDayjs(pub),
       hdgsnnScore: pub.hdgsnnScore ?? undefined,
       isbn: pub.isbn,
@@ -907,6 +910,14 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                   <Text>{selectedPub.journalOrConference}</Text>
                 </Col>
 
+                {selectedPub.fundingOrganization && (
+                  <Col span={24}>
+                    <Text strong>Đơn vị tài trợ:</Text>
+                    <br />
+                    <Text>{selectedPub.fundingOrganization}</Text>
+                  </Col>
+                )}
+
                 <Col span={12}>
                   <Text strong>Năm học:</Text>
                   <br />
@@ -1171,6 +1182,16 @@ const MyProfilePage: React.FC = () => {
   const [specializationOptions, setSpecializationOptions] = useState<
     { label: string; value: number }[]
   >([]);
+  /** Chuyên ngành theo tên — dùng cho undergraduateMajor / degreeMajor (cùng API options) */
+  const [majorOptions, setMajorOptions] = useState<{ label: string; value: string }[]>([]);
+  const [countryOptions, setCountryOptions] = useState<{ label: string; value: string }[]>([]);
+  const [universityOptions, setUniversityOptions] = useState<
+    { label: string; value: string; options?: { label: string; value: string }[] }[]
+  >([]);
+  const yearOptions = useMemo(
+    () => taoOptionsNam(NAM_NHAN_BANG_TOI_THIEU, layNamNhanBangToiDa()),
+    [],
+  );
 
   /** Học vị / học hàm từ GET /api/catalog/scientific-profile/options */
   const [degreeOptions, setDegreeOptions] = useState<HocViHocHamSelectOption[]>(() =>
@@ -1211,15 +1232,38 @@ const MyProfilePage: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [fieldRes, specRes] = await Promise.all([
+        const [fieldRes, specRes, countryRes, uniRes] = await Promise.all([
           getFieldOptions(),
           getSpecializationOptions(),
+          getCountryOptions(),
+          getUniversityOptions(),
         ]);
         if (cancelled) return;
         // BE trả id dạng chuỗi; ép về number để khớp value số trên hồ sơ.
         setFieldOptions((fieldRes.data ?? []).map((f) => ({ label: f.name, value: Number(f.id) })));
         setSpecializationOptions(
           (specRes.data ?? []).map((s) => ({ label: s.name, value: Number(s.id) })),
+        );
+        setMajorOptions((specRes.data ?? []).map((s) => ({ label: s.name, value: s.name })));
+        setCountryOptions(
+          (countryRes.data ?? []).map((c) => ({
+            label: c.label || c.name,
+            value: c.value || c.name,
+          })),
+        );
+        // Gom trường theo quốc gia (đơn giản, dùng chung)
+        const byCountry = new Map<string, { label: string; value: string }[]>();
+        for (const u of uniRes.data ?? []) {
+          const group = u.country_name || 'Khác';
+          if (!byCountry.has(group)) byCountry.set(group, []);
+          byCountry.get(group)!.push({ label: u.name, value: u.name });
+        }
+        setUniversityOptions(
+          Array.from(byCountry.entries()).map(([label, options]) => ({
+            label,
+            value: label,
+            options,
+          })),
         );
       } catch {
         /* lỗi danh mục — select vẫn nhập tay được */
@@ -1792,7 +1836,7 @@ const MyProfilePage: React.FC = () => {
   // Checklist for completeness - with tab navigation
   const checklist: ChecklistItem[] = [
     { key: 'email', label: 'Email & Đơn vị', done: !!profile.workEmail && !!profile.organization, tabKey: 'general' },
-    { key: 'degree', label: 'Học vị', done: !!profile.degree, tabKey: 'education' },
+    { key: 'degree', label: 'Thông tin đào tạo', done: !!(profile.undergraduateInstitution || profile.degree), tabKey: 'education' },
     { key: 'research', label: 'Hướng nghiên cứu', done: !!profile.mainResearchArea, tabKey: 'research' },
     { key: 'language', label: 'Ngoại ngữ', done: (profile.languages?.length || 0) > 0, tabKey: 'languages' },
     { key: 'publications', label: 'Kết quả NCKH / Đề tài', done: (profile.publications?.length || 0) > 0 || (profile.linkedProjects?.length || 0) > 0, tabKey: 'publications' },
@@ -1961,6 +2005,35 @@ const MyProfilePage: React.FC = () => {
                               rules={[{ required: true, type: 'email' }]}
                             />
                           </Col>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="faculty"
+                              label="Đơn vị công tác"
+                              options={gopGiaTriHienCo(khoaPhongOptions, profile.faculty)}
+                              showSearch
+                              allowClear
+                              fieldProps={{
+                                optionFilterProp: 'label',
+                                placeholder: 'Chọn đơn vị công tác',
+                              }}
+                            />
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="organization"
+                              label="Cơ quan công tác"
+                              rules={[{ required: true, message: 'Vui lòng chọn cơ quan công tác' }]}
+                              options={gopGiaTriHienCo(
+                                CO_QUAN_CONG_TAC_OPTIONS,
+                                profile.organization,
+                              )}
+                              showSearch
+                              fieldProps={{
+                                optionFilterProp: 'label',
+                                placeholder: 'Chọn cơ quan công tác (ĐHĐN)',
+                              }}
+                            />
+                          </Col>
                           <Col xs={24} md={8}>
                             <ProFormDatePicker
                               name="dateOfBirth"
@@ -2069,7 +2142,7 @@ const MyProfilePage: React.FC = () => {
                       layout="vertical"
                     >
                       <div className="form-section">
-                        <Title level={5}>Học vị / Học hàm</Title>
+                        <Title level={5}>Thông tin đào tạo (lý lịch)</Title>
                         {!catalogTuApi && catalogGhiChu && (
                           <Alert
                             type="warning"
@@ -2079,114 +2152,220 @@ const MyProfilePage: React.FC = () => {
                             description={catalogGhiChu}
                           />
                         )}
-                        <Row gutter={16} align="bottom" className="profile-hoc-vi-hoc-ham-row">
-                          <Col xs={24} lg={12}>
-                            <Row gutter={16} align="bottom">
-                              <Col xs={24} sm={14}>
+
+                        <Title level={5} style={{ fontSize: 15, marginTop: 0 }}>
+                          Tốt nghiệp đại học
+                        </Title>
+                        <Row gutter={16}>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="undergraduateInstitution"
+                              label="Tốt nghiệp đại học"
+                              placeholder="Chọn trường / cơ sở đào tạo"
+                              showSearch
+                              options={
+                                profile.undergraduateInstitution &&
+                                !universityOptions.some((g) =>
+                                  (g.options || []).some(
+                                    (o) => o.value === profile.undergraduateInstitution,
+                                  ),
+                                )
+                                  ? [
+                                      {
+                                        label: profile.undergraduateInstitution,
+                                        value: profile.undergraduateInstitution,
+                                      },
+                                      ...universityOptions,
+                                    ]
+                                  : universityOptions
+                              }
+                              fieldProps={{
+                                optionFilterProp: 'label',
+                                allowClear: true,
+                              }}
+                            />
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="undergraduateYear"
+                              label="Năm tốt nghiệp"
+                              options={yearOptions}
+                              fieldProps={{
+                                showSearch: true,
+                                allowClear: true,
+                                placeholder: 'Chọn năm',
+                              }}
+                            />
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="undergraduateMajor"
+                              label="Chuyên ngành"
+                              placeholder="Chọn chuyên ngành"
+                              showSearch
+                              options={gopGiaTriHienCo(majorOptions, profile.undergraduateMajor)}
+                              fieldProps={{
+                                optionFilterProp: 'label',
+                                allowClear: true,
+                              }}
+                            />
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="undergraduateCountry"
+                              label="Quốc gia"
+                              options={gopGiaTriHienCo(countryOptions, profile.undergraduateCountry)}
+                              fieldProps={{
+                                showSearch: true,
+                                optionFilterProp: 'label',
+                                allowClear: true,
+                                placeholder: 'Chọn quốc gia',
+                              }}
+                            />
+                          </Col>
+                        </Row>
+
+                        <Title level={5} style={{ fontSize: 15, marginTop: 16 }}>
+                          Học vị
+                        </Title>
+                        <Row gutter={16}>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="degree"
+                              label="Học vị"
+                              fieldProps={{
+                                showSearch: true,
+                                optionFilterProp: 'label',
+                              }}
+                              options={gopGiaTriHocViHienCo(
+                                degreeOptions,
+                                profile.degree,
+                                chuanHoaDegreeKey,
+                              )}
+                            />
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="degreeYear"
+                              label="Năm nhận học vị"
+                              options={yearOptions}
+                              fieldProps={{
+                                showSearch: true,
+                                allowClear: true,
+                                placeholder: 'Chọn năm',
+                              }}
+                            />
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="degreeMajor"
+                              label="Chuyên ngành"
+                              placeholder="Chọn chuyên ngành"
+                              showSearch
+                              options={gopGiaTriHienCo(majorOptions, profile.degreeMajor)}
+                              fieldProps={{
+                                optionFilterProp: 'label',
+                                allowClear: true,
+                              }}
+                            />
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <ProFormSelect
+                              name="degreeCountry"
+                              label="Quốc gia"
+                              options={gopGiaTriHienCo(countryOptions, profile.degreeCountry)}
+                              fieldProps={{
+                                showSearch: true,
+                                optionFilterProp: 'label',
+                                allowClear: true,
+                                placeholder: 'Chọn quốc gia',
+                              }}
+                            />
+                          </Col>
+                        </Row>
+
+                        <Title level={5} style={{ fontSize: 15, marginTop: 16 }}>
+                          Học hàm
+                        </Title>
+                        <ProFormDependency name={['academicTitle']}>
+                          {({ academicTitle }) => (
+                            <Row gutter={16}>
+                              <Col xs={24} md={12}>
                                 <ProFormSelect
-                                  name="degree"
-                                  label="Học vị"
+                                  name="academicTitle"
+                                  label="Học hàm"
                                   fieldProps={{
                                     showSearch: true,
                                     optionFilterProp: 'label',
                                   }}
                                   options={gopGiaTriHocViHienCo(
-                                    degreeOptions,
-                                    profile.degree,
-                                    chuanHoaDegreeKey,
+                                    academicTitleOptions,
+                                    profile.academicTitle,
+                                    chuanHoaAcademicTitleKey,
                                   )}
                                 />
                               </Col>
-                              <Col xs={24} sm={10}>
-                                <ProFormDigit
-                                  name="degreeYear"
-                                  label="Năm nhận học vị"
-                                  min={NAM_NHAN_BANG_TOI_THIEU}
-                                  max={layNamNhanBangToiDa()}
-                                  fieldProps={{ precision: 0 }}
-                                  rules={[
-                                    {
-                                      type: 'number',
-                                      min: NAM_NHAN_BANG_TOI_THIEU,
-                                      max: layNamNhanBangToiDa(),
-                                      message: `Năm từ ${NAM_NHAN_BANG_TOI_THIEU} đến ${layNamNhanBangToiDa()}`,
-                                    },
-                                  ]}
-                                />
-                              </Col>
-                            </Row>
-                          </Col>
-                          <Col xs={24} lg={12}>
-                            <ProFormDependency name={['academicTitle']}>
-                              {({ academicTitle }) => (
-                                <Row gutter={16} align="bottom">
-                                  <Col
-                                    xs={24}
-                                    sm={coHienThiHocHam(academicTitle) ? 14 : 24}
-                                  >
+                              {coHienThiHocHam(academicTitle) ? (
+                                <>
+                                  <Col xs={24} md={12}>
                                     <ProFormSelect
-                                      name="academicTitle"
-                                      label="Học hàm"
+                                      name="academicTitleYear"
+                                      label="Năm nhận học hàm"
+                                      options={yearOptions}
+                                      fieldProps={{
+                                        showSearch: true,
+                                        allowClear: true,
+                                        placeholder: 'Chọn năm',
+                                      }}
+                                    />
+                                  </Col>
+                                  <Col xs={24} md={12}>
+                                    <ProFormSelect
+                                      name="academicTitleMajor"
+                                      label="Chuyên ngành"
+                                      placeholder="Chọn chuyên ngành"
+                                      showSearch
+                                      options={gopGiaTriHienCo(
+                                        majorOptions,
+                                        profile.academicTitleMajor,
+                                      )}
+                                      fieldProps={{
+                                        optionFilterProp: 'label',
+                                        allowClear: true,
+                                      }}
+                                    />
+                                  </Col>
+                                  <Col xs={24} md={12}>
+                                    <ProFormSelect
+                                      name="academicTitleCountry"
+                                      label="Quốc gia"
+                                      options={gopGiaTriHienCo(
+                                        countryOptions,
+                                        profile.academicTitleCountry,
+                                      )}
                                       fieldProps={{
                                         showSearch: true,
                                         optionFilterProp: 'label',
+                                        allowClear: true,
+                                        placeholder: 'Chọn quốc gia',
                                       }}
-                                      options={gopGiaTriHocViHienCo(
-                                        academicTitleOptions,
-                                        profile.academicTitle,
-                                        chuanHoaAcademicTitleKey,
-                                      )}
                                     />
                                   </Col>
-                                  {coHienThiHocHam(academicTitle) ? (
-                                    <Col xs={24} sm={10}>
-                                      <ProFormDigit
-                                        name="academicTitleYear"
-                                        label="Năm đạt học hàm"
-                                        min={NAM_NHAN_BANG_TOI_THIEU}
-                                        max={layNamNhanBangToiDa()}
-                                        fieldProps={{ precision: 0 }}
-                                        rules={[
-                                          {
-                                            type: 'number',
-                                            min: NAM_NHAN_BANG_TOI_THIEU,
-                                            max: layNamNhanBangToiDa(),
-                                            message: `Năm từ ${NAM_NHAN_BANG_TOI_THIEU} đến ${layNamNhanBangToiDa()}`,
-                                          },
-                                        ]}
-                                      />
-                                    </Col>
-                                  ) : null}
-                                </Row>
-                              )}
-                            </ProFormDependency>
-                          </Col>
-                        </Row>
-                        <Row gutter={16}>
+                                </>
+                              ) : null}
+                            </Row>
+                          )}
+                        </ProFormDependency>
+
+                        <Row gutter={16} style={{ marginTop: 8 }}>
                           <Col xs={24}>
                             <ProFormSelect
                               name="specializationId"
-                              label="Chuyên ngành"
+                              label="Chuyên ngành (danh mục hệ thống)"
                               showSearch
                               placeholder="Chọn chuyên ngành đào tạo"
                               options={specializationOptions}
                               fieldProps={{ optionFilterProp: 'label' }}
-                            />
-                          </Col>
-                        </Row>
-                        <Row gutter={16}>
-                          <Col xs={24} md={12}>
-                            <ProFormText
-                              name="degreeInstitution"
-                              label="Cơ sở đào tạo"
-                              placeholder="Tên trường / viện"
-                            />
-                          </Col>
-                          <Col xs={24} md={12}>
-                            <ProFormText
-                              name="degreeCountry"
-                              label="Quốc gia"
-                              placeholder="Việt Nam, Australia..."
                             />
                           </Col>
                         </Row>
@@ -2198,64 +2377,6 @@ const MyProfilePage: React.FC = () => {
                         profile={profile}
                         onProfileChange={setProfile}
                       />
-
-                      <Divider />
-
-                      <div className="form-section">
-                        <Title level={5}>Thông tin công tác</Title>
-                        <Row gutter={16}>
-                          <Col xs={24} md={12}>
-                            <ProFormSelect
-                              name="organization"
-                              label="Cơ quan công tác"
-                              rules={[{ required: true, message: 'Vui lòng chọn cơ quan công tác' }]}
-                              options={gopGiaTriHienCo(
-                                CO_QUAN_CONG_TAC_OPTIONS,
-                                profile.organization,
-                              )}
-                              showSearch
-                              fieldProps={{
-                                optionFilterProp: 'label',
-                                placeholder: 'Chọn cơ quan công tác (ĐHĐN)',
-                              }}
-                            />
-                          </Col>
-                          <Col xs={24} md={12}>
-                            <ProFormSelect
-                              name="faculty"
-                              label="Khoa/phòng ban"
-                              options={gopGiaTriHienCo(khoaPhongOptions, profile.faculty)}
-                              showSearch
-                              allowClear
-                              fieldProps={{
-                                optionFilterProp: 'label',
-                                placeholder: 'Chọn khoa/phòng ban',
-                              }}
-                            />
-                          </Col>
-                          <Col xs={24} md={12}>
-                            <ProFormText
-                              name="currentTitle"
-                              label="Chức danh"
-                              placeholder="Giảng viên, Nghiên cứu viên..."
-                            />
-                          </Col>
-                          <Col xs={24} md={12}>
-                            <ProFormText
-                              name="managementRole"
-                              label="Vai trò quản lý"
-                              placeholder="Trưởng bộ môn, Phó khoa..."
-                            />
-                          </Col>
-                          <Col xs={24} md={12}>
-                            <ProFormDatePicker
-                              name="startWorkingAt"
-                              label="Ngày bắt đầu công tác"
-                              width="100%"
-                            />
-                          </Col>
-                        </Row>
-                      </div>
 
                       <div className="form-actions">
                         <Button

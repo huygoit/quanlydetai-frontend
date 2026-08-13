@@ -117,6 +117,7 @@ export function chuanHoaProfileCatalogFields<T extends Partial<ScientificProfile
     academic_title_year?: number | null;
     education_records?: ScientificProfile['educationRecords'];
     training_courses?: ScientificProfile['trainingCourses'];
+    teaching_work_records?: ScientificProfile['teachingWorkRecords'];
   };
   const academicTitleYear =
     profile.academicTitleYear ?? raw.academic_title_year ?? undefined;
@@ -140,6 +141,7 @@ export function chuanHoaProfileCatalogFields<T extends Partial<ScientificProfile
     academicTitleYear: coHienThiHocHam(academicTitle) ? namHocHam : null,
     educationRecords: profile.educationRecords ?? raw.education_records ?? [],
     trainingCourses: profile.trainingCourses ?? raw.training_courses ?? [],
+    teachingWorkRecords: profile.teachingWorkRecords ?? raw.teaching_work_records ?? [],
   };
 }
 
@@ -163,12 +165,15 @@ export function chuanHoaPayloadTruocKhiLuuProfile(
 
   if (!payload.degree) {
     payload.degreeYear = null;
+    payload.degreeMajor = null;
   } else if (payload.degreeYear === '' || payload.degreeYear === undefined) {
     payload.degreeYear = null;
   }
 
   if (!coHienThiHocHam(academicTitle as string | undefined)) {
     payload.academicTitleYear = null;
+    payload.academicTitleMajor = null;
+    payload.academicTitleCountry = null;
   } else if (
     payload.academicTitleYear === '' ||
     payload.academicTitleYear === undefined

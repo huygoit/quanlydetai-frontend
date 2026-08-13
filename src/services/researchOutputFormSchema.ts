@@ -5,6 +5,7 @@ export type FormFieldKey =
   | 'title'
   | 'researchOutputTypePath'
   | 'journalName'
+  | 'fundingOrganization'
   | 'doi'
   | 'qRankUrl'
   | 'reputableListUrl'
@@ -108,6 +109,7 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
     hienThiForm: [
       ...TITLE_TYPE,
       'journalName',
+      'fundingOrganization',
       'doi',
       'qRankUrl',
       'reputableListUrl',
@@ -136,6 +138,7 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
     hienThiForm: [
       ...TITLE_TYPE,
       'journalName',
+      'fundingOrganization',
       'reputableListUrl',
       'publishedAt',
       'attachment',
@@ -160,6 +163,7 @@ const SCHEMA_THEO_LOAI: Record<LoaiKqnc, Omit<LeafFormSchema, 'leafCode'>> = {
     hienThiForm: [
       ...TITLE_TYPE,
       'journalName',
+      'fundingOrganization',
       'isbn',
       'publishedAt',
       'attachment',

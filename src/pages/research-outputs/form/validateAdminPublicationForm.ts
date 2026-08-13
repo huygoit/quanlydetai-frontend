@@ -43,6 +43,7 @@ export type AdminPublicationSavePayload = {
   attachmentUrl?: string;
   publicationType: Publication['publicationType'];
   journalOrConference: string;
+  fundingOrganization?: string | null;
   source: Publication['source'];
   sourceId?: string | null;
   verifiedByNcv: boolean;
@@ -128,6 +129,10 @@ export function validateAndBuildAdminPublicationPayload(
     attachmentUrl: serializePublicationAttachmentUrls(values.attachmentUrls),
     publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
     journalOrConference,
+    fundingOrganization:
+      typeof values.fundingOrganization === 'string' && values.fundingOrganization.trim()
+        ? values.fundingOrganization.trim()
+        : null,
     source: (editingPub?.source ?? 'INTERNAL') as Publication['source'],
     sourceId: editingPub?.sourceId,
     verifiedByNcv: false,

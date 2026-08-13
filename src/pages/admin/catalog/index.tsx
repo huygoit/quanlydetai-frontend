@@ -6,10 +6,12 @@ import React, { useState } from 'react';
 import { PageContainer } from '@ant-design/pro-components';
 import { Tabs, Card } from 'antd';
 import { useAccess } from '@umijs/max';
-import { AppstoreOutlined, SettingOutlined, ApartmentOutlined, ReadOutlined, ClusterOutlined, PartitionOutlined, IdcardOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, SettingOutlined, ApartmentOutlined, ReadOutlined, ClusterOutlined, PartitionOutlined, IdcardOutlined, GlobalOutlined, BankOutlined } from '@ant-design/icons';
 import ResearchOutputTypes from './ResearchOutputTypes';
 import Fields from './Fields';
 import Specializations from './Specializations';
+import Countries from './Countries';
+import Universities from './Universities';
 import ProjectProcessTypes from './ProjectProcessTypes';
 import StaffPositions from './StaffPositions';
 import Departments from '@/pages/admin/departments';
@@ -58,6 +60,26 @@ const AdminCatalogPage: React.FC = () => {
         </span>
       ),
       children: <Specializations />,
+    },
+    access.canViewCountries && {
+      key: 'countries',
+      label: (
+        <span>
+          <GlobalOutlined />
+          Quốc gia
+        </span>
+      ),
+      children: <Countries />,
+    },
+    access.canViewUniversities && {
+      key: 'universities',
+      label: (
+        <span>
+          <BankOutlined />
+          Trường ĐH
+        </span>
+      ),
+      children: <Universities />,
     },
     access.canViewProjectProcessTypes && {
       key: 'project-process-types',

@@ -6,6 +6,8 @@ import { history, Link } from '@umijs/max';
 import type { RunTimeLayoutConfig } from '@umijs/max';
 import { Avatar, ConfigProvider, Dropdown, Space, message } from 'antd';
 import viVN from 'antd/locale/vi_VN';
+import { ProConfigProvider, createIntl } from '@ant-design/pro-components';
+import viVNPro from '@ant-design/pro-provider/es/locale/vi_VN';
 import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import * as allIcons from '@ant-design/icons';
 import type { UserRole } from '@/services/mock/homeMockService';
@@ -67,6 +69,27 @@ const customViVN = {
     page_size: 'Số mục mỗi trang',
   },
 };
+
+/**
+ * Locale ProComponents (EditableProTable…).
+ * Bản vi_VN gốc thiếu onlyAddOneLine → fallback nhãn Trung «只能新增一行».
+ * Đồng thời sửa «Cứu» → «Lưu».
+ */
+const viVNProIntl = createIntl('vi_VN', {
+  ...viVNPro,
+  editableTable: {
+    ...(viVNPro as any).editableTable,
+    onlyAddOneLine: 'Chỉ có thể thêm một dòng',
+    onlyOneLineEditor: 'Chỉ có thể sửa một dòng cùng lúc',
+    action: {
+      ...((viVNPro as any).editableTable?.action || {}),
+      save: 'Lưu',
+      cancel: 'Hủy',
+      delete: 'Xóa',
+      add: 'Thêm một dòng',
+    },
+  },
+});
 
 // Việt hóa toàn bộ message validate mặc định của Form (tránh lọt tiếng Trung khi rule không set message riêng)
 const VALIDATE_MESSAGES_VI = {
@@ -130,7 +153,7 @@ export function rootContainer(container: React.ReactNode) {
         },
       }}
     >
-      {container}
+      <ProConfigProvider intl={viVNProIntl}>{container}</ProConfigProvider>
     </ConfigProvider>
   );
 }

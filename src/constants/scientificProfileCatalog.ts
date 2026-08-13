@@ -28,6 +28,24 @@ export const NAM_NHAN_BANG_TOI_THIEU = 1900;
 
 export const layNamNhanBangToiDa = (): number => new Date().getFullYear() + 1;
 
+/** Danh sách năm cho Select (mới → cũ), không cần thư viện thêm. */
+export function taoOptionsNam(
+  tuNam: number = NAM_NHAN_BANG_TOI_THIEU,
+  denNam: number = layNamNhanBangToiDa(),
+): { label: string; value: number }[] {
+  const out: { label: string; value: number }[] = [];
+  for (let y = denNam; y >= tuNam; y -= 1) {
+    out.push({ label: String(y), value: y });
+  }
+  return out;
+}
+
+/** Tháng 1–12 cho quá trình công tác */
+export const OPTIONS_THANG: { label: string; value: number }[] = Array.from(
+  { length: 12 },
+  (_, i) => ({ label: `Tháng ${i + 1}`, value: i + 1 }),
+);
+
 /** @deprecated Dùng NAM_NHAN_BANG_TOI_THIEU */
 export const NAM_HOC_HAM_TOI_THIEU = NAM_NHAN_BANG_TOI_THIEU;
 

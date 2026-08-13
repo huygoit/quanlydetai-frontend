@@ -19,6 +19,7 @@ import {
   PrinterOutlined,
   ReloadOutlined,
   SettingOutlined,
+  FileExcelOutlined,
 } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -35,6 +36,7 @@ import ReportPeriodFilters, {
   trangThaiLocKyMacDinh,
   type ReportPeriodFilterState,
 } from '@/components/ReportPeriodFilters';
+import { downloadNckhDataReportExcel } from '@/utils/exportNckhDataReportExcel';
 import './index.less';
 
 /** Đếm số lá L3 trong một nhánh (đã lọc sẵn theo cấu hình). */
@@ -70,6 +72,7 @@ const NckhDataReportPage: React.FC = () => {
   const [configOpen, setConfigOpen] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   const [canConfigure, setCanConfigure] = useState(false);
   const [catalogTree, setCatalogTree] = useState<NckhDataColumnNode[]>([]);
   const [checkedKeys, setCheckedKeys] = useState<string[]>([]);
@@ -108,6 +111,27 @@ const NckhDataReportPage: React.FC = () => {
   const t = report?.totals;
   const periodLabel =
     report?.period_label || nhanKhoangKyTuState(periodFilter) || report?.academic_year || '';
+
+  const xuatExcel = () => {
+    if (!report?.faculty) {
+      message.warning('Chưa có Khoa/đơn vị để xuất');
+      return;
+    }
+    if (!leafColumns.length) {
+      message.warning('Chưa chọn cột loại kết quả. Mở Cấu hình cột trước.');
+      return;
+    }
+    setExportingExcel(true);
+    try {
+      // Xuất từ dữ liệu đã tải — không gọi API (tránh 504 proxy khi nhiều cột)
+      downloadNckhDataReportExcel(report);
+      message.success('Đã xuất Excel');
+    } catch (e: any) {
+      message.error(e?.message || 'Xuất Excel thất bại');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
 
   const moCauHinhCot = useCallback(async () => {
     setConfigOpen(true);
@@ -223,6 +247,14 @@ const NckhDataReportPage: React.FC = () => {
               onClick={() => window.print()}
             >
               In / Lưu PDF
+            </Button>
+            <Button
+              icon={<FileExcelOutlined />}
+              loading={exportingExcel}
+              disabled={!hasData || leafColumns.length === 0}
+              onClick={xuatExcel}
+            >
+              Xuất Excel
             </Button>
           </Space>,
         ],

@@ -58,7 +58,6 @@ import {
   nhanNhanHocVi,
   type HocViHocHamSelectOption,
 } from '@/utils/profileCatalogOptions';
-import { EDUCATION_RECORD_LEVEL_OPTIONS } from '@/services/api/profile';
 import { FALLBACK_ACADEMIC_TITLE_CATALOG, FALLBACK_DEGREE_CATALOG } from '@/constants/scientificProfileCatalog';
 import {
   getProfileById,
@@ -478,58 +477,56 @@ const ProfileDetailPage: React.FC = () => {
                       <div className="section">
                         <Title level={5}>Đào tạo</Title>
                         <Descriptions column={1} size="small">
+                          {(profile.undergraduateInstitution ||
+                            profile.undergraduateYear ||
+                            profile.undergraduateMajor ||
+                            profile.undergraduateCountry) && (
+                            <Descriptions.Item label="Tốt nghiệp đại học">
+                              {[
+                                profile.undergraduateInstitution,
+                                profile.undergraduateMajor,
+                                profile.undergraduateYear != null
+                                  ? String(profile.undergraduateYear)
+                                  : null,
+                                profile.undergraduateCountry,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </Descriptions.Item>
+                          )}
                           {profile.degree && (
                             <Descriptions.Item label="Học vị">
-                              {nhanNhanHocVi(degreeOptions, profile.degree) || profile.degree}
-                              {profile.degreeYear && ` (${profile.degreeYear})`}
+                              {[
+                                nhanNhanHocVi(degreeOptions, profile.degree) || profile.degree,
+                                profile.degreeMajor,
+                                profile.degreeYear != null ? String(profile.degreeYear) : null,
+                                profile.degreeCountry,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
                             </Descriptions.Item>
                           )}
                           {coHienThiHocHam(profile.academicTitle) && (
                             <Descriptions.Item label="Học hàm">
-                              {nhanNhanHocHam(academicTitleOptions, profile.academicTitle) ||
-                                profile.academicTitle}
-                              {profile.academicTitleYear != null &&
-                                ` (${profile.academicTitleYear})`}
-                            </Descriptions.Item>
-                          )}
-                          {profile.degreeInstitution && (
-                            <Descriptions.Item label="Cơ sở đào tạo">
-                              {profile.degreeInstitution}
-                              {profile.degreeCountry && `, ${profile.degreeCountry}`}
+                              {[
+                                nhanNhanHocHam(academicTitleOptions, profile.academicTitle) ||
+                                  profile.academicTitle,
+                                profile.academicTitleMajor,
+                                profile.academicTitleYear != null
+                                  ? String(profile.academicTitleYear)
+                                  : null,
+                                profile.academicTitleCountry,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
                             </Descriptions.Item>
                           )}
                           {profile.specialization && (
-                            <Descriptions.Item label="Chuyên ngành">
+                            <Descriptions.Item label="Chuyên ngành (danh mục)">
                               {profile.specialization}
                             </Descriptions.Item>
                           )}
                         </Descriptions>
-                        {(profile.educationRecords?.length || 0) > 0 && (
-                          <div style={{ marginTop: 12 }}>
-                            <Text strong>Quá trình đào tạo</Text>
-                            <ul style={{ marginTop: 8, paddingLeft: 18 }}>
-                              {profile.educationRecords!.map((r) => {
-                                const bac =
-                                  EDUCATION_RECORD_LEVEL_OPTIONS.find((o) => o.value === r.level)
-                                    ?.label || r.level || '—';
-                                const nam =
-                                  r.startYear || r.endYear
-                                    ? ` (${[r.startYear, r.endYear].filter(Boolean).join('–')})`
-                                    : '';
-                                return (
-                                  <li key={r.id}>
-                                    <strong>{bac}</strong>
-                                    {r.major ? ` — ${r.major}` : ''}
-                                    {r.institution ? `, ${r.institution}` : ''}
-                                    {r.country ? ` (${r.country})` : ''}
-                                    {nam}
-                                    {r.trainingForm ? ` · ${r.trainingForm}` : ''}
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        )}
                         {(profile.trainingCourses?.length || 0) > 0 && (
                           <div style={{ marginTop: 12 }}>
                             <Text strong>Tập huấn / bồi dưỡng</Text>

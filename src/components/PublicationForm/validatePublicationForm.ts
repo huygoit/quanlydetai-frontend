@@ -47,6 +47,7 @@ export type PublicationSavePayload = {
   attachmentUrl?: string;
   publicationType: Publication['publicationType'];
   journalOrConference: string;
+  fundingOrganization?: string | null;
   source: Publication['source'];
   sourceId?: string | null;
   verifiedByNcv: boolean;
@@ -174,6 +175,10 @@ export function validateAndBuildPublicationPayload(
     attachmentUrl: serializePublicationAttachmentUrls(values.attachmentUrls),
     publicationType: (editingPub?.publicationType ?? 'JOURNAL') as Publication['publicationType'],
     journalOrConference,
+    fundingOrganization:
+      typeof values.fundingOrganization === 'string' && values.fundingOrganization.trim()
+        ? values.fundingOrganization.trim()
+        : null,
     source: (pendingOpenAlexSourceId && !editingPub
       ? 'OPENALEX'
       : editingPub?.source ?? 'INTERNAL') as Publication['source'],

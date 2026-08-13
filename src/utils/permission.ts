@@ -63,6 +63,20 @@ export const PERM = {
     update: 'specialization.update',
     delete: 'specialization.delete',
   },
+  /** Danh mục quốc gia */
+  country: {
+    view: 'country.view',
+    create: 'country.create',
+    update: 'country.update',
+    delete: 'country.delete',
+  },
+  /** Danh mục trường đại học / học viện */
+  university: {
+    view: 'university.view',
+    create: 'university.create',
+    update: 'university.update',
+    delete: 'university.delete',
+  },
   /** Cấp ý tưởng/đề tài (QT-I … QT-V) */
   project_process_type: {
     view: 'project_process_type.view',

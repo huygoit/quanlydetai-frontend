@@ -347,6 +347,8 @@ export interface Publication {
   correspondingAuthor?: string;
   publicationType: 'JOURNAL' | 'CONFERENCE' | 'BOOK_CHAPTER' | 'BOOK';
   journalOrConference: string;
+  /** Đơn vị tài trợ (bài báo khoa học) */
+  fundingOrganization?: string | null;
   /** Ngày xuất bản đầy đủ (YYYY-MM-DD) */
   publishedAt?: string | null;
   year?: number;

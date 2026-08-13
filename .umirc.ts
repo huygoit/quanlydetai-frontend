@@ -14,6 +14,9 @@ export default defineConfig({
     '/api': {
       target: 'http://localhost:3333',
       changeOrigin: true,
+      // Báo cáo/Excel có thể lâu — tránh 504 mặc định của proxy
+      timeout: 120000,
+      proxyTimeout: 120000,
     },
     /**
      * Proxy file tĩnh upload (chứng chỉ/đính kèm) sang backend.
@@ -22,11 +25,15 @@ export default defineConfig({
     '/storage': {
       target: 'http://localhost:3333',
       changeOrigin: true,
+      timeout: 120000,
+      proxyTimeout: 120000,
     },
     /** Biên bản xét chọn (HTML) trong public/uploads */
     '/uploads': {
       target: 'http://localhost:3333',
       changeOrigin: true,
+      timeout: 120000,
+      proxyTimeout: 120000,
     },
   },
   access: {},

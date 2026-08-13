@@ -69,6 +69,20 @@ export interface TrainingCourse {
   note?: string;
 }
 
+/** Quá trình giảng dạy và công tác */
+export interface TeachingWorkRecord {
+  id: string;
+  fromMonth?: number | null;
+  fromYear?: number | null;
+  toMonth?: number | null;
+  toYear?: number | null;
+  isCurrent?: boolean;
+  role?: string;
+  organization?: string;
+  country?: string;
+  note?: string;
+}
+
 export const EDUCATION_RECORD_LEVEL_OPTIONS: { value: EducationRecordLevel; label: string }[] = [
   { value: 'UNDERGRADUATE', label: 'Đại học' },
   { value: 'BACHELOR', label: 'Cử nhân' },
@@ -189,13 +203,23 @@ export interface ScientificProfile {
   academicTitleLabel?: string | null;
   /** Năm đạt học hàm — BE có thể trả thêm `academic_title_year` */
   academicTitleYear?: number | null;
+  academicTitleMajor?: string | null;
+  academicTitleCountry?: string | null;
   degreeYear?: number;
   degreeInstitution?: string;
   degreeCountry?: string;
+  degreeMajor?: string | null;
+  /** Tốt nghiệp đại học */
+  undergraduateInstitution?: string | null;
+  undergraduateYear?: number | null;
+  undergraduateMajor?: string | null;
+  undergraduateCountry?: string | null;
   /** Quá trình đào tạo theo bậc */
   educationRecords?: EducationRecord[];
   /** Khóa tập huấn / bồi dưỡng */
   trainingCourses?: TrainingCourse[];
+  /** Quá trình giảng dạy và công tác */
+  teachingWorkRecords?: TeachingWorkRecord[];
   mainResearchArea?: string;
   /** FK lĩnh vực nghiên cứu (danh mục fields) */
   researchFieldId?: number | null;
