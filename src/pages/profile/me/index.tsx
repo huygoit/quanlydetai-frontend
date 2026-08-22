@@ -703,9 +703,33 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
               metas={{
                 title: {
                   render: (_, record) => (
-                    <a onClick={() => handleViewDetail(record)} className="pub-title-link">
-                      {record.title}
-                    </a>
+                    <Tooltip title={record.title}>
+                      {/* span bọc ngoài để Tooltip không phá line-clamp của tiêu đề */}
+                      <span
+                        className="pub-title-wrap"
+                        style={{
+                          display: 'block',
+                          maxWidth: '100%',
+                          minWidth: 0,
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <a
+                          onClick={() => handleViewDetail(record)}
+                          className="pub-title-link"
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical' as React.CSSProperties['WebkitBoxOrient'],
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {record.title}
+                        </a>
+                      </span>
+                    </Tooltip>
                   ),
                 },
                 description: {
@@ -726,9 +750,25 @@ const PublicationsTab: React.FC<PublicationsTabProps> = ({
                 },
                 subTitle: {
                   render: (_, record) => (
-                    <Space size={4}>
+                    <Space size={4} wrap className="pub-tags-row">
                       {record.researchOutputType?.name && (
-                        <Tag color="geekblue">{record.researchOutputType.name}</Tag>
+                        <Tooltip title={record.researchOutputType.name}>
+                          <Tag color="geekblue" className="pub-type-tag" style={{ maxWidth: 220, overflow: 'hidden' }}>
+                            <span
+                              className="pub-type-tag-text"
+                              style={{
+                                display: 'inline-block',
+                                maxWidth: 200,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                verticalAlign: 'bottom',
+                              }}
+                            >
+                              {record.researchOutputType.name}
+                            </span>
+                          </Tag>
+                        </Tooltip>
                       )}
                       {record.publicationType && (
                         <Tag color={PUBLICATION_TYPE_MAP[record.publicationType]?.color}>

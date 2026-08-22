@@ -1,6 +1,8 @@
 import { defineConfig } from '@umijs/max';
 
 export default defineConfig({
+  // Hash tên file JS/CSS — tránh production dính chunk cũ sau deploy (lỗi call of undefined)
+  hash: true,
   antd: {
     configProvider: {},
   },
@@ -9,6 +11,7 @@ export default defineConfig({
     antd: true,
     baseNavigator: false,
   },
+
   // Proxy /api sang backend (dev). Đổi target nếu chạy API cổng khác.
   proxy: {
     '/api': {

@@ -232,10 +232,25 @@
         }
       }
 
-      .ant-pro-list-row-title {
+      /* Flex list: bắt buộc min-width:0 thì ellipsis mới có hiệu lực */
+      .ant-list-item-main,
+      .ant-list-item-meta,
+      .ant-list-item-meta-content,
+      .ant-pro-list-row-content,
+      .ant-pro-list-row-header,
+      .ant-pro-list-row-header-content {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+      }
+
+      .ant-pro-list-row-title,
+      .ant-list-item-meta-title {
         font-weight: 600;
         color: #1a1a2e;
         font-size: 14px;
+        max-width: 100%;
+        overflow: hidden;
       }
 
       .ant-pro-list-row-description {
@@ -245,18 +260,54 @@
 
       .ant-pro-list-row-subTitle {
         margin-top: 8px;
+        max-width: 280px;
+        flex-shrink: 0;
       }
     }
   }
 
+  .pub-title-wrap {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .pub-title-link {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
     color: #1a1a2e;
     font-weight: 600;
     cursor: pointer;
+    word-break: break-word;
 
     &:hover {
       color: @primary-color;
     }
+  }
+
+  /* Tag loại KQNC (cấp lá) dài: cắt + dấu ... */
+  .pub-type-tag {
+    max-width: 220px;
+    margin-inline-end: 0 !important;
+    vertical-align: bottom;
+  }
+
+  .pub-type-tag-text {
+    display: inline-block;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  .pub-tags-row {
+    max-width: 100%;
   }
 }
 

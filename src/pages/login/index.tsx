@@ -86,16 +86,13 @@ const LoginPage: React.FC = () => {
 
       {/* Login Card */}
       <Card className={styles.loginCard} bordered={false}>
-        {/* Logo & Header */}
+        {/* Phần đầu: logo trường + tiêu đề đăng nhập */}
         <div className={styles.header}>
           <div className={styles.logoWrapper}>
             <img
-              src="/logo.png"
-              alt="Logo"
+              src="/logo-khcn.png"
+              alt="Logo Khoa học Công nghệ"
               className={styles.logo}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
             />
           </div>
           <Title level={3} className={styles.title}>

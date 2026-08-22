@@ -438,7 +438,16 @@ const ResearchOutputsListPage: React.FC = () => {
       ellipsis: true,
       width: 280,
       hideInSearch: true,
-      render: (_, r) => <Text strong>{r.title}</Text>,
+      // Tiêu đề dài: cắt bằng ...; rê chuột xem đủ qua tooltip
+      render: (_, r) => (
+        <Text
+          strong
+          ellipsis={{ tooltip: r.title }}
+          style={{ maxWidth: '100%', display: 'block' }}
+        >
+          {r.title}
+        </Text>
+      ),
     },
     {
       title: 'Loại KQNC',
@@ -456,13 +465,13 @@ const ResearchOutputsListPage: React.FC = () => {
                 {nhan.level2}
               </div>
             ) : null}
-            <div className="kqnc-loai-cell__leaf">{nhan.leaf}</div>
+            <div className="kqnc-loai-cell__leaf" title={nhan.leaf}>
+              {nhan.leaf}
+            </div>
           </div>
         );
 
-        const tooltipLines = [nhan.level1, nhan.level2, nhan.leaf].filter(Boolean) as string[];
-        if (tooltipLines.length <= 1) return cell;
-
+        // Luôn hiện tooltip để xem đủ tên loại (đặc biệt cấp 3 bị cắt ...)
         return (
           <Tooltip
             overlayClassName="kqnc-loai-tooltip"
