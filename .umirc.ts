@@ -282,6 +282,20 @@ export default defineConfig({
           hideInMenu: true,
         },
         {
+          path: '/projects/contracts',
+          name: 'Dự thảo hợp đồng',
+          icon: 'FileProtectOutlined',
+          component: '@/pages/projects/contracts',
+          access: 'canViewProjectContracts',
+        },
+        {
+          path: '/projects/contracts/:id',
+          name: 'Chi tiết hợp đồng',
+          component: '@/pages/projects/contracts/detail',
+          access: 'canViewProjectContracts',
+          hideInMenu: true,
+        },
+        {
           path: '/projects/register/form',
           name: 'Nộp hồ sơ đề xuất',
           component: '@/pages/projects/register/form',
@@ -503,10 +517,10 @@ export default defineConfig({
         },
         {
           path: '/admin/config',
-          name: 'Cấu hình hệ thống',
-          icon: 'ControlOutlined',
+          name: 'Mẫu biểu mẫu DOCX',
+          icon: 'FileWordOutlined',
           component: '@/pages/admin/config',
-          access: 'canViewAdmin',
+          access: 'canViewContractTemplates',
         },
         // Route ẩn (truy cập qua nút bấm, không hiện trên menu)
         {

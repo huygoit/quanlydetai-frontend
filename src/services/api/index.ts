@@ -36,6 +36,7 @@ export * from './projectOutlineReviews';
 export * from './projectOutlineScores';
 export * from './projectOutlineDefenses';
 export * from './projectOutlineBudgets';
+export * from './projectContracts';
 
 // Call for proposals (Thông báo tuyển chọn)
 export * from './callForProposals';
@@ -43,6 +44,7 @@ export * from './callForProposals';
 // Cấp ý tưởng/đề tài (QT-I … QT-V)
 export * from './projectProcessTypes';
 export * from './staffPositions';
+export * from './contractTemplates';
 
 // Idea Council
 export * from './ideaCouncil';

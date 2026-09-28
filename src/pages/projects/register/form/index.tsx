@@ -108,12 +108,15 @@ const ProposalFormPage: React.FC = () => {
     proposal?.status === 'RETURNED' ||
     proposal?.status === 'YEU_CAU_BS';
 
-  /** Form mở khi sửa thường hoặc đang điều chỉnh HĐ (chưa quá hạn) */
+  /** Form mở khi sửa thường hoặc đang điều chỉnh HĐ (chưa quá hạn).
+   * Tạo mới: luôn cho nhập để đổi cấp QT; chỉ chặn lúc Gửi nếu không có kỳ khớp. */
   const formMo =
-    (coTheSua && (!kyHetHan || proposal?.status === 'YEU_CAU_BS')) ||
+    (coTheSua && (!isEdit || !kyHetHan || proposal?.status === 'YEU_CAU_BS')) ||
     (dangDieuChinh && !khoaTruongDieuChinh);
   const khoaTruongKhac =
-    !coTheSua || dangDieuChinh || (kyHetHan && proposal?.status !== 'YEU_CAU_BS');
+    !coTheSua ||
+    dangDieuChinh ||
+    (isEdit && kyHetHan && proposal?.status !== 'YEU_CAU_BS');
 
   const processTypeOptions = useMemo(
     () =>
@@ -130,6 +133,11 @@ const ProposalFormPage: React.FC = () => {
   };
 
   const kiemTraKy = async (level: ProposalLevel, processTypeId?: number | null) => {
+    if (!processTypeId) {
+      setKyMo(null);
+      setKyHetHan(false);
+      return false;
+    }
     try {
       const res = await getActiveSubmissionPeriod(level, processTypeId);
       const d = res?.data;
@@ -167,9 +175,8 @@ const ProposalFormPage: React.FC = () => {
             : [];
         setProcessTypes(rows);
         setFieldOptions(fields);
-        const qtI = rows.find((r) => r.code === 'QT-I');
-        const defaultLevel = (qtI && QT_CODE_TO_LEVEL[qtI.code]) || 'TRUONG';
-        void kiemTraKy(defaultLevel, qtI?.id);
+        // Tạo mới: không check kỳ với QT-I mặc định — đợi user chọn cấp
+        // (tránh báo "hết hạn" trước khi chọn cấp khớp CFP)
       })
       .catch((e) => {
         if (!cancelled) {
@@ -375,9 +382,8 @@ const ProposalFormPage: React.FC = () => {
   };
 
   const stMeta = proposal?.status ? PROPOSAL_STATUS_MAP[proposal.status] : null;
-  const defaultProcessTypeId =
-    proposal?.projectProcessTypeId ??
-    processTypes.find((p) => p.code === 'QT-I')?.id;
+  /** Tạo mới: không prefill QT-I — user chọn cấp rồi hệ thống mới check kỳ OPEN */
+  const defaultProcessTypeId = proposal?.projectProcessTypeId;
 
   return (
     <PageContainer
@@ -398,12 +404,20 @@ const ProposalFormPage: React.FC = () => {
             }
           />
         )}
+        {!isEdit && !kyMo && !kyHetHan && (
+          <Alert
+            type="info"
+            showIcon
+            message="Chọn cấp đề tài (QT) để kiểm tra kỳ tiếp nhận đang mở"
+            description="Hệ thống đối chiếu cấp bạn chọn với thông báo tuyển chọn đã công bố. Chọn đúng cấp trên CFP thì mới nộp được."
+          />
+        )}
         {kyHetHan && (
           <Alert
             type="error"
             showIcon
-            message="Kỳ tiếp nhận đã hết hạn hoặc chưa mở"
-            description="Bạn chỉ được xem hồ sơ. Không tạo/gửi đề xuất mới cho đến khi có kỳ OPEN."
+            message="Không có kỳ OPEN khớp cấp đã chọn"
+            description="Kỳ tiếp nhận đã hết hạn, chưa mở, hoặc thông báo tuyển chọn không áp dụng cấp này. Hãy chọn đúng cấp trên CFP, hoặc liên hệ PKH gia hạn/mở kỳ."
           />
         )}
         {proposal?.status === 'RETURNED' && proposal.unitComment && (

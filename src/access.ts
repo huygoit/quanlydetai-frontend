@@ -46,6 +46,7 @@ export default function access(initialState: AccessInitialState | undefined) {
     PERM.country.view,
     PERM.university.view,
     PERM.project_process_type.view,
+    PERM.contract_template.view,
     PERM.user.view,
     PERM.role.view,
     PERM.permission.view,
@@ -94,6 +95,10 @@ export default function access(initialState: AccessInitialState | undefined) {
     canViewStaffPositions: has(PERM.staff_position.view),
     canCreateStaffPosition: has(PERM.staff_position.create),
     canEditStaffPosition: has(PERM.staff_position.update),
+    canViewContractTemplates: has(PERM.contract_template.view),
+    canCreateContractTemplate: has(PERM.contract_template.create),
+    canEditContractTemplate: has(PERM.contract_template.update),
+    canDeleteContractTemplate: has(PERM.contract_template.delete),
     canViewUsers: has(PERM.user.view),
     canCreateUser: has(PERM.user.create),
     canEditUser: has(PERM.user.update),
@@ -198,6 +203,20 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.approve) ||
       has(PERM.project.selection_manage) ||
       has(PERM.project.selection_approve),
+    /** US-05-01 — xem dự thảo hợp đồng */
+    canViewProjectContracts:
+      has(PERM.project.contract_manage) ||
+      has(PERM.project.budget_propose) ||
+      has(PERM.project.review) ||
+      has(PERM.project.selection_manage) ||
+      has(PERM.project.outline_approve) ||
+      has(PERM.project.approve) ||
+      has(PERM.project.view),
+    canManageProjectContracts:
+      has(PERM.project.contract_manage) ||
+      has(PERM.project.budget_propose) ||
+      has(PERM.project.review) ||
+      has(PERM.project.selection_manage),
     canApproveProjectProposal:
       has(PERM.project.approve) || has(PERM.project.selection_approve),
     canManageSelectionSession:

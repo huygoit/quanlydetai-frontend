@@ -91,6 +91,13 @@ export const PERM = {
     update: 'staff_position.update',
     delete: 'staff_position.delete',
   },
+  /** US-05-01 — Mẫu hợp đồng BM.06 */
+  contract_template: {
+    view: 'contract_template.view',
+    create: 'contract_template.create',
+    update: 'contract_template.update',
+    delete: 'contract_template.delete',
+  },
   user: {
     view: 'user.view',
     create: 'user.create',
@@ -182,6 +189,8 @@ export const PERM = {
     budget_confirm: 'project.budget_confirm',
     /** US-04-06 — LĐ phê duyệt TM */
     outline_approve: 'project.outline_approve',
+    /** US-05-01 — quản lý dự thảo hợp đồng */
+    contract_manage: 'project.contract_manage',
   },
   /** Tài chính - backend dùng project.liquidation */
   finance: {
