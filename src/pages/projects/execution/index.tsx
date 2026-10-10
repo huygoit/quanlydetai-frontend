@@ -33,6 +33,7 @@ function tabMacDinh(path: string) {
 const ExecutionPage: React.FC = () => {
   const { outlineId: raw } = useParams<{ outlineId: string }>();
   const outlineId = Number(raw);
+  const idHopLe = Number.isFinite(outlineId) && outlineId > 0;
   const access = useAccess();
   const { pathname } = useLocation();
   const { initialState } = useModel('@@initialState');
@@ -47,11 +48,11 @@ const ExecutionPage: React.FC = () => {
   }, [pathname]);
 
   useEffect(() => {
-    if (!outlineId) return;
+    if (!idHopLe) return;
     getOutline(outlineId)
       .then((res) => setOutline(res.data))
       .catch(() => setOutline(null));
-  }, [outlineId]);
+  }, [idHopLe, outlineId]);
 
   const vaiTro: VaiTro = useMemo(
     () => ({
@@ -71,6 +72,15 @@ const ExecutionPage: React.FC = () => {
     return (
       <PageContainer>
         <Alert type="error" message="Không có quyền." />
+      </PageContainer>
+    );
+  }
+
+  // Id route không phải số thì không gọi API, tránh query project_outlines với NaN.
+  if (!idHopLe) {
+    return (
+      <PageContainer>
+        <Alert type="error" message="Không tìm thấy nhiệm vụ." />
       </PageContainer>
     );
   }
