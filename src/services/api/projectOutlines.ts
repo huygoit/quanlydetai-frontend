@@ -1,7 +1,7 @@
 /**
  * API thuyết minh chi tiết (US-04-01) — bảng project_outlines
  */
-import { get, post, put, ApiResponse } from '../request';
+import { ApiResponse, get, post, put } from '../request';
 import type { PublicationAuthor } from './profilePublications';
 
 export type ProjectOutlineStatus =
@@ -36,7 +36,10 @@ export const OUTLINE_STATUS_MAP: Record<
   BAOVE_KHONG_DAT: { label: 'Không thông qua bảo vệ', color: 'error' },
 };
 
-export const BUDGET_GROUP_OPTIONS: { value: OutlineBudgetGroup; label: string }[] = [
+export const BUDGET_GROUP_OPTIONS: {
+  value: OutlineBudgetGroup;
+  label: string;
+}[] = [
   { value: 'NHAN_CONG', label: 'Nhân công' },
   { value: 'VAT_TU', label: 'Vật tư' },
   { value: 'HOI_THAO', label: 'Hội thảo' },
@@ -148,6 +151,12 @@ export type ProjectOutline = {
   revisionSubmittedVersionId?: number | null;
   revisionSubmittedAt?: string | null;
   revisionContext?: OutlineRevisionContext | null;
+  approvedBudget?: number | null;
+  module5Opened?: boolean;
+  activeContractId?: number | null;
+  contractStatus?: string | null;
+  executionStatus?: string | null;
+  extensionCount?: number;
   members: OutlineMember[];
   budgetLines: OutlineBudgetLine[];
   totalDetailBudget?: number;
@@ -218,7 +227,9 @@ export async function openOrCreateOutlineFromProposal(
   return post(`/api/project-outlines/from-proposal/${proposalId}`);
 }
 
-export async function getOutline(id: number): Promise<ApiResponse<ProjectOutline>> {
+export async function getOutline(
+  id: number,
+): Promise<ApiResponse<ProjectOutline>> {
   return get(`/api/project-outlines/${id}`);
 }
 
@@ -229,11 +240,15 @@ export async function saveOutlineDraft(
   return put(`/api/project-outlines/${id}`, data);
 }
 
-export async function submitOutline(id: number): Promise<ApiResponse<ProjectOutline>> {
+export async function submitOutline(
+  id: number,
+): Promise<ApiResponse<ProjectOutline>> {
   return post(`/api/project-outlines/${id}/submit`);
 }
 
-export async function withdrawOutline(id: number): Promise<ApiResponse<ProjectOutline>> {
+export async function withdrawOutline(
+  id: number,
+): Promise<ApiResponse<ProjectOutline>> {
   return post(`/api/project-outlines/${id}/withdraw`);
 }
 
