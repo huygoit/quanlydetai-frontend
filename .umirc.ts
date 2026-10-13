@@ -283,7 +283,7 @@ export default defineConfig({
         },
         {
           path: '/projects/contracts',
-          name: 'Dự thảo hợp đồng',
+          name: 'Hợp đồng nhiệm vụ',
           icon: 'FileProtectOutlined',
           component: '@/pages/projects/contracts',
           access: 'canViewProjectContracts',
@@ -292,7 +292,28 @@ export default defineConfig({
           path: '/projects/contracts/:id',
           name: 'Chi tiết hợp đồng',
           component: '@/pages/projects/contracts/detail',
-          access: 'canViewProjectContracts',
+          access: 'canOpenModule56',
+          hideInMenu: true,
+        },
+        {
+          path: '/projects/execution/:outlineId',
+          name: 'Triển khai nhiệm vụ',
+          component: '@/pages/projects/execution',
+          access: 'canOpenModule56',
+          hideInMenu: true,
+        },
+        {
+          path: '/projects/progress/:outlineId',
+          name: 'Báo cáo tiến độ',
+          component: '@/pages/projects/execution',
+          access: 'canOpenModule56',
+          hideInMenu: true,
+        },
+        {
+          path: '/projects/final/:outlineId',
+          name: 'Đánh giá cuối kỳ',
+          component: '@/pages/projects/execution',
+          access: 'canOpenModule56',
           hideInMenu: true,
         },
         {
