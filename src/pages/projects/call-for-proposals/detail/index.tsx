@@ -1,11 +1,27 @@
 /**
  * Chi tiết thông báo tuyển chọn — workflow actions theo quyền
  */
+import {
+  CFP_STATUS_MAP,
+  approveCallForProposal,
+  closeCallForProposal,
+  extendCallForProposal,
+  getCallForProposal,
+  headApproveCallForProposal,
+  publishCallForProposal,
+  renderCfpProcessTypeTags,
+  returnCallForProposal,
+  submitCallForProposal,
+  type CallForProposal,
+  type CfpStatus,
+} from '@/services/api/callForProposals';
 import { PageContainer } from '@ant-design/pro-components';
+import { history, useAccess, useParams } from '@umijs/max';
 import {
   Alert,
   Button,
   Card,
+  DatePicker,
   Descriptions,
   Form,
   Input,
@@ -14,29 +30,15 @@ import {
   Tag,
   Timeline,
   message,
-  DatePicker,
 } from 'antd';
-import { history, useAccess, useParams } from '@umijs/max';
-import { useCallback, useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import {
-  getCallForProposal,
-  submitCallForProposal,
-  approveCallForProposal,
-  returnCallForProposal,
-  publishCallForProposal,
-  extendCallForProposal,
-  closeCallForProposal,
-  CFP_STATUS_MAP,
-  renderCfpProcessTypeTags,
-  type CallForProposal,
-  type CfpStatus,
-} from '@/services/api/callForProposals';
+import { useCallback, useEffect, useState } from 'react';
 
 const ACTION_LABEL: Record<string, string> = {
   CREATE: 'Tạo mới',
   UPDATE: 'Cập nhật',
-  SUBMIT: 'Trình BGH',
+  SUBMIT: 'Trình duyệt',
+  HEAD_APPROVE: 'Trưởng phòng duyệt',
   APPROVE: 'BGH duyệt',
   RETURN: 'Yêu cầu chỉnh sửa',
   PUBLISH: 'Phát hành',
@@ -91,16 +93,50 @@ const CfpDetailPage: React.FC = () => {
   const actionButtons = (
     <Space wrap>
       {(st === 'DRAFT' || st === 'RETURNED') && access.canUpdateCfp && (
-        <Button onClick={() => history.push(`/projects/call-for-proposals/form/${id}`)}>Sửa</Button>
+        <Button
+          onClick={() =>
+            history.push(`/projects/call-for-proposals/form/${id}`)
+          }
+        >
+          Sửa
+        </Button>
       )}
       {(st === 'DRAFT' || st === 'RETURNED') && access.canSubmitCfp && (
-        <Button type="primary" onClick={() => run(() => submitCallForProposal(Number(id)), 'Đã trình BGH')}>
-          Trình BGH duyệt
+        <Button
+          type="primary"
+          onClick={() =>
+            run(() => submitCallForProposal(Number(id)), 'Đã trình')
+          }
+        >
+          Trình duyệt
         </Button>
+      )}
+      {st === 'PENDING_TRUONG_PHONG' && access.canApproveCfp && (
+        <>
+          <Button
+            type="primary"
+            onClick={() =>
+              run(
+                () => headApproveCallForProposal(Number(id)),
+                'Đã duyệt — chờ ban giám hiệu',
+              )
+            }
+          >
+            Trưởng phòng duyệt
+          </Button>
+          <Button danger onClick={() => setReturnOpen(true)}>
+            Yêu cầu chỉnh sửa
+          </Button>
+        </>
       )}
       {st === 'PENDING_BGH' && access.canApproveCfp && (
         <>
-          <Button type="primary" onClick={() => run(() => approveCallForProposal(Number(id)), 'Đã duyệt')}>
+          <Button
+            type="primary"
+            onClick={() =>
+              run(() => approveCallForProposal(Number(id)), 'Đã duyệt')
+            }
+          >
             Phê duyệt
           </Button>
           <Button danger onClick={() => setReturnOpen(true)}>
@@ -113,36 +149,47 @@ const CfpDetailPage: React.FC = () => {
           Xác nhận phát hành
         </Button>
       )}
-      {st === 'PUBLISHED' && access.canExtendCfp && data?.submissionPeriod?.status === 'OPEN' && (
-        <Button onClick={() => setExtendOpen(true)}>Gia hạn</Button>
-      )}
-      {st === 'PUBLISHED' && access.canCloseCfp && data?.submissionPeriod?.status === 'OPEN' && (
-        <Button
-          danger
-          onClick={() =>
-            Modal.confirm({
-              title: 'Đóng sớm kỳ tiếp nhận?',
-              content: 'Giảng viên sẽ không nộp được đề xuất thuộc thông báo này.',
-              onOk: () => run(() => closeCallForProposal(Number(id)), 'Đã đóng sớm'),
-            })
-          }
-        >
-          Đóng sớm
-        </Button>
-      )}
+      {st === 'PUBLISHED' &&
+        access.canExtendCfp &&
+        data?.submissionPeriod?.status === 'OPEN' && (
+          <Button onClick={() => setExtendOpen(true)}>Gia hạn</Button>
+        )}
+      {st === 'PUBLISHED' &&
+        access.canCloseCfp &&
+        data?.submissionPeriod?.status === 'OPEN' && (
+          <Button
+            danger
+            onClick={() =>
+              Modal.confirm({
+                title: 'Đóng sớm kỳ tiếp nhận?',
+                content:
+                  'Giảng viên sẽ không nộp được đề xuất thuộc thông báo này.',
+                onOk: () =>
+                  run(() => closeCallForProposal(Number(id)), 'Đã đóng sớm'),
+              })
+            }
+          >
+            Đóng sớm
+          </Button>
+        )}
     </Space>
   );
 
   const coNutThaoTac =
-    ((st === 'DRAFT' || st === 'RETURNED') && (access.canUpdateCfp || access.canSubmitCfp)) ||
-    (st === 'PENDING_BGH' && access.canApproveCfp) ||
+    ((st === 'DRAFT' || st === 'RETURNED') &&
+      (access.canUpdateCfp || access.canSubmitCfp)) ||
+    ((st === 'PENDING_TRUONG_PHONG' || st === 'PENDING_BGH') &&
+      access.canApproveCfp) ||
     (st === 'APPROVED' && access.canPublishCfp) ||
     (st === 'PUBLISHED' &&
       data?.submissionPeriod?.status === 'OPEN' &&
       (access.canExtendCfp || access.canCloseCfp));
 
   return (
-    <PageContainer loading={loading} title={data?.title || 'Chi tiết thông báo'}>
+    <PageContainer
+      loading={loading}
+      title={data?.title || 'Chi tiết thông báo'}
+    >
       {data?.returnReason && st === 'RETURNED' && (
         <Alert
           type="warning"
@@ -154,7 +201,9 @@ const CfpDetailPage: React.FC = () => {
       )}
       {coNutThaoTac && (
         <Card size="small" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{actionButtons}</div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            {actionButtons}
+          </div>
         </Card>
       )}
       <Card style={{ marginBottom: 16 }}>
@@ -163,17 +212,27 @@ const CfpDetailPage: React.FC = () => {
             <Tag color={stMeta?.color}>{stMeta?.text}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="Kỳ">
-            {data?.periodKind === 'ACADEMIC' ? 'Năm học' : 'Năm TC'} {data?.periodLabel}
+            {data?.periodKind === 'ACADEMIC' ? 'Năm học' : 'Năm TC'}{' '}
+            {data?.periodLabel}
           </Descriptions.Item>
           <Descriptions.Item label="Hạn nộp">
-            {data?.deadlineAt ? dayjs(data.deadlineAt).format('DD/MM/YYYY HH:mm') : '—'}
+            {data?.deadlineAt
+              ? dayjs(data.deadlineAt).format('DD/MM/YYYY HH:mm')
+              : '—'}
           </Descriptions.Item>
           <Descriptions.Item label="Loại / cấp đề tài">
             {data
-              ? renderCfpProcessTypeTags(data).map((t) => <Tag key={t.key}>{t.label}</Tag>)
+              ? renderCfpProcessTypeTags(data).map((t) => (
+                  <Tag key={t.key}>{t.label}</Tag>
+                ))
               : null}
           </Descriptions.Item>
-          <Descriptions.Item label="Người tạo">{data?.creatorName || data?.createdBy}</Descriptions.Item>
+          <Descriptions.Item label="Cần khoa xác nhận">
+            {data?.requireUnitReview === false ? 'Không' : 'Có'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Người tạo">
+            {data?.creatorName || data?.createdBy}
+          </Descriptions.Item>
           <Descriptions.Item label="Số VB / ngày phát hành">
             {data?.officialDocNo
               ? `${data.officialDocNo} (${data.officialDocDate || '—'})`
@@ -181,7 +240,9 @@ const CfpDetailPage: React.FC = () => {
           </Descriptions.Item>
           {data?.submissionPeriod && (
             <Descriptions.Item label="Kỳ tiếp nhận" span={2}>
-              <Tag color={data.submissionPeriod.isAccepting ? 'green' : 'default'}>
+              <Tag
+                color={data.submissionPeriod.isAccepting ? 'green' : 'default'}
+              >
                 {data.submissionPeriod.status}
                 {data.submissionPeriod.isAccepting ? ' — đang nhận hồ sơ' : ''}
               </Tag>
@@ -207,14 +268,18 @@ const CfpDetailPage: React.FC = () => {
                 <strong>{ACTION_LABEL[a.action] || a.action}</strong>
                 {a.actorName ? ` — ${a.actorName}` : ''}
                 <div style={{ color: '#888', fontSize: 12 }}>
-                  {a.createdAt ? dayjs(a.createdAt).format('DD/MM/YYYY HH:mm') : ''}
+                  {a.createdAt
+                    ? dayjs(a.createdAt).format('DD/MM/YYYY HH:mm')
+                    : ''}
                 </div>
                 {a.note && <div>{a.note}</div>}
               </div>
             ),
           }))}
         />
-        {!data?.audits?.length && <div style={{ color: '#999' }}>Chưa có lịch sử.</div>}
+        {!data?.audits?.length && (
+          <div style={{ color: '#999' }}>Chưa có lịch sử.</div>
+        )}
       </Card>
 
       <Modal
@@ -223,13 +288,20 @@ const CfpDetailPage: React.FC = () => {
         onCancel={() => setReturnOpen(false)}
         onOk={async () => {
           const v = await returnForm.validateFields();
-          await run(() => returnCallForProposal(Number(id), v.reason), 'Đã trả về PKH');
+          await run(
+            () => returnCallForProposal(Number(id), v.reason),
+            'Đã trả về PKH',
+          );
           setReturnOpen(false);
           returnForm.resetFields();
         }}
       >
         <Form form={returnForm} layout="vertical">
-          <Form.Item name="reason" label="Lý do" rules={[{ required: true, message: 'Bắt buộc' }]}>
+          <Form.Item
+            name="reason"
+            label="Lý do"
+            rules={[{ required: true, message: 'Bắt buộc' }]}
+          >
             <Input.TextArea rows={4} />
           </Form.Item>
         </Form>
@@ -255,10 +327,18 @@ const CfpDetailPage: React.FC = () => {
         }}
       >
         <Form form={publishForm} layout="vertical">
-          <Form.Item name="officialDocNo" label="Số văn bản" rules={[{ required: true }]}>
+          <Form.Item
+            name="officialDocNo"
+            label="Số văn bản"
+            rules={[{ required: true }]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="officialDocDate" label="Ngày phát hành" rules={[{ required: true }]}>
+          <Form.Item
+            name="officialDocDate"
+            label="Ngày phát hành"
+            rules={[{ required: true }]}
+          >
             <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
           </Form.Item>
           <Form.Item name="signedFileUrl" label="URL file PDF đã ký (tuỳ chọn)">
@@ -274,7 +354,11 @@ const CfpDetailPage: React.FC = () => {
         onOk={async () => {
           const v = await extendForm.validateFields();
           await run(
-            () => extendCallForProposal(Number(id), dayjs(v.deadlineAt).format('YYYY-MM-DD')),
+            () =>
+              extendCallForProposal(
+                Number(id),
+                dayjs(v.deadlineAt).format('YYYY-MM-DD'),
+              ),
             'Đã gia hạn',
           );
           setExtendOpen(false);

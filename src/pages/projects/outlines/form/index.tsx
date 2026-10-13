@@ -11,11 +11,18 @@ import {
   type PublicationAuthor,
 } from '@/services/api/profilePublications';
 import {
+  getDefenseSession,
+  type DefenseMember,
+} from '@/services/api/projectOutlineDefenses';
+import {
   BUDGET_GROUP_OPTIONS,
   OUTLINE_STATUS_MAP,
+  confirmOutlineRevisionCouncil,
+  confirmOutlineRevisionPkh,
   extendOutlineRevisionDeadline,
   getOutline,
   getOutlineRevisionDiff,
+  listEligibleProposalsForOutline,
   saveOutlineDraft,
   submitOutline,
   submitOutlineRevision,
@@ -49,7 +56,7 @@ import {
   ProFormText,
   type ProFormInstance,
 } from '@ant-design/pro-components';
-import { history, useAccess, useParams } from '@umijs/max';
+import { history, useAccess, useModel, useParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -76,9 +83,32 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
+function nhanBuocHoanThien(status?: string, gate?: string | null) {
+  if (status === 'CHINH_SUA_TM')
+    return 'Hồ sơ cần chỉnh sửa theo kết luận bảo vệ';
+  if (status === 'CHO_HD_XAC_NHAN_TM' && gate === 'CHO_CHU_TICH') {
+    return 'Thư ký đã đồng ý — chờ chủ tịch hội đồng';
+  }
+  if (status === 'CHO_HD_XAC_NHAN_TM')
+    return 'Đã nộp bản hoàn thiện — chờ thư ký hội đồng';
+  if (status === 'CHO_PKH_DUYET_TM')
+    return 'Hội đồng đã xác nhận — chờ phòng KH';
+  if (status === 'CHO_XAC_NHAN_KP')
+    return 'Đã nộp bản hoàn thiện — chờ xác nhận kinh phí';
+  return 'Bản hoàn thiện';
+}
+
 const OutlineFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const access = useAccess();
+  const { initialState } = useModel('@@initialState');
+  const userId = Number(initialState?.currentUser?.id || 0);
+  const quyen =
+    initialState?.currentUser?.permissions || initialState?.permissions || [];
+  const duocDuyetPkh =
+    quyen.includes('*') ||
+    quyen.includes('project.review') ||
+    quyen.includes('project.budget_propose');
   const outlineId = Number(id);
   const formRef = useRef<ProFormInstance>();
   const [loading, setLoading] = useState(true);
@@ -101,11 +131,34 @@ const OutlineFormPage: React.FC = () => {
   const [milestones, setMilestones] = useState<OutlineMilestone[]>([]);
   const [products, setProducts] = useState<OutlineProduct[]>([]);
   const [partners, setPartners] = useState<OutlinePartnerUnit[]>([]);
+  const [duocSoan, setDuocSoan] = useState(false);
+  const [hoiDong, setHoiDong] = useState<DefenseMember[]>([]);
 
   const isRevision = outline?.status === 'CHINH_SUA_TM';
+  const dangChoDuyetTm =
+    outline?.status === 'CHO_HD_XAC_NHAN_TM' ||
+    outline?.status === 'CHO_PKH_DUYET_TM' ||
+    outline?.status === 'CHO_XAC_NHAN_KP';
   const editable =
-    outline?.status === 'THUYETMINH_DRAFT' ||
-    (isRevision && !!revisionCtx?.editable);
+    duocSoan &&
+    (outline?.status === 'THUYETMINH_DRAFT' ||
+      (isRevision && !!revisionCtx?.editable));
+  const thuKyId = hoiDong.find((m) => m.roleInCouncil === 'THU_KY')?.userId;
+  const chuTichId = hoiDong.find((m) => m.roleInCouncil === 'CHU_TICH')?.userId;
+  const hienThuKy =
+    outline?.status === 'CHO_HD_XAC_NHAN_TM' &&
+    revisionCtx?.revisionGateStatus === 'CHO_THU_KY' &&
+    !!userId &&
+    Number(thuKyId) === userId;
+  const hienChuTich =
+    outline?.status === 'CHO_HD_XAC_NHAN_TM' &&
+    revisionCtx?.revisionGateStatus === 'CHO_CHU_TICH' &&
+    !!userId &&
+    Number(chuTichId) === userId;
+  const hienPkh =
+    outline?.status === 'CHO_PKH_DUYET_TM' &&
+    revisionCtx?.revisionGateStatus === 'CHO_PKH' &&
+    duocDuyetPkh;
   const stMeta = outline ? OUTLINE_STATUS_MAP[outline.status] : null;
 
   const totalDetail = useMemo(
@@ -122,6 +175,25 @@ const OutlineFormPage: React.FC = () => {
       ]);
       const d = res.data;
       if (!d) throw new Error('Không tải được thuyết minh');
+      const laChu = Number(d.ownerId) === userId && userId > 0;
+      let duoc = laChu;
+      if (!duoc && access.canWriteProjectOutline) {
+        const duDieuKien = await listEligibleProposalsForOutline().catch(
+          () => null,
+        );
+        duoc = (duDieuKien?.data || []).some(
+          (p) => p.outlineId === d.id || p.id === d.projectProposalId,
+        );
+      }
+      setDuocSoan(duoc);
+      let thanhVienHd: DefenseMember[] = [];
+      if (d.activeDefenseSessionId && d.status === 'CHO_HD_XAC_NHAN_TM') {
+        const buoi = await getDefenseSession(d.activeDefenseSessionId).catch(
+          () => null,
+        );
+        thanhVienHd = buoi?.data?.members || [];
+      }
+      setHoiDong(thanhVienHd);
       setOutline(d);
       setRevisionCtx(d.revisionContext || null);
       setExplanation(
@@ -175,7 +247,7 @@ const OutlineFormPage: React.FC = () => {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outlineId]);
+  }, [outlineId, userId]);
 
   const buildPayload = () => {
     const v = formRef.current?.getFieldsValue() || {};
@@ -301,7 +373,7 @@ const OutlineFormPage: React.FC = () => {
     Modal.confirm({
       title: 'Nộp bản hoàn thiện?',
       content:
-        'Hệ thống khóa phiên bản mới (không ghi đè bản HĐ đã đánh giá) và chuyển sang chờ xác nhận kinh phí.',
+        'Hệ thống khóa phiên bản mới (không ghi đè bản hội đồng đã đánh giá), rồi chuyển thư ký, chủ tịch và phòng KH xác nhận trước khi sang kinh phí.',
       okText: 'Nộp bản hoàn thiện',
       cancelText: 'Hủy',
       onOk: async () => {
@@ -376,6 +448,50 @@ const OutlineFormPage: React.FC = () => {
           message.error(e?.data?.message || e?.message || 'Gia hạn thất bại');
           return Promise.reject();
         }
+      },
+    });
+  };
+
+  const xacNhanBanHoanThien = (accept: boolean) => {
+    if (!outline) return;
+    const gui = async (reason?: string) => {
+      const body = { accept, reason };
+      const res =
+        outline.status === 'CHO_PKH_DUYET_TM'
+          ? await confirmOutlineRevisionPkh(outline.id, body)
+          : await confirmOutlineRevisionCouncil(outline.id, body);
+      message.success(res.message || (accept ? 'Đã xác nhận' : 'Đã trả lại'));
+      await load();
+    };
+    if (accept) {
+      Modal.confirm({
+        title: 'Đồng ý bản hoàn thiện?',
+        okText: 'Đồng ý',
+        cancelText: 'Hủy',
+        onOk: () => gui(),
+      });
+      return;
+    }
+    let reason = '';
+    Modal.confirm({
+      title: 'Trả lại bản hoàn thiện',
+      okText: 'Trả lại',
+      cancelText: 'Hủy',
+      content: (
+        <Input.TextArea
+          rows={3}
+          placeholder="Lý do trả lại (tối thiểu 5 ký tự)"
+          onChange={(e) => {
+            reason = e.target.value;
+          }}
+        />
+      ),
+      onOk: async () => {
+        if (reason.trim().length < 5) {
+          message.warning('Lý do tối thiểu 5 ký tự');
+          return Promise.reject();
+        }
+        await gui(reason.trim());
       },
     });
   };
@@ -480,74 +596,98 @@ const OutlineFormPage: React.FC = () => {
             description="Danh tính phản biện được bảo mật với chủ nhiệm và thành viên đề tài trong suốt quá trình đánh giá. Không thể rút lại thuyết minh."
           />
         )}
-        {(isRevision || outline?.status === 'CHO_XAC_NHAN_KP') &&
-          revisionCtx && (
+        {!duocSoan &&
+          (outline?.status === 'THUYETMINH_DRAFT' || isRevision) && (
             <Alert
-              type={revisionCtx.pastDeadline ? 'error' : 'warning'}
+              type="info"
               showIcon
-              message={
-                isRevision
-                  ? 'Hồ sơ cần chỉnh sửa theo kết luận bảo vệ'
-                  : 'Đã nộp bản hoàn thiện — chờ xác nhận kinh phí'
-              }
-              description={
-                <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                  {revisionCtx.revisionDeadline && (
-                    <div>
-                      Hạn chỉnh sửa:{' '}
-                      <strong>
-                        {dayjs(revisionCtx.revisionDeadline).format(
-                          'DD/MM/YYYY',
-                        )}
-                      </strong>
-                      {revisionCtx.pastDeadline ? ' — đã quá hạn' : ''}
-                      {revisionCtx.needsReminder && !revisionCtx.pastDeadline
-                        ? ` — còn ≤ ${revisionCtx.reminderDays} ngày`
-                        : ''}
-                    </div>
-                  )}
-                  {revisionCtx.adjustmentRequirements && (
-                    <div>
-                      <Text strong>Yêu cầu chỉnh sửa: </Text>
-                      <Paragraph
-                        style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
-                      >
-                        {revisionCtx.adjustmentRequirements}
-                      </Paragraph>
-                    </div>
-                  )}
-                  {revisionCtx.discussionNotes && (
-                    <div>
-                      <Text strong>Ý kiến HĐ: </Text>
-                      <Paragraph
-                        style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
-                      >
-                        {revisionCtx.discussionNotes}
-                      </Paragraph>
-                    </div>
-                  )}
-                  <Space wrap>
-                    {revisionCtx.minutesFileUrl && (
-                      <a
-                        href={revisionCtx.minutesFileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Xem biên bản bảo vệ
-                      </a>
-                    )}
-                    <a onClick={() => void moSoSanh()}>
-                      So sánh với bản đã đánh giá
-                    </a>
-                    {access.canExtendOutlineRevision && isRevision && (
-                      <a onClick={giaHan}>PKH gia hạn deadline</a>
-                    )}
-                  </Space>
-                  <Text type="secondary">{revisionCtx.diffLimitNote}</Text>
-                </Space>
-              }
+              message="Bạn được xem thuyết minh này, không sửa được."
             />
           )}
+        {(isRevision || dangChoDuyetTm) && (
+          <Alert
+            type={revisionCtx?.pastDeadline ? 'error' : 'warning'}
+            showIcon
+            message={nhanBuocHoanThien(
+              outline?.status,
+              revisionCtx?.revisionGateStatus,
+            )}
+            description={
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                {isRevision && revisionCtx?.revisionReturnReason && (
+                  <div>
+                    <Text strong>Lý do trả lại: </Text>
+                    {revisionCtx.revisionReturnReason}
+                  </div>
+                )}
+                {revisionCtx?.revisionDeadline && (
+                  <div>
+                    Hạn chỉnh sửa:{' '}
+                    <strong>
+                      {dayjs(revisionCtx.revisionDeadline).format('DD/MM/YYYY')}
+                    </strong>
+                    {revisionCtx.pastDeadline ? ' — đã quá hạn' : ''}
+                    {revisionCtx.needsReminder && !revisionCtx.pastDeadline
+                      ? ` — còn ≤ ${revisionCtx.reminderDays} ngày`
+                      : ''}
+                  </div>
+                )}
+                {revisionCtx?.adjustmentRequirements && (
+                  <div>
+                    <Text strong>Yêu cầu chỉnh sửa: </Text>
+                    <Paragraph
+                      style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
+                    >
+                      {revisionCtx.adjustmentRequirements}
+                    </Paragraph>
+                  </div>
+                )}
+                {revisionCtx?.discussionNotes && (
+                  <div>
+                    <Text strong>Ý kiến HĐ: </Text>
+                    <Paragraph
+                      style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
+                    >
+                      {revisionCtx.discussionNotes}
+                    </Paragraph>
+                  </div>
+                )}
+                <Space wrap>
+                  {revisionCtx?.minutesFileUrl && (
+                    <a
+                      href={revisionCtx.minutesFileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Xem biên bản bảo vệ
+                    </a>
+                  )}
+                  <a onClick={() => void moSoSanh()}>
+                    So sánh với bản đã đánh giá
+                  </a>
+                  {access.canExtendOutlineRevision && isRevision && (
+                    <a onClick={giaHan}>PKH gia hạn deadline</a>
+                  )}
+                </Space>
+                {revisionCtx?.diffLimitNote && (
+                  <Text type="secondary">{revisionCtx.diffLimitNote}</Text>
+                )}
+              </Space>
+            }
+          />
+        )}
+        {(hienThuKy || hienChuTich || hienPkh) && (
+          <Card size="small" title="Xác nhận bản hoàn thiện">
+            <Space>
+              <Button type="primary" onClick={() => xacNhanBanHoanThien(true)}>
+                Đồng ý
+              </Button>
+              <Button danger onClick={() => xacNhanBanHoanThien(false)}>
+                Trả lại
+              </Button>
+            </Space>
+          </Card>
+        )}
 
         <Card size="small" title="Tiến độ hoàn thành">
           <Progress
@@ -1232,7 +1372,7 @@ const OutlineFormPage: React.FC = () => {
             )}
           </>
         )}
-        {outline?.status === 'THUYETMINH_PENDING' && (
+        {duocSoan && outline?.status === 'THUYETMINH_PENDING' && (
           <Button danger onClick={() => rutLai()}>
             Rút lại
           </Button>

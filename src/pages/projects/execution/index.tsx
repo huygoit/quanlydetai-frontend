@@ -47,11 +47,16 @@ const ExecutionPage: React.FC = () => {
     setTab(tabMacDinh(pathname));
   }, [pathname]);
 
-  useEffect(() => {
+  const taiOutline = () => {
     if (!idHopLe) return;
     getOutline(outlineId)
       .then((res) => setOutline(res.data))
       .catch(() => setOutline(null));
+  };
+
+  useEffect(() => {
+    taiOutline();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idHopLe, outlineId]);
 
   const vaiTro: VaiTro = useMemo(
@@ -160,6 +165,7 @@ const ExecutionPage: React.FC = () => {
                 sanPham={(outline?.expectedProducts || []).map((p) => p.name)}
                 ketThuc={outline?.endDate}
                 onXong={(t) => t && message.success(t)}
+                onDaMoLai={taiOutline}
               />
             ),
           },

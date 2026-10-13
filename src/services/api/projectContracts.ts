@@ -73,6 +73,7 @@ export type ContractWorkflow = {
   cnnvSignedAt: string | null;
   signedFileUrl: string | null;
   effectiveAt: string | null;
+  signMode?: 'ONLINE' | 'GIAY' | null;
 };
 
 export type ContractFlowRoles = {
@@ -235,6 +236,18 @@ export async function publishContract(id: number, issueNo: string) {
   return post<ApiResponse<ProjectContract>>(
     `/api/project-contracts/${id}/publish`,
     { issueNo },
+  );
+}
+
+export async function setContractSignMode(
+  id: number,
+  signMode: 'ONLINE' | 'GIAY',
+) {
+  return put<ApiResponse<ContractWorkflow>>(
+    `/api/project-contracts/${id}/sign-mode`,
+    {
+      signMode,
+    },
   );
 }
 

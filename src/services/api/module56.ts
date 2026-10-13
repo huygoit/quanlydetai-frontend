@@ -344,6 +344,36 @@ export function bghDieuChinh(
   return post(`/api/module56/adjustments/${id}/bgh`, body);
 }
 
+export type ThanhTuu = {
+  outlineId: number;
+  code: string;
+  title: string;
+  ownerId: number;
+  ownerName: string;
+  ownerUnit?: string | null;
+  budget?: number | null;
+  classification?: string | null;
+  completedAt?: string | null;
+  members: {
+    fullName: string;
+    role: string;
+    profileId?: number | null;
+    departmentId?: number | null;
+  }[];
+};
+
+export function danhSachThanhTuu(params?: {
+  year?: number;
+  userId?: number;
+  departmentId?: number;
+}) {
+  return get<ApiResponse<ThanhTuu[]>>('/api/module56/achievements', params);
+}
+
+export function moLaiBienBanCuoiKy(outlineId: number, reason: string) {
+  return post(`/api/module56/final/${outlineId}/minutes-reopen`, { reason });
+}
+
 export function hoSoCuoiKy(outlineId: number) {
   return get<ApiResponse<HoSoCuoiKy>>(`/api/module56/final/${outlineId}`);
 }

@@ -18,6 +18,7 @@ import {
   saveContractBudgetLines,
   saveContractClauses,
   saveContractExternal,
+  setContractSignMode,
   submitContractBgh,
   submitContractCnnv,
   type ContractClauseField,
@@ -38,6 +39,7 @@ import {
   InputNumber,
   message,
   Modal,
+  Radio,
   Space,
   Steps,
   Table,
@@ -93,6 +95,7 @@ const ProjectContractDetailPage: React.FC = () => {
   const [amounts, setAmounts] = useState<Record<string, number>>({});
   const [ext] = Form.useForm();
   const [signedUrl, setSignedUrl] = useState('');
+  const [signMode, setSignMode] = useState<'ONLINE' | 'GIAY'>('ONLINE');
   const [dieuKhoan, setDieuKhoan] = useState<Record<string, string>>({});
 
   const load = async () => {
@@ -101,6 +104,7 @@ const ProjectContractDetailPage: React.FC = () => {
     try {
       const res = await getProjectContractFlow(Number(id));
       setData(res.data);
+      setSignMode(res.data.workflow?.signMode === 'GIAY' ? 'GIAY' : 'ONLINE');
       ext.setFieldsValue({
         externalContractNo: res.data.workflow?.externalContractNo,
         externalAgency: res.data.workflow?.externalAgency,
@@ -129,6 +133,7 @@ const ProjectContractDetailPage: React.FC = () => {
   };
 
   useEffect(() => {
+    setSignedUrl('');
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -276,6 +281,9 @@ const ProjectContractDetailPage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="Số phát hành">
                 {wf?.issueNo || '—'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Cách ký">
+                {wf?.signMode === 'GIAY' ? 'Bản giấy' : 'Trực tuyến'}
               </Descriptions.Item>
               <Descriptions.Item label="CNNV ký">
                 {wf?.cnnvSignedAt
@@ -434,30 +442,98 @@ const ProjectContractDetailPage: React.FC = () => {
           )}
 
           <Card size="small" title="Ký và chuyển trạng thái">
-            <Space wrap>
-              {roles?.canManage && status === 'HOP_DONG_DRAFT' && (
-                <Button
-                  type="primary"
-                  loading={saving}
-                  onClick={() =>
-                    chay(() => submitContractCnnv(data.id), 'Đã trình CNNV')
-                  }
-                >
-                  Trình CNNV
-                </Button>
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              {roles?.canManage && status !== 'HOP_DONG_DA_KY' && (
+                <Space wrap>
+                  <Radio.Group
+                    value={signMode}
+                    onChange={(e) => setSignMode(e.target.value)}
+                  >
+                    <Radio value="ONLINE">Trực tuyến</Radio>
+                    <Radio value="GIAY">Bản giấy</Radio>
+                  </Radio.Group>
+                  <Button
+                    loading={saving}
+                    onClick={() =>
+                      chay(
+                        () => setContractSignMode(data.id, signMode),
+                        'Đã lưu cách ký',
+                      )
+                    }
+                  >
+                    Lưu cách ký
+                  </Button>
+                </Space>
               )}
-              {roles?.canCnnv &&
-                status === 'HOP_DONG_CHO_CNNV' &&
-                !wf?.cnnvConfirmedAt && (
+              <Space wrap>
+                {roles?.canManage && status === 'HOP_DONG_DRAFT' && (
+                  <Button
+                    type="primary"
+                    loading={saving}
+                    onClick={() =>
+                      chay(() => submitContractCnnv(data.id), 'Đã trình CNNV')
+                    }
+                  >
+                    Trình CNNV
+                  </Button>
+                )}
+                {roles?.canCnnv &&
+                  status === 'HOP_DONG_CHO_CNNV' &&
+                  !wf?.cnnvConfirmedAt && (
+                    <>
+                      <Button
+                        type="primary"
+                        loading={saving}
+                        onClick={() =>
+                          chay(
+                            () => cnnvConfirmContract(data.id),
+                            'Đã xác nhận',
+                          )
+                        }
+                      >
+                        CNNV xác nhận nội dung
+                      </Button>
+                      <Button
+                        danger
+                        loading={saving}
+                        onClick={() =>
+                          chay(
+                            async () =>
+                              cnnvReturnContract(
+                                data.id,
+                                await hoiChuoi('Lý do trả lại'),
+                              ),
+                            'Đã trả',
+                          )
+                        }
+                      >
+                        Trả lại
+                      </Button>
+                    </>
+                  )}
+                {roles?.canManage &&
+                  status === 'HOP_DONG_CHO_CNNV' &&
+                  !!wf?.cnnvConfirmedAt && (
+                    <Button
+                      type="primary"
+                      loading={saving}
+                      onClick={() =>
+                        chay(() => submitContractBgh(data.id), 'Đã trình BGH')
+                      }
+                    >
+                      Trình BGH
+                    </Button>
+                  )}
+                {roles?.canBgh && status === 'HOP_DONG_CHO_KY' && (
                   <>
                     <Button
                       type="primary"
                       loading={saving}
                       onClick={() =>
-                        chay(() => cnnvConfirmContract(data.id), 'Đã xác nhận')
+                        chay(() => bghSignContract(data.id), 'Đã ký')
                       }
                     >
-                      CNNV xác nhận nội dung
+                      BGH ký
                     </Button>
                     <Button
                       danger
@@ -465,7 +541,7 @@ const ProjectContractDetailPage: React.FC = () => {
                       onClick={() =>
                         chay(
                           async () =>
-                            cnnvReturnContract(
+                            bghReturnContract(
                               data.id,
                               await hoiChuoi('Lý do trả lại'),
                             ),
@@ -477,91 +553,69 @@ const ProjectContractDetailPage: React.FC = () => {
                     </Button>
                   </>
                 )}
-              {roles?.canManage &&
-                status === 'HOP_DONG_CHO_CNNV' &&
-                !!wf?.cnnvConfirmedAt && (
-                  <Button
-                    type="primary"
-                    loading={saving}
-                    onClick={() =>
-                      chay(() => submitContractBgh(data.id), 'Đã trình BGH')
-                    }
-                  >
-                    Trình BGH
-                  </Button>
-                )}
-              {roles?.canBgh && status === 'HOP_DONG_CHO_KY' && (
-                <>
-                  <Button
-                    type="primary"
-                    loading={saving}
-                    onClick={() =>
-                      chay(() => bghSignContract(data.id), 'Đã ký')
-                    }
-                  >
-                    BGH ký
-                  </Button>
-                  <Button
-                    danger
-                    loading={saving}
-                    onClick={() =>
-                      chay(
-                        async () =>
-                          bghReturnContract(
-                            data.id,
-                            await hoiChuoi('Lý do trả lại'),
-                          ),
-                        'Đã trả',
-                      )
-                    }
-                  >
-                    Trả lại
-                  </Button>
-                </>
-              )}
-              {roles?.canPublish &&
-                status === 'HOP_DONG_CHO_PHAT_HANH' &&
-                !wf?.publishedAt && (
-                  <Button
-                    type="primary"
-                    loading={saving}
-                    onClick={() =>
-                      chay(
-                        async () =>
-                          publishContract(
-                            data.id,
-                            await hoiChuoi('Số phát hành'),
-                          ),
-                        'Đã phát hành',
-                      )
-                    }
-                  >
-                    Phát hành
-                  </Button>
-                )}
-              {roles?.canCnnv &&
-                status === 'HOP_DONG_CHO_PHAT_HANH' &&
-                !!wf?.publishedAt && (
-                  <Space>
-                    <ChonTep
-                      maxBytes={HAN_FILE.phieu}
-                      nhan="File đã ký (tuỳ chọn)"
-                      onCo={(t) => setSignedUrl(t.fileUrl)}
-                    />
+                {roles?.canPublish &&
+                  status === 'HOP_DONG_CHO_PHAT_HANH' &&
+                  !wf?.publishedAt && (
                     <Button
                       type="primary"
                       loading={saving}
                       onClick={() =>
                         chay(
-                          () => cnnvSignContract(data.id, signedUrl),
-                          'Đã ký',
+                          async () =>
+                            publishContract(
+                              data.id,
+                              await hoiChuoi('Số phát hành'),
+                            ),
+                          'Đã phát hành',
                         )
+                      }
+                    >
+                      Phát hành
+                    </Button>
+                  )}
+                {roles?.canCnnv &&
+                  status === 'HOP_DONG_CHO_PHAT_HANH' &&
+                  !!wf?.publishedAt &&
+                  (wf?.signMode === 'GIAY' ? (
+                    <Space>
+                      <ChonTep
+                        maxBytes={HAN_FILE.phieu}
+                        nhan="File scan hợp đồng đã ký"
+                        onCo={(t) => setSignedUrl(t.fileUrl)}
+                      />
+                      {signedUrl ? <span>Đã chọn file scan</span> : null}
+                      <Button
+                        type="primary"
+                        loading={saving}
+                        disabled={!signedUrl}
+                        onClick={() => {
+                          if (!signedUrl) {
+                            message.warning(
+                              'Ký bản giấy cần file scan hợp đồng đã ký.',
+                            );
+                            return;
+                          }
+                          void chay(
+                            () => cnnvSignContract(data.id, signedUrl),
+                            'Đã ký',
+                          );
+                        }}
+                      >
+                        CNNV ký
+                      </Button>
+                    </Space>
+                  ) : (
+                    <Button
+                      type="primary"
+                      loading={saving}
+                      onClick={() =>
+                        chay(() => cnnvSignContract(data.id), 'Đã ký')
                       }
                     >
                       CNNV ký
                     </Button>
-                  </Space>
-                )}
+                  ))}
+              </Space>
             </Space>
           </Card>
         </Space>

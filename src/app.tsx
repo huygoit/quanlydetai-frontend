@@ -2,19 +2,18 @@
  * Runtime Config - Umi Max
  * Theo specs/auth-login.md + specs/layout-branding.md
  */
-import { history, Link } from '@umijs/max';
-import type { RunTimeLayoutConfig } from '@umijs/max';
-import { Avatar, ConfigProvider, Dropdown, Space, message } from 'antd';
-import viVN from 'antd/locale/vi_VN';
-import { ProConfigProvider, createIntl } from '@ant-design/pro-components';
-import viVNPro from '@ant-design/pro-provider/es/locale/vi_VN';
-import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
-import * as allIcons from '@ant-design/icons';
-import type { UserRole } from '@/services/mock/homeMockService';
 import NotificationBell from '@/components/NotificationBell';
-import { getCurrentUser, logout as apiLogout, normalizePermissions } from '@/services/api/auth';
+import {
+  logout as apiLogout,
+  getCurrentUser,
+  normalizePermissions,
+} from '@/services/api/auth';
+import type { UserRole } from '@/services/mock/homeMockService';
 import { getToken, removeToken } from '@/services/request';
-import { isAdminKeKhaiUser, isPersonalWorkspacePath } from '@/utils/adminKeKhai';
+import {
+  isAdminKeKhaiUser,
+  isPersonalWorkspacePath,
+} from '@/utils/adminKeKhai';
 import { hasAnyPermission, PERM } from '@/utils/permission';
 import {
   ganMenuConKetQuaNckh,
@@ -22,6 +21,13 @@ import {
   taiSoLuongKqncTheoNhom,
   type ResearchOutputMenuRoot,
 } from '@/utils/researchOutputMenu';
+import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { createIntl, ProConfigProvider } from '@ant-design/pro-components';
+import viVNPro from '@ant-design/pro-provider/es/locale/vi_VN';
+import type { RunTimeLayoutConfig } from '@umijs/max';
+import { history, Link } from '@umijs/max';
+import { Avatar, ConfigProvider, Dropdown, message, Space } from 'antd';
+import viVN from 'antd/locale/vi_VN';
 import './global.less';
 
 /**
@@ -32,7 +38,10 @@ function coTheXemMenuKqnc(user?: { permissions?: string[] } | null): boolean {
   const perms = user?.permissions ?? [];
   if (perms.includes('*')) return true;
   if (isAdminKeKhaiUser(user as never)) return true;
-  return hasAnyPermission(perms, [PERM.publication.view, PERM.profile.view_all]);
+  return hasAnyPermission(perms, [
+    PERM.publication.view,
+    PERM.profile.view_all,
+  ]);
 }
 
 // Custom Vietnamese locale với pagination text tùy chỉnh
@@ -196,6 +205,56 @@ const handleLogout = async () => {
   }
 };
 
+// Helper để lấy label cho role (map legacy code → tên hiển thị)
+function getRoleLabel(role: UserRole | string | undefined): string {
+  const roleLabels: Record<string, string> = {
+    NCV: 'Nghiên cứu viên',
+    CNDT: 'Chủ nhiệm đề tài',
+    TRUONG_DON_VI: 'Trưởng đơn vị',
+    PHONG_KH: 'Phòng KH',
+    QUANLY_KH_CNTT_HTQT: 'Phòng KH CNTT & HTQT',
+    HOI_DONG: 'Thành viên hội đồng',
+    LANH_DAO: 'Lãnh đạo',
+    ADMIN: 'Quản trị viên',
+    SUPER_ADMIN: 'Super Admin',
+    BASIC: 'Cơ bản',
+  };
+  return roleLabels[role || ''] || (role as string) || '';
+}
+
+/** BASIC là vai trò nền — không hiển thị trên header user */
+const laVaiTroAnTrenUi = (code?: string | null) =>
+  String(code || '')
+    .trim()
+    .toUpperCase() === 'BASIC';
+
+/**
+ * Danh sách vai trò hiển thị: ưu tiên name từ API, bỏ BASIC.
+ * Nếu chỉ còn BASIC → không hiện gì (hoặc để trống).
+ */
+function layVaiTroHienThi(
+  roles?: Array<{ id?: number; code?: string; name?: string }> | null,
+  fallbackRole?: string,
+): { codes: string[]; label: string } {
+  const list = Array.isArray(roles) ? roles : [];
+  const visible = list.filter((r) => !laVaiTroAnTrenUi(r?.code));
+  if (visible.length > 0) {
+    const labels = visible.map(
+      (r) =>
+        (r.name || '').trim() || getRoleLabel(r.code) || String(r.code || ''),
+    );
+    return {
+      codes: visible.map((r) => String(r.code || '')).filter(Boolean),
+      label: labels.filter(Boolean).join(', '),
+    };
+  }
+  // Không có roles từ API — fallback role đơn (vẫn ẩn BASIC)
+  if (fallbackRole && !laVaiTroAnTrenUi(fallbackRole)) {
+    return { codes: [fallbackRole], label: getRoleLabel(fallbackRole) };
+  }
+  return { codes: [], label: '' };
+}
+
 /**
  * getInitialState - Load user info khi app khởi động
  * Kiểm tra token và fetch user từ API
@@ -222,7 +281,9 @@ export async function getInitialState(): Promise<InitialState> {
         // role chính: ưu tiên vai trò không phải BASIC (phục vụ logic cũ)
         const role =
           hienThi.codes[0] ||
-          (userData.role && !laVaiTroAnTrenUi(userData.role) ? userData.role : undefined) ||
+          (userData.role && !laVaiTroAnTrenUi(userData.role)
+            ? userData.role
+            : undefined) ||
           userData.roles?.find((r: any) => !laVaiTroAnTrenUi(r?.code))?.code;
         const currentUser: CurrentUser = {
           id: userData.id,
@@ -286,71 +347,13 @@ export async function getInitialState(): Promise<InitialState> {
   return { currentUser: undefined };
 }
 
-// Helper để lấy label cho role (map legacy code → tên hiển thị)
-function getRoleLabel(role: UserRole | string | undefined): string {
-  const roleLabels: Record<string, string> = {
-    NCV: 'Nghiên cứu viên',
-    CNDT: 'Chủ nhiệm đề tài',
-    TRUONG_DON_VI: 'Trưởng đơn vị',
-    PHONG_KH: 'Phòng KH',
-    QUANLY_KH_CNTT_HTQT: 'Phòng KH CNTT & HTQT',
-    HOI_DONG: 'Thành viên hội đồng',
-    LANH_DAO: 'Lãnh đạo',
-    ADMIN: 'Quản trị viên',
-    SUPER_ADMIN: 'Super Admin',
-    BASIC: 'Cơ bản',
-  };
-  return roleLabels[role || ''] || (role as string) || '';
-}
-
-/** BASIC là vai trò nền — không hiển thị trên header user */
-const laVaiTroAnTrenUi = (code?: string | null) =>
-  String(code || '')
-    .trim()
-    .toUpperCase() === 'BASIC';
-
-/**
- * Danh sách vai trò hiển thị: ưu tiên name từ API, bỏ BASIC.
- * Nếu chỉ còn BASIC → không hiện gì (hoặc để trống).
- */
-function layVaiTroHienThi(
-  roles?: Array<{ id?: number; code?: string; name?: string }> | null,
-  fallbackRole?: string,
-): { codes: string[]; label: string } {
-  const list = Array.isArray(roles) ? roles : [];
-  const visible = list.filter((r) => !laVaiTroAnTrenUi(r?.code));
-  if (visible.length > 0) {
-    const labels = visible.map(
-      (r) => (r.name || '').trim() || getRoleLabel(r.code) || String(r.code || ''),
-    );
-    return {
-      codes: visible.map((r) => String(r.code || '')).filter(Boolean),
-      label: labels.filter(Boolean).join(', '),
-    };
-  }
-  // Không có roles từ API — fallback role đơn (vẫn ẩn BASIC)
-  if (fallbackRole && !laVaiTroAnTrenUi(fallbackRole)) {
-    return { codes: [fallbackRole], label: getRoleLabel(fallbackRole) };
-  }
-  return { codes: [], label: '' };
-}
-
 /**
  * Layout config - theo specs/layout-branding.md
  */
 export const layout: RunTimeLayoutConfig = ({ initialState }) => {
   const currentUser = initialState?.currentUser;
-  const canUsePersonalWorkspace = !!currentUser && !isAdminKeKhaiUser(currentUser);
-
-  // Helper function để lấy icon component từ tên
-  const getIcon = (iconName?: string) => {
-    if (!iconName) return null;
-    const IconComponent = (allIcons as any)[iconName];
-    if (IconComponent) {
-      return <IconComponent style={{ marginRight: 8 }} />;
-    }
-    return null;
-  };
+  const canUsePersonalWorkspace =
+    !!currentUser && !isAdminKeKhaiUser(currentUser);
 
   return {
     // ========== TOP MENU LAYOUT ==========
@@ -366,7 +369,10 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
       defaultOpenAll: false,
       autoClose: false,
       /** Tải lại nhóm gốc khi render menu — đảm bảo admin vẫn có menu con */
-      request: async (_params: Record<string, unknown>, defaultMenuData: any[]) => {
+      request: async (
+        _params: Record<string, unknown>,
+        defaultMenuData: any[],
+      ) => {
         // Chỉ user có quyền xem KQNC mới gọi API admin (tránh 403 với NCV thường).
         const coQuyen = coTheXemMenuKqnc(currentUser);
         let roots = initialState?.researchOutputMenuRoots ?? [];
@@ -374,15 +380,21 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
           roots = await taiNhomGocMenuKqnc();
         }
         const soLuong =
-          roots.length > 0 && coQuyen ? await taiSoLuongKqncTheoNhom(roots) : undefined;
+          roots.length > 0 && coQuyen
+            ? await taiSoLuongKqncTheoNhom(roots)
+            : undefined;
         return ganMenuConKetQuaNckh(defaultMenuData, roots, soLuong);
       },
     },
     onPageChange: () => {
       const { pathname } = history.location;
-      if (currentUser && isAdminKeKhaiUser(currentUser) && isPersonalWorkspacePath(pathname)) {
+      if (
+        currentUser &&
+        isAdminKeKhaiUser(currentUser) &&
+        isPersonalWorkspacePath(pathname)
+      ) {
         message.warning(
-          'Tài khoản quản trị không dùng chức năng cá nhân. Vui lòng dùng tài khoản NCV hoặc trang quản lý hệ thống.'
+          'Tài khoản quản trị không dùng chức năng cá nhân. Vui lòng dùng tài khoản NCV hoặc trang quản lý hệ thống.',
         );
         history.replace('/home');
       }
@@ -412,12 +424,10 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
       },
     },
     // Custom logo + title trên header - 2 dòng
-    headerTitleRender: (logo, title, props) => {
+    headerTitleRender: (logo) => {
       return (
         <Link to="/home" className="khcn-top-header-logo">
-          <div className="khcn-logo-wrapper">
-            {logo}
-          </div>
+          <div className="khcn-logo-wrapper">{logo}</div>
           <div className="khcn-title-wrapper">
             <span className="khcn-title-line1">KHCN</span>
             <span className="khcn-title-line2">ĐMST</span>
@@ -443,7 +453,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
     // Header bên phải: Chuông thông báo + User info + Logout
     actionsRender: () => {
       if (!currentUser) return [];
-      
+
       return [
         <NotificationBell key="notifications" userId={currentUser.role} />,
         <Dropdown
@@ -456,7 +466,10 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
                   <div className="khcn-user-dropdown-info">
                     <div className="khcn-user-name">{currentUser.name}</div>
                     {currentUser.roleLabel ? (
-                      <div className="khcn-user-role" title={currentUser.roleLabel}>
+                      <div
+                        className="khcn-user-role"
+                        title={currentUser.roleLabel}
+                      >
                         {currentUser.roleLabel}
                       </div>
                     ) : null}
@@ -484,7 +497,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
                     },
                     {
                       key: 'myProjects',
-                      label: 'Đề tài của tôi',
+                      label: 'Nhiệm vụ của tôi',
                       onClick: () => history.push('/projects/my'),
                     },
                     { type: 'divider' as const },
@@ -502,9 +515,9 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
           placement="bottomRight"
         >
           <Space className="khcn-user-trigger-top">
-            <Avatar 
-              size="small" 
-              icon={<UserOutlined />} 
+            <Avatar
+              size="small"
+              icon={<UserOutlined />}
               src={currentUser.avatar}
               style={{ backgroundColor: '#1890ff' }}
             />

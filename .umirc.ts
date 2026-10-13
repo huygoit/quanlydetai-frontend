@@ -332,16 +332,16 @@ export default defineConfig({
         },
         {
           path: '/projects/my',
-          name: 'Đề tài của tôi',
+          name: 'Nhiệm vụ của tôi',
           icon: 'FolderOpenOutlined',
           component: '@/pages/projects/my',
-          access: 'canWriteProjectOutline',
+          access: 'canViewMyOutlines',
         },
         {
           path: '/projects/outlines/form/:id',
           name: 'Soạn thuyết minh',
           component: '@/pages/projects/outlines/form',
-          access: 'canWriteProjectOutline',
+          access: 'canOpenOutlineForm',
           hideInMenu: true,
         },
         {
@@ -371,6 +371,13 @@ export default defineConfig({
           icon: 'CheckCircleOutlined',
           component: '@/pages/projects/acceptance',
           access: 'canViewAcceptance',
+        },
+        {
+          path: '/projects/achievements',
+          name: 'Thành tựu',
+          icon: 'TrophyOutlined',
+          component: '@/pages/projects/achievements',
+          access: 'canViewAchievements',
         },
       ],
     },

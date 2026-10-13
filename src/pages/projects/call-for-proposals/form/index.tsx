@@ -1,29 +1,30 @@
 /**
  * Form tạo / sửa Thông báo tuyển chọn đề tài
  */
+import PublicationAttachmentUpload from '@/components/PublicationForm/PublicationAttachmentUpload';
+import RichTextHtmlField from '@/components/RichTextHtmlField';
 import {
-  PageContainer,
-  ProForm,
-  ProFormText,
-  ProFormSelect,
-  ProFormDatePicker,
-  FooterToolbar,
-  type ProFormInstance,
-} from '@ant-design/pro-components';
-import { Card, message, Button, Form } from 'antd';
-import { history, useParams, useAccess } from '@umijs/max';
-import { useEffect, useRef, useState } from 'react';
-import dayjs from 'dayjs';
-import {
-  createCallForProposal,
-  updateCallForProposal,
-  getCallForProposal,
   CFP_PERIOD_KIND_OPTIONS,
+  createCallForProposal,
+  getCallForProposal,
+  updateCallForProposal,
   type CfpWritePayload,
 } from '@/services/api/callForProposals';
 import { getProjectProcessTypeOptions } from '@/services/api/projectProcessTypes';
-import PublicationAttachmentUpload from '@/components/PublicationForm/PublicationAttachmentUpload';
-import RichTextHtmlField from '@/components/RichTextHtmlField';
+import {
+  FooterToolbar,
+  PageContainer,
+  ProForm,
+  ProFormDatePicker,
+  ProFormSelect,
+  ProFormSwitch,
+  ProFormText,
+  type ProFormInstance,
+} from '@ant-design/pro-components';
+import { history, useAccess, useParams } from '@umijs/max';
+import { Button, Card, Form, message } from 'antd';
+import dayjs from 'dayjs';
+import { useEffect, useRef, useState } from 'react';
 
 /** Tự sinh nhãn kỳ theo loại kỳ + ngày hiện tại (field ẩn trên form). */
 const sinhNhanKy = (periodKind: string, ngay = dayjs()) => {
@@ -39,9 +40,13 @@ const sinhNhanKy = (periodKind: string, ngay = dayjs()) => {
 
 /** Chuẩn hóa ngày hạn nộp về YYYY-MM-DD (ProFormDatePicker có thể trả dayjs hoặc chuỗi DD/MM/YYYY). */
 const chuanHoaHanNop = (value: unknown): string | null => {
-  if (value == null || value === '') return null;
+  if (value === null || value === undefined || value === '') return null;
   // dayjs / moment-like
-  if (dayjs.isDayjs(value) || (typeof value === 'object' && typeof (value as { format?: unknown }).format === 'function')) {
+  if (
+    dayjs.isDayjs(value) ||
+    (typeof value === 'object' &&
+      typeof (value as { format?: unknown }).format === 'function')
+  ) {
     const d = dayjs.isDayjs(value) ? value : dayjs(value as Date);
     return d.isValid() ? d.format('YYYY-MM-DD') : null;
   }
@@ -73,7 +78,9 @@ const CfpFormPage: React.FC = () => {
   const isEdit = !!id;
   const access = useAccess();
   const [loading, setLoading] = useState(false);
-  const [initial, setInitial] = useState<Partial<CfpWritePayload> | undefined>();
+  const [initial, setInitial] = useState<
+    Partial<CfpWritePayload> | undefined
+  >();
   const formRef = useRef<ProFormInstance>();
 
   useEffect(() => {
@@ -92,10 +99,13 @@ const CfpFormPage: React.FC = () => {
           title: d.title,
           periodKind: d.periodKind,
           periodLabel: d.periodLabel,
-          deadlineAt: d.deadlineAt ? dayjs(d.deadlineAt).format('YYYY-MM-DD') : undefined,
+          deadlineAt: d.deadlineAt
+            ? dayjs(d.deadlineAt).format('YYYY-MM-DD')
+            : undefined,
           projectProcessTypeIds: d.projectProcessTypeIds || [],
           contentHtml: d.contentHtml || '',
           attachmentUrls: d.attachmentUrls || [],
+          requireUnitReview: d.requireUnitReview !== false,
         });
       })
       .catch((e) => message.error(e?.message || 'Không tải được'))
@@ -110,7 +120,9 @@ const CfpFormPage: React.FC = () => {
   }
 
   return (
-    <PageContainer title={isEdit ? 'Sửa thông báo tuyển chọn' : 'Tạo thông báo tuyển chọn'}>
+    <PageContainer
+      title={isEdit ? 'Sửa thông báo tuyển chọn' : 'Tạo thông báo tuyển chọn'}
+    >
       <Card loading={loading && isEdit}>
         <ProForm
           formRef={formRef}
@@ -122,6 +134,7 @@ const CfpFormPage: React.FC = () => {
               projectProcessTypeIds: [],
               contentHtml: '',
               attachmentUrls: [],
+              requireUnitReview: true,
             }
           }
           onFinish={async (values) => {
@@ -136,15 +149,20 @@ const CfpFormPage: React.FC = () => {
               // Field ẩn: nếu trống thì tự sinh theo loại kỳ
               periodLabel: values.periodLabel || sinhNhanKy(values.periodKind),
               deadlineAt,
-              projectProcessTypeIds: (values.projectProcessTypeIds || []).map(Number),
+              projectProcessTypeIds: (values.projectProcessTypeIds || []).map(
+                Number,
+              ),
               contentHtml: values.contentHtml || null,
               attachmentUrls: values.attachmentUrls || [],
+              requireUnitReview: values.requireUnitReview !== false,
             };
             try {
               if (isEdit) {
                 const res = await updateCallForProposal(Number(id), payload);
                 message.success('Đã cập nhật');
-                history.push(`/projects/call-for-proposals/${res.data?.id || id}`);
+                history.push(
+                  `/projects/call-for-proposals/${res.data?.id || id}`,
+                );
               } else {
                 const res = await createCallForProposal(payload);
                 message.success('Đã tạo nháp');
@@ -162,7 +180,9 @@ const CfpFormPage: React.FC = () => {
             // Thanh nút cố định dưới cùng khi cuộn trang
             render: (_, dom) => (
               <FooterToolbar>
-                <Button onClick={() => history.push('/projects/call-for-proposals')}>
+                <Button
+                  onClick={() => history.push('/projects/call-for-proposals')}
+                >
                   Quay lại
                 </Button>
                 {dom}
@@ -201,7 +221,9 @@ const CfpFormPage: React.FC = () => {
                   if (!iso) throw new Error('Ngày không hợp lệ');
                   const min = dayjs().startOf('day').add(10, 'day');
                   if (dayjs(iso).isBefore(min, 'day')) {
-                    throw new Error('Phải lớn hơn ngày hiện tại ít nhất 10 ngày');
+                    throw new Error(
+                      'Phải lớn hơn ngày hiện tại ít nhất 10 ngày',
+                    );
                   }
                 },
               },
@@ -211,19 +233,29 @@ const CfpFormPage: React.FC = () => {
               style: { width: '100%' },
               // Không cho chọn ngày < hôm nay + 10
               disabledDate: (current) =>
-                !!current && current.isBefore(dayjs().add(10, 'day').startOf('day')),
+                !!current &&
+                current.isBefore(dayjs().add(10, 'day').startOf('day')),
             }}
             extra="Phải lớn hơn ngày hiện tại ít nhất 10 ngày."
             width="md"
+          />
+          <ProFormSwitch
+            name="requireUnitReview"
+            label="Cần khoa xác nhận"
+            extra="Bỏ chọn thì người nộp đi thẳng phòng KH, không còn màn khoa."
           />
           <ProFormSelect
             name="projectProcessTypeIds"
             label="Cấp ý tưởng/đề tài"
             mode="multiple"
-            rules={[{ required: true, message: 'Chọn ít nhất 1 cấp từ danh mục' }]}
+            rules={[
+              { required: true, message: 'Chọn ít nhất 1 cấp từ danh mục' },
+            ]}
             request={async () => {
               // Lấy từ danh mục cấp ý tưởng/đề tài (QT-I…QT-V)
-              const res = await getProjectProcessTypeOptions({ status: 'ACTIVE' });
+              const res = await getProjectProcessTypeOptions({
+                status: 'ACTIVE',
+              });
               return (res.data || []).map((o) => ({
                 value: o.id,
                 label: `${o.code} — ${o.name}`,

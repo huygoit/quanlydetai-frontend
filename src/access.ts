@@ -180,6 +180,12 @@ export default function access(initialState: AccessInitialState | undefined) {
         PERM.project.submit,
         PERM.project.update,
       ]),
+    /** Thành viên, hội đồng và chủ nhiệm mở danh sách nhiệm vụ của mình */
+    canViewMyOutlines: canUsePersonalWorkspace,
+    /** Link thuyết minh: người theo dõi xem được, API chặn nếu không có quyền */
+    canOpenOutlineForm: !!currentUser,
+    /** Danh sách nhiệm vụ đã hoàn thành. Người không có quyền xem rộng chỉ thấy của mình. */
+    canViewAchievements: !!currentUser,
     canUnitReviewProjectProposal: has(PERM.project.unit_review),
     canReviewProjectProposal:
       has(PERM.project.review) || has(PERM.project.selection_manage),
@@ -298,7 +304,8 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.cfp.view) ||
       has(PERM.project.review) ||
       has(PERM.project.approve) ||
-      hasWildcard,
+      hasWildcard ||
+      canUsePersonalWorkspace,
 
     /** Menu Kết quả nghiên cứu khoa học — admin vận hành hoặc user có quyền publication / xem toàn trường */
     canViewResearchOutputs:

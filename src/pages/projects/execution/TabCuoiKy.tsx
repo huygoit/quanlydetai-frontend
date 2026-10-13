@@ -19,6 +19,7 @@ import {
   luuPhieuCham,
   luuQuyetToan,
   luuThanhLy,
+  moLaiBienBanCuoiKy,
   nhacPhanBien,
   phatHanhThanhLy,
   pkhQuyetToan,
@@ -32,8 +33,10 @@ import {
   type TepModule56,
 } from '@/services/api/module56';
 import { getAvailableOutlineReviewers } from '@/services/api/projectOutlineReviews';
+import { isAdminKeKhaiUser } from '@/utils/adminKeKhai';
 import { formatVnd, vndInputNumberProps } from '@/utils/format';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+import { useModel } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -43,6 +46,7 @@ import {
   Input,
   InputNumber,
   message,
+  Modal,
   Select,
   Space,
   Table,
@@ -361,13 +365,17 @@ export function TabCuoiKy({
   sanPham,
   ketThuc,
   onXong,
+  onDaMoLai,
 }: {
   outlineId: number;
   vaiTro: VaiTro;
   sanPham: string[];
   ketThuc?: string | null;
   onXong: (t: string) => void;
+  onDaMoLai?: () => void;
 }) {
+  const { initialState } = useModel('@@initialState');
+  const laAdmin = isAdminKeKhaiUser(initialState?.currentUser);
   const [hs, setHs] = useState<HoSoCuoiKy | null>(null);
   const [loi, setLoi] = useState('');
   const [resultVi, setResultVi] = useState('');
@@ -488,6 +496,39 @@ export function TabCuoiKy({
       />
       {hs.reviewDeadlineTight && (
         <Alert type="warning" message="Hạn phản biện đang sát." />
+      )}
+      {hs.minutesLocked && laAdmin && (
+        <Button
+          onClick={() => {
+            let reason = '';
+            Modal.confirm({
+              title: 'Mở lại biên bản',
+              okText: 'Mở lại',
+              cancelText: 'Hủy',
+              content: (
+                <Input.TextArea
+                  rows={3}
+                  placeholder="Lý do (tối thiểu 5 ký tự)"
+                  onChange={(e) => {
+                    reason = e.target.value;
+                  }}
+                />
+              ),
+              onOk: async () => {
+                if (reason.trim().length < 5) {
+                  message.warning('Lý do tối thiểu 5 ký tự');
+                  return Promise.reject();
+                }
+                await moLaiBienBanCuoiKy(outlineId, reason.trim());
+                onXong('Đã mở lại biên bản');
+                await tai();
+                onDaMoLai?.();
+              },
+            });
+          }}
+        >
+          Mở lại biên bản
+        </Button>
       )}
 
       {vaiTro.canManage &&
