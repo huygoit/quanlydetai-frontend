@@ -1,8 +1,12 @@
 /**
  * Access Control - CHỈ dùng IAM permission, không dùng role
  */
-import { hasPermission, hasAnyPermission as hasAnyPerm, PERM } from '@/utils/permission';
 import { isAdminKeKhaiUser } from '@/utils/adminKeKhai';
+import {
+  hasAnyPermission as hasAnyPerm,
+  hasPermission,
+  PERM,
+} from '@/utils/permission';
 
 export type UserRole =
   | 'NCV'
@@ -29,7 +33,8 @@ export interface AccessInitialState {
 }
 
 export default function access(initialState: AccessInitialState | undefined) {
-  const permissions = initialState?.permissions ?? initialState?.currentUser?.permissions ?? [];
+  const permissions =
+    initialState?.permissions ?? initialState?.currentUser?.permissions ?? [];
   const hasWildcard = permissions.includes('*');
   const currentUser = initialState?.currentUser;
   const isAdminSystemAccount = isAdminKeKhaiUser(currentUser);
@@ -37,7 +42,8 @@ export default function access(initialState: AccessInitialState | undefined) {
   const canUsePersonalWorkspace = !!currentUser && !isAdminSystemAccount;
 
   const has = (code: string) => hasPermission(permissions, code) || hasWildcard;
-  const hasAny = (codes: string[]) => hasAnyPerm(permissions, codes) || hasWildcard;
+  const hasAny = (codes: string[]) =>
+    hasAnyPerm(permissions, codes) || hasWildcard;
 
   const hasAdminPermission = hasAny([
     PERM.department.view,
@@ -114,10 +120,17 @@ export default function access(initialState: AccessInitialState | undefined) {
     canEditPersonalProfile: has(PERM.personal_profile.update),
     canChangePersonalProfileStatus: has(PERM.personal_profile.change_status),
     /** Danh sách nhân sự master (staffs) */
-    canViewStaffDirectory: hasAny([PERM.department.view, PERM.personal_profile.view]),
+    canViewStaffDirectory: hasAny([
+      PERM.department.view,
+      PERM.personal_profile.view,
+    ]),
 
     canViewHome: true,
-    canViewProfile: hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
+    canViewProfile: hasAny([
+      PERM.profile.view_own,
+      PERM.profile.view_department,
+      PERM.profile.view_all,
+    ]),
     // Menu cha "Hồ sơ": hiện cho user thường (mục cá nhân) lẫn admin (mục quản lý)
     canViewProfileMenu:
       canUsePersonalWorkspace ||
@@ -126,7 +139,11 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.department.view),
     canViewProfileSelf:
       canUsePersonalWorkspace &&
-      hasAny([PERM.profile.view_own, PERM.profile.view_department, PERM.profile.view_all]),
+      hasAny([
+        PERM.profile.view_own,
+        PERM.profile.view_department,
+        PERM.profile.view_all,
+      ]),
     canEditProfileSelf: canUsePersonalWorkspace && has(PERM.profile.update_own),
     canViewProfileAll: has(PERM.profile.view_all),
     canVerifyProfile: has(PERM.profile.verify),
@@ -142,13 +159,19 @@ export default function access(initialState: AccessInitialState | undefined) {
     canProposeOrder: has(PERM.council.propose_order),
     canApproveOrder: has(PERM.council.approve_order),
     canViewProjectRegister:
-      hasAny([PERM.project.create, PERM.project.submit, PERM.project.unit_review]) ||
-      has(PERM.project.review),
+      hasAny([
+        PERM.project.create,
+        PERM.project.submit,
+        PERM.project.unit_review,
+      ]) || has(PERM.project.review),
     /** GV soạn thuyết minh: workspace cá nhân + quyền tạo/nộp/xem đề tài */
     canViewMyProjects:
       canUsePersonalWorkspace &&
       hasAny([PERM.project.view, PERM.project.create, PERM.project.submit]),
-    canCreateProjectProposal: hasAny([PERM.project.create, PERM.project.submit]),
+    canCreateProjectProposal: hasAny([
+      PERM.project.create,
+      PERM.project.submit,
+    ]),
     /** Soạn / nộp thuyết minh chi tiết (US-04-01) */
     canWriteProjectOutline:
       canUsePersonalWorkspace &&
@@ -158,11 +181,18 @@ export default function access(initialState: AccessInitialState | undefined) {
         PERM.project.submit,
         PERM.project.update,
       ]),
+    /** Thành viên, hội đồng và chủ nhiệm mở danh sách nhiệm vụ của mình */
+    canViewMyOutlines: canUsePersonalWorkspace,
+    /** Link thuyết minh: người theo dõi xem được, API chặn nếu không có quyền */
+    canOpenOutlineForm: !!currentUser,
+    /** Danh sách nhiệm vụ đã hoàn thành. Người không có quyền xem rộng chỉ thấy của mình. */
+    canViewAchievements: !!currentUser,
     canUnitReviewProjectProposal: has(PERM.project.unit_review),
     /** Hàng chờ hồ sơ đăng ký: trưởng đơn vị xử lý, PKH xem đơn đã chuyển */
     canOpenRegistrationQueue:
       has(PERM.project.unit_review) || has(PERM.project.review),
-    canReviewProjectProposal: has(PERM.project.review) || has(PERM.project.selection_manage),
+    canReviewProjectProposal:
+      has(PERM.project.review) || has(PERM.project.selection_manage),
     /** PKH phân công phản biện kín (US-04-02) */
     canAssignOutlineBlindReview:
       has(PERM.project.blind_review_assign) ||
@@ -221,6 +251,18 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.budget_propose) ||
       has(PERM.project.review) ||
       has(PERM.project.selection_manage),
+    /** Đúng quyền PKH module 5–6, không gộp quyền review/đề xuất KP */
+    canContractManage: has(PERM.project.contract_manage),
+    /** TC-HC phát hành hợp đồng / thanh lý */
+    canPublishContract: has(PERM.project.contract_publish),
+    /** BGH ký hợp đồng / thanh lý / điều chỉnh — đúng project.outline_approve */
+    canBghSign: has(PERM.project.outline_approve),
+    /** CSVC xử lý đề nghị mua sắm */
+    canHandleProcurement: has(PERM.project.procurement_handle),
+    /** Xác nhận gia hạn lần 2 trở đi */
+    canLeadConfirmContract: has(PERM.project.contract_lead_confirm),
+    /** Màn triển khai ẩn menu: CNNV, hội đồng, PKH, TC, CSVC đều mở được từ link */
+    canOpenModule56: !!initialState?.currentUser,
     canApproveProjectProposal:
       has(PERM.project.approve) || has(PERM.project.selection_approve),
     canManageSelectionSession:
@@ -267,17 +309,23 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.review) ||
       has(PERM.project.unit_review) ||
       has(PERM.project.approve) ||
-      hasWildcard,
+      hasWildcard ||
+      canUsePersonalWorkspace,
 
     /** Menu Kết quả nghiên cứu khoa học — admin vận hành hoặc user có quyền publication / xem toàn trường */
     canViewResearchOutputs:
       isAdminSystemAccount ||
       has(PERM.publication.view) ||
       has(PERM.profile.view_all),
-    canCreateResearchOutput: isAdminSystemAccount || has(PERM.publication.create),
-    canUpdateResearchOutput: isAdminSystemAccount || has(PERM.publication.update),
-    canDeleteResearchOutput: isAdminSystemAccount || has(PERM.publication.delete),
-    canReviewResearchOutput: isAdminSystemAccount || has(PERM.publication.review),
-    canApproveResearchOutput: isAdminSystemAccount || has(PERM.publication.approve),
+    canCreateResearchOutput:
+      isAdminSystemAccount || has(PERM.publication.create),
+    canUpdateResearchOutput:
+      isAdminSystemAccount || has(PERM.publication.update),
+    canDeleteResearchOutput:
+      isAdminSystemAccount || has(PERM.publication.delete),
+    canReviewResearchOutput:
+      isAdminSystemAccount || has(PERM.publication.review),
+    canApproveResearchOutput:
+      isAdminSystemAccount || has(PERM.publication.approve),
   };
 }

@@ -10,7 +10,7 @@ export type PermissionCode = string;
  */
 export function hasPermission(
   permissions: string[] | undefined,
-  code: PermissionCode
+  code: PermissionCode,
 ): boolean {
   if (!permissions || !Array.isArray(permissions)) return false;
   if (permissions.includes('*')) return true;
@@ -23,7 +23,7 @@ export function hasPermission(
  */
 export function hasAnyPermission(
   permissions: string[] | undefined,
-  codes: PermissionCode[]
+  codes: PermissionCode[],
 ): boolean {
   if (!permissions || !Array.isArray(permissions)) return false;
   if (permissions.includes('*')) return true;
@@ -35,7 +35,7 @@ export function hasAnyPermission(
  */
 export function hasAllPermissions(
   permissions: string[] | undefined,
-  codes: PermissionCode[]
+  codes: PermissionCode[],
 ): boolean {
   if (!permissions || !Array.isArray(permissions)) return false;
   return codes.every((code) => permissions.includes(code));
@@ -191,6 +191,12 @@ export const PERM = {
     outline_approve: 'project.outline_approve',
     /** US-05-01 — quản lý dự thảo hợp đồng */
     contract_manage: 'project.contract_manage',
+    /** Module 5–6 — TC-HC phát hành hợp đồng / thanh lý */
+    contract_publish: 'project.contract_publish',
+    /** Module 5–6 — CSVC xử lý mua sắm */
+    procurement_handle: 'project.procurement_handle',
+    /** Module 5–6 — xác nhận gia hạn lần 2 */
+    contract_lead_confirm: 'project.contract_lead_confirm',
   },
   /** Tài chính - backend dùng project.liquidation */
   finance: {

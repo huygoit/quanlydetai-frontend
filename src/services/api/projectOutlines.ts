@@ -1,7 +1,7 @@
 /**
  * API thuyết minh chi tiết (US-04-01) — bảng project_outlines
  */
-import { get, post, put, ApiResponse } from '../request';
+import { ApiResponse, get, post, put } from '../request';
 import type { PublicationAuthor } from './profilePublications';
 
 export type ProjectOutlineStatus =
@@ -10,6 +10,8 @@ export type ProjectOutlineStatus =
   | 'PHANBIEN_KIN'
   | 'BAOVE_PENDING'
   | 'CHINH_SUA_TM'
+  | 'CHO_HD_XAC_NHAN_TM'
+  | 'CHO_PKH_DUYET_TM'
   | 'CHO_XAC_NHAN_KP'
   | 'CHO_TC_THAM_TRA'
   | 'LDPD_PENDING'
@@ -28,6 +30,8 @@ export const OUTLINE_STATUS_MAP: Record<
   PHANBIEN_KIN: { label: 'Phản biện kín', color: 'purple' },
   BAOVE_PENDING: { label: 'Chờ / đang bảo vệ', color: 'blue' },
   CHINH_SUA_TM: { label: 'Chỉnh sửa thuyết minh', color: 'orange' },
+  CHO_HD_XAC_NHAN_TM: { label: 'Chờ hội đồng xác nhận', color: 'blue' },
+  CHO_PKH_DUYET_TM: { label: 'Chờ phòng KH duyệt', color: 'purple' },
   CHO_XAC_NHAN_KP: { label: 'Chờ đề xuất kinh phí', color: 'cyan' },
   CHO_TC_THAM_TRA: { label: 'Chờ TC thẩm tra KP', color: 'geekblue' },
   LDPD_PENDING: { label: 'Chờ LĐ phê duyệt', color: 'gold' },
@@ -36,7 +40,10 @@ export const OUTLINE_STATUS_MAP: Record<
   BAOVE_KHONG_DAT: { label: 'Không thông qua bảo vệ', color: 'error' },
 };
 
-export const BUDGET_GROUP_OPTIONS: { value: OutlineBudgetGroup; label: string }[] = [
+export const BUDGET_GROUP_OPTIONS: {
+  value: OutlineBudgetGroup;
+  label: string;
+}[] = [
   { value: 'NHAN_CONG', label: 'Nhân công' },
   { value: 'VAT_TU', label: 'Vật tư' },
   { value: 'HOI_THAO', label: 'Hội thảo' },
@@ -80,8 +87,12 @@ export type OutlineBudgetLine = {
   lineOrder?: number;
 };
 
+export type RevisionGateStatus = 'CHO_THU_KY' | 'CHO_CHU_TICH' | 'CHO_PKH';
+
 export type OutlineRevisionContext = {
   status: string;
+  revisionGateStatus?: RevisionGateStatus | null;
+  revisionReturnReason?: string | null;
   revisionDeadline?: string | null;
   pastDeadline: boolean;
   needsReminder: boolean;
@@ -142,12 +153,19 @@ export type ProjectOutline = {
   reviewBelowThreshold?: boolean | null;
   reviewScoresCompletedAt?: string | null;
   defenseConclusion?: string | null;
+  activeDefenseSessionId?: number | null;
   revisionDeadline?: string | null;
   revisionExplanation?: string | null;
   revisionBaselineVersionId?: number | null;
   revisionSubmittedVersionId?: number | null;
   revisionSubmittedAt?: string | null;
   revisionContext?: OutlineRevisionContext | null;
+  approvedBudget?: number | null;
+  module5Opened?: boolean;
+  activeContractId?: number | null;
+  contractStatus?: string | null;
+  executionStatus?: string | null;
+  extensionCount?: number;
   members: OutlineMember[];
   budgetLines: OutlineBudgetLine[];
   totalDetailBudget?: number;
@@ -218,7 +236,9 @@ export async function openOrCreateOutlineFromProposal(
   return post(`/api/project-outlines/from-proposal/${proposalId}`);
 }
 
-export async function getOutline(id: number): Promise<ApiResponse<ProjectOutline>> {
+export async function getOutline(
+  id: number,
+): Promise<ApiResponse<ProjectOutline>> {
   return get(`/api/project-outlines/${id}`);
 }
 
@@ -229,11 +249,15 @@ export async function saveOutlineDraft(
   return put(`/api/project-outlines/${id}`, data);
 }
 
-export async function submitOutline(id: number): Promise<ApiResponse<ProjectOutline>> {
+export async function submitOutline(
+  id: number,
+): Promise<ApiResponse<ProjectOutline>> {
   return post(`/api/project-outlines/${id}/submit`);
 }
 
-export async function withdrawOutline(id: number): Promise<ApiResponse<ProjectOutline>> {
+export async function withdrawOutline(
+  id: number,
+): Promise<ApiResponse<ProjectOutline>> {
   return post(`/api/project-outlines/${id}/withdraw`);
 }
 
@@ -248,6 +272,20 @@ export async function submitOutlineRevision(
   explanation: string,
 ): Promise<ApiResponse<ProjectOutline>> {
   return post(`/api/project-outlines/${id}/submit-revision`, { explanation });
+}
+
+export async function confirmOutlineRevisionCouncil(
+  id: number,
+  body: { accept: boolean; reason?: string },
+): Promise<ApiResponse<ProjectOutline>> {
+  return post(`/api/project-outlines/${id}/revision-council`, body);
+}
+
+export async function confirmOutlineRevisionPkh(
+  id: number,
+  body: { accept: boolean; reason?: string },
+): Promise<ApiResponse<ProjectOutline>> {
+  return post(`/api/project-outlines/${id}/revision-pkh`, body);
 }
 
 export async function extendOutlineRevisionDeadline(

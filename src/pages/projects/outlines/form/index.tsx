@@ -1,6 +1,51 @@
 ﻿/**
  * Form soạn / nộp thuyết minh chi tiết (US-04-01) + chỉnh sửa sau bảo vệ (US-04-05)
  */
+import AuthorsEditor from '@/components/AuthorsEditor';
+import ProposalAttachmentUpload from '@/components/ProposalAttachmentUpload';
+import RichTextHtmlField, {
+  cleanRichHtml,
+} from '@/components/RichTextHtmlField';
+import {
+  normalizePublicationAuthor,
+  type PublicationAuthor,
+} from '@/services/api/profilePublications';
+import {
+  getDefenseSession,
+  type DefenseMember,
+} from '@/services/api/projectOutlineDefenses';
+import {
+  BUDGET_GROUP_OPTIONS,
+  OUTLINE_STATUS_MAP,
+  confirmOutlineRevisionCouncil,
+  confirmOutlineRevisionPkh,
+  extendOutlineRevisionDeadline,
+  getOutline,
+  getOutlineRevisionDiff,
+  listEligibleProposalsForOutline,
+  saveOutlineDraft,
+  submitOutline,
+  submitOutlineRevision,
+  withdrawOutline,
+  type OutlineBudgetLine,
+  type OutlineFieldDiff,
+  type OutlineMilestone,
+  type OutlinePartnerUnit,
+  type OutlineProduct,
+  type OutlineRevisionContext,
+  type ProjectOutline,
+} from '@/services/api/projectOutlines';
+import {
+  getProjectProcessTypeOptions,
+  type ProjectProcessTypeOption,
+} from '@/services/api/projectProcessTypes';
+import { formatVnd, vndInputNumberProps } from '@/utils/format';
+import {
+  ArrowLeftOutlined,
+  PlusOutlined,
+  SaveOutlined,
+  SendOutlined,
+} from '@ant-design/icons';
 import {
   FooterToolbar,
   PageContainer,
@@ -11,7 +56,7 @@ import {
   ProFormText,
   type ProFormInstance,
 } from '@ant-design/pro-components';
-import RichTextHtmlField, { cleanRichHtml } from '@/components/RichTextHtmlField';
+import { history, useAccess, useModel, useParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -32,68 +77,88 @@ import {
   Typography,
   message,
 } from 'antd';
-import { ArrowLeftOutlined, PlusOutlined, SaveOutlined, SendOutlined } from '@ant-design/icons';
-import { history, useAccess, useParams } from '@umijs/max';
-import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import ProposalAttachmentUpload from '@/components/ProposalAttachmentUpload';
-import AuthorsEditor from '@/components/AuthorsEditor';
-import { formatVnd, vndInputNumberProps } from '@/utils/format';
-import {
-  getOutline,
-  saveOutlineDraft,
-  submitOutline,
-  withdrawOutline,
-  submitOutlineRevision,
-  extendOutlineRevisionDeadline,
-  getOutlineRevisionDiff,
-  BUDGET_GROUP_OPTIONS,
-  OUTLINE_STATUS_MAP,
-  type OutlineBudgetLine,
-  type OutlineFieldDiff,
-  type OutlineMilestone,
-  type OutlinePartnerUnit,
-  type OutlineProduct,
-  type OutlineRevisionContext,
-  type ProjectOutline,
-} from '@/services/api/projectOutlines';
-import {
-  getProjectProcessTypeOptions,
-  type ProjectProcessTypeOption,
-} from '@/services/api/projectProcessTypes';
-import {
-  normalizePublicationAuthor,
-  type PublicationAuthor,
-} from '@/services/api/profilePublications';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
+function nhanBuocHoanThien(status?: string, gate?: string | null) {
+  if (status === 'CHINH_SUA_TM')
+    return 'Hồ sơ cần chỉnh sửa theo kết luận bảo vệ';
+  if (status === 'CHO_HD_XAC_NHAN_TM' && gate === 'CHO_CHU_TICH') {
+    return 'Thư ký đã đồng ý — chờ chủ tịch hội đồng';
+  }
+  if (status === 'CHO_HD_XAC_NHAN_TM')
+    return 'Đã nộp bản hoàn thiện — chờ thư ký hội đồng';
+  if (status === 'CHO_PKH_DUYET_TM')
+    return 'Hội đồng đã xác nhận — chờ phòng KH';
+  if (status === 'CHO_XAC_NHAN_KP')
+    return 'Đã nộp bản hoàn thiện — chờ xác nhận kinh phí';
+  return 'Bản hoàn thiện';
+}
+
 const OutlineFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const access = useAccess();
+  const { initialState } = useModel('@@initialState');
+  const userId = Number(initialState?.currentUser?.id || 0);
+  const quyen =
+    initialState?.currentUser?.permissions || initialState?.permissions || [];
+  const duocDuyetPkh =
+    quyen.includes('*') ||
+    quyen.includes('project.review') ||
+    quyen.includes('project.budget_propose');
   const outlineId = Number(id);
   const formRef = useRef<ProFormInstance>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [outline, setOutline] = useState<ProjectOutline | null>(null);
-  const [revisionCtx, setRevisionCtx] = useState<OutlineRevisionContext | null>(null);
+  const [revisionCtx, setRevisionCtx] = useState<OutlineRevisionContext | null>(
+    null,
+  );
   const [explanation, setExplanation] = useState('');
   const [diffOpen, setDiffOpen] = useState(false);
   const [diffs, setDiffs] = useState<OutlineFieldDiff[]>([]);
   const [diffNote, setDiffNote] = useState('');
   const [formReadyKey, setFormReadyKey] = useState(0);
   const [formInitial, setFormInitial] = useState<Record<string, unknown>>({});
-  const [processTypes, setProcessTypes] = useState<ProjectProcessTypeOption[]>([]);
+  const [processTypes, setProcessTypes] = useState<ProjectProcessTypeOption[]>(
+    [],
+  );
   const [members, setMembers] = useState<PublicationAuthor[]>([]);
   const [budgetLines, setBudgetLines] = useState<OutlineBudgetLine[]>([]);
   const [milestones, setMilestones] = useState<OutlineMilestone[]>([]);
   const [products, setProducts] = useState<OutlineProduct[]>([]);
   const [partners, setPartners] = useState<OutlinePartnerUnit[]>([]);
+  const [duocSoan, setDuocSoan] = useState(false);
+  const [hoiDong, setHoiDong] = useState<DefenseMember[]>([]);
 
   const isRevision = outline?.status === 'CHINH_SUA_TM';
+  const dangChoDuyetTm =
+    outline?.status === 'CHO_HD_XAC_NHAN_TM' ||
+    outline?.status === 'CHO_PKH_DUYET_TM' ||
+    outline?.status === 'CHO_XAC_NHAN_KP';
   const editable =
-    outline?.status === 'THUYETMINH_DRAFT' || (isRevision && !!revisionCtx?.editable);
+    duocSoan &&
+    (outline?.status === 'THUYETMINH_DRAFT' ||
+      (isRevision && !!revisionCtx?.editable));
+  const thuKyId = hoiDong.find((m) => m.roleInCouncil === 'THU_KY')?.userId;
+  const chuTichId = hoiDong.find((m) => m.roleInCouncil === 'CHU_TICH')?.userId;
+  const hienThuKy =
+    outline?.status === 'CHO_HD_XAC_NHAN_TM' &&
+    revisionCtx?.revisionGateStatus === 'CHO_THU_KY' &&
+    !!userId &&
+    Number(thuKyId) === userId;
+  const hienChuTich =
+    outline?.status === 'CHO_HD_XAC_NHAN_TM' &&
+    revisionCtx?.revisionGateStatus === 'CHO_CHU_TICH' &&
+    !!userId &&
+    Number(chuTichId) === userId;
+  const hienPkh =
+    outline?.status === 'CHO_PKH_DUYET_TM' &&
+    revisionCtx?.revisionGateStatus === 'CHO_PKH' &&
+    duocDuyetPkh;
   const stMeta = outline ? OUTLINE_STATUS_MAP[outline.status] : null;
 
   const totalDetail = useMemo(
@@ -110,9 +175,30 @@ const OutlineFormPage: React.FC = () => {
       ]);
       const d = res.data;
       if (!d) throw new Error('Không tải được thuyết minh');
+      const laChu = Number(d.ownerId) === userId && userId > 0;
+      let duoc = laChu;
+      if (!duoc && access.canWriteProjectOutline) {
+        const duDieuKien = await listEligibleProposalsForOutline().catch(
+          () => null,
+        );
+        duoc = (duDieuKien?.data || []).some(
+          (p) => p.outlineId === d.id || p.id === d.projectProposalId,
+        );
+      }
+      setDuocSoan(duoc);
+      let thanhVienHd: DefenseMember[] = [];
+      if (d.activeDefenseSessionId && d.status === 'CHO_HD_XAC_NHAN_TM') {
+        const buoi = await getDefenseSession(d.activeDefenseSessionId).catch(
+          () => null,
+        );
+        thanhVienHd = buoi?.data?.members || [];
+      }
+      setHoiDong(thanhVienHd);
       setOutline(d);
       setRevisionCtx(d.revisionContext || null);
-      setExplanation(d.revisionContext?.revisionExplanation || d.revisionExplanation || '');
+      setExplanation(
+        d.revisionContext?.revisionExplanation || d.revisionExplanation || '',
+      );
       setProcessTypes(opts.data || []);
       setMembers(
         (d.members?.length ? d.members : []).map((m) =>
@@ -122,10 +208,15 @@ const OutlineFormPage: React.FC = () => {
       setBudgetLines(d.budgetLines?.length ? d.budgetLines : []);
       setMilestones(
         d.milestones?.length
-          ? d.milestones.map((m) => ({ ...m, content: cleanRichHtml(m.content) }))
+          ? d.milestones.map((m) => ({
+              ...m,
+              content: cleanRichHtml(m.content),
+            }))
           : [{ content: '' }],
       );
-      setProducts(d.expectedProducts?.length ? d.expectedProducts : [{ name: '' }]);
+      setProducts(
+        d.expectedProducts?.length ? d.expectedProducts : [{ name: '' }],
+      );
       setPartners(d.partnerUnits?.length ? d.partnerUnits : []);
       // Gán initialValues + remount form để chắc chắn đổ data từ đề xuất
       setFormInitial({
@@ -156,7 +247,7 @@ const OutlineFormPage: React.FC = () => {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outlineId]);
+  }, [outlineId, userId]);
 
   const buildPayload = () => {
     const v = formRef.current?.getFieldsValue() || {};
@@ -176,7 +267,10 @@ const OutlineFormPage: React.FC = () => {
       methodology: v.methodology ?? null,
       milestones: milestones.filter(
         (m) =>
-          !!(m.content || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim() ||
+          !!(m.content || '')
+            .replace(/<[^>]*>/g, '')
+            .replace(/&nbsp;/gi, ' ')
+            .trim() ||
           m.startDate ||
           m.endDate ||
           m.expectedResult,
@@ -226,7 +320,8 @@ const OutlineFormPage: React.FC = () => {
         );
         setBudgetLines(res.data.budgetLines || []);
         if (res.data.milestones?.length) setMilestones(res.data.milestones);
-        if (res.data.expectedProducts?.length) setProducts(res.data.expectedProducts);
+        if (res.data.expectedProducts?.length)
+          setProducts(res.data.expectedProducts);
         if (res.data.partnerUnits?.length) setPartners(res.data.partnerUnits);
         formRef.current?.setFieldsValue({
           completionPercent: res.data.completionPercent,
@@ -257,7 +352,9 @@ const OutlineFormPage: React.FC = () => {
           await load();
         } catch (e: any) {
           const errs = e?.data?.errors as string[] | undefined;
-          message.error(errs?.[0] || e?.data?.message || e?.message || 'Nộp thất bại');
+          message.error(
+            errs?.[0] || e?.data?.message || e?.message || 'Nộp thất bại',
+          );
           throw e;
         } finally {
           setSaving(false);
@@ -276,14 +373,17 @@ const OutlineFormPage: React.FC = () => {
     Modal.confirm({
       title: 'Nộp bản hoàn thiện?',
       content:
-        'Hệ thống khóa phiên bản mới (không ghi đè bản HĐ đã đánh giá) và chuyển sang chờ xác nhận kinh phí.',
+        'Hệ thống khóa phiên bản mới (không ghi đè bản hội đồng đã đánh giá), rồi chuyển thư ký, chủ tịch và phòng KH xác nhận trước khi sang kinh phí.',
       okText: 'Nộp bản hoàn thiện',
       cancelText: 'Hủy',
       onOk: async () => {
         setSaving(true);
         try {
           await saveOutlineDraft(outline.id, buildPayload());
-          const res = await submitOutlineRevision(outline.id, explanation.trim());
+          const res = await submitOutlineRevision(
+            outline.id,
+            explanation.trim(),
+          );
           message.success(res.message || 'Đã nộp bản hoàn thiện');
           await load();
         } catch (e: any) {
@@ -352,6 +452,50 @@ const OutlineFormPage: React.FC = () => {
     });
   };
 
+  const xacNhanBanHoanThien = (accept: boolean) => {
+    if (!outline) return;
+    const gui = async (reason?: string) => {
+      const body = { accept, reason };
+      const res =
+        outline.status === 'CHO_PKH_DUYET_TM'
+          ? await confirmOutlineRevisionPkh(outline.id, body)
+          : await confirmOutlineRevisionCouncil(outline.id, body);
+      message.success(res.message || (accept ? 'Đã xác nhận' : 'Đã trả lại'));
+      await load();
+    };
+    if (accept) {
+      Modal.confirm({
+        title: 'Đồng ý bản hoàn thiện?',
+        okText: 'Đồng ý',
+        cancelText: 'Hủy',
+        onOk: () => gui(),
+      });
+      return;
+    }
+    let reason = '';
+    Modal.confirm({
+      title: 'Trả lại bản hoàn thiện',
+      okText: 'Trả lại',
+      cancelText: 'Hủy',
+      content: (
+        <Input.TextArea
+          rows={3}
+          placeholder="Lý do trả lại (tối thiểu 5 ký tự)"
+          onChange={(e) => {
+            reason = e.target.value;
+          }}
+        />
+      ),
+      onOk: async () => {
+        if (reason.trim().length < 5) {
+          message.warning('Lý do tối thiểu 5 ký tự');
+          return Promise.reject();
+        }
+        await gui(reason.trim());
+      },
+    });
+  };
+
   const rutLai = () => {
     if (!outline || outline.status !== 'THUYETMINH_PENDING') return;
     Modal.confirm({
@@ -372,7 +516,11 @@ const OutlineFormPage: React.FC = () => {
     });
   };
 
-  const requestedBudget = Number(formRef.current?.getFieldValue('requestedBudget') || outline?.requestedBudget || 0);
+  const requestedBudget = Number(
+    formRef.current?.getFieldValue('requestedBudget') ||
+      outline?.requestedBudget ||
+      0,
+  );
   const budgetDiff = Math.abs(totalDetail - requestedBudget);
 
   return (
@@ -384,13 +532,46 @@ const OutlineFormPage: React.FC = () => {
           <Space>
             <Tag color={stMeta.color}>{stMeta.label}</Tag>
             {outline?.projectProposal?.code && (
-              <Text type="secondary">Đề xuất: {outline.projectProposal.code}</Text>
+              <Text type="secondary">
+                Đề xuất: {outline.projectProposal.code}
+              </Text>
             )}
           </Space>
         ) : undefined
       }
+      extra={
+        outline?.activeContractId || outline?.executionStatus ? (
+          <Space>
+            {outline.activeContractId ? (
+              <Button
+                onClick={() =>
+                  history.push(
+                    `/projects/contracts/${outline.activeContractId}`,
+                  )
+                }
+              >
+                Hợp đồng
+              </Button>
+            ) : null}
+            {outline.executionStatus ? (
+              <Button
+                type="primary"
+                onClick={() =>
+                  history.push(`/projects/execution/${outline.id}`)
+                }
+              >
+                Triển khai
+              </Button>
+            ) : null}
+          </Space>
+        ) : undefined
+      }
     >
-      <Space direction="vertical" size={16} style={{ width: '100%', paddingBottom: 72 }}>
+      <Space
+        direction="vertical"
+        size={16}
+        style={{ width: '100%', paddingBottom: 72 }}
+      >
         {outline?.councilFeedback && (
           <Alert
             type="info"
@@ -415,401 +596,500 @@ const OutlineFormPage: React.FC = () => {
             description="Danh tính phản biện được bảo mật với chủ nhiệm và thành viên đề tài trong suốt quá trình đánh giá. Không thể rút lại thuyết minh."
           />
         )}
-        {(isRevision || outline?.status === 'CHO_XAC_NHAN_KP') && revisionCtx && (
+        {!duocSoan &&
+          (outline?.status === 'THUYETMINH_DRAFT' || isRevision) && (
+            <Alert
+              type="info"
+              showIcon
+              message="Bạn được xem thuyết minh này, không sửa được."
+            />
+          )}
+        {(isRevision || dangChoDuyetTm) && (
           <Alert
-            type={revisionCtx.pastDeadline ? 'error' : 'warning'}
+            type={revisionCtx?.pastDeadline ? 'error' : 'warning'}
             showIcon
-            message={
-              isRevision
-                ? 'Hồ sơ cần chỉnh sửa theo kết luận bảo vệ'
-                : 'Đã nộp bản hoàn thiện — chờ xác nhận kinh phí'
-            }
+            message={nhanBuocHoanThien(
+              outline?.status,
+              revisionCtx?.revisionGateStatus,
+            )}
             description={
               <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                {revisionCtx.revisionDeadline && (
+                {isRevision && revisionCtx?.revisionReturnReason && (
+                  <div>
+                    <Text strong>Lý do trả lại: </Text>
+                    {revisionCtx.revisionReturnReason}
+                  </div>
+                )}
+                {revisionCtx?.revisionDeadline && (
                   <div>
                     Hạn chỉnh sửa:{' '}
-                    <strong>{dayjs(revisionCtx.revisionDeadline).format('DD/MM/YYYY')}</strong>
+                    <strong>
+                      {dayjs(revisionCtx.revisionDeadline).format('DD/MM/YYYY')}
+                    </strong>
                     {revisionCtx.pastDeadline ? ' — đã quá hạn' : ''}
                     {revisionCtx.needsReminder && !revisionCtx.pastDeadline
                       ? ` — còn ≤ ${revisionCtx.reminderDays} ngày`
                       : ''}
                   </div>
                 )}
-                {revisionCtx.adjustmentRequirements && (
+                {revisionCtx?.adjustmentRequirements && (
                   <div>
                     <Text strong>Yêu cầu chỉnh sửa: </Text>
-                    <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+                    <Paragraph
+                      style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
+                    >
                       {revisionCtx.adjustmentRequirements}
                     </Paragraph>
                   </div>
                 )}
-                {revisionCtx.discussionNotes && (
+                {revisionCtx?.discussionNotes && (
                   <div>
                     <Text strong>Ý kiến HĐ: </Text>
-                    <Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+                    <Paragraph
+                      style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}
+                    >
                       {revisionCtx.discussionNotes}
                     </Paragraph>
                   </div>
                 )}
                 <Space wrap>
-                  {revisionCtx.minutesFileUrl && (
-                    <a href={revisionCtx.minutesFileUrl} target="_blank" rel="noreferrer">
+                  {revisionCtx?.minutesFileUrl && (
+                    <a
+                      href={revisionCtx.minutesFileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       Xem biên bản bảo vệ
                     </a>
                   )}
-                  <a onClick={() => void moSoSanh()}>So sánh với bản đã đánh giá</a>
+                  <a onClick={() => void moSoSanh()}>
+                    So sánh với bản đã đánh giá
+                  </a>
                   {access.canExtendOutlineRevision && isRevision && (
                     <a onClick={giaHan}>PKH gia hạn deadline</a>
                   )}
                 </Space>
-                <Text type="secondary">{revisionCtx.diffLimitNote}</Text>
+                {revisionCtx?.diffLimitNote && (
+                  <Text type="secondary">{revisionCtx.diffLimitNote}</Text>
+                )}
               </Space>
             }
           />
         )}
+        {(hienThuKy || hienChuTich || hienPkh) && (
+          <Card size="small" title="Xác nhận bản hoàn thiện">
+            <Space>
+              <Button type="primary" onClick={() => xacNhanBanHoanThien(true)}>
+                Đồng ý
+              </Button>
+              <Button danger onClick={() => xacNhanBanHoanThien(false)}>
+                Trả lại
+              </Button>
+            </Space>
+          </Card>
+        )}
 
         <Card size="small" title="Tiến độ hoàn thành">
-          <Progress percent={outline?.completionPercent || 0} status={editable ? 'active' : 'success'} />
+          <Progress
+            percent={outline?.completionPercent || 0}
+            status={editable ? 'active' : 'success'}
+          />
         </Card>
 
         {outline && (
-        <ProForm
-          key={formReadyKey}
-          formRef={formRef}
-          submitter={false}
-          disabled={!editable}
-          layout="vertical"
-          initialValues={formInitial}
-        >
-          <Card title="A. Thông tin chung" size="small" style={{ marginBottom: 16 }}>
-            <ProFormText name="title" label="Tên đề tài" rules={[{ required: true }]} />
-            <Row gutter={16}>
-              <Col span={12}>
-                <ProFormSelect
-                  name="projectProcessTypeId"
-                  label="Cấp ý tưởng/đề tài"
-                  options={processTypes.map((t) => ({
-                    value: t.id,
-                    label: `${t.code} — ${t.name}`,
-                  }))}
-                  rules={[{ required: true }]}
-                />
-              </Col>
-              <Col span={12}>
-                <ProFormText name="field" label="Lĩnh vực" />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={8}>
-                <ProFormDatePicker name="startDate" label="Ngày bắt đầu" rules={[{ required: true }]} />
-              </Col>
-              <Col span={8}>
-                <ProFormDatePicker name="endDate" label="Ngày kết thúc" rules={[{ required: true }]} />
-              </Col>
-              <Col span={8}>
-                <ProFormDigit
-                  name="requestedBudget"
-                  label="Kinh phí đề nghị (VNĐ)"
-                  min={0}
-                  fieldProps={{
-                    precision: 0,
-                    style: { width: '100%' },
-                    ...vndInputNumberProps,
-                  }}
-                  rules={[{ required: true }]}
-                />
-              </Col>
-            </Row>
-            <ProFormText name="hostUnit" label="Đơn vị chủ trì" rules={[{ required: true }]} />
-            <Form.Item label="Đơn vị phối hợp">
-              <Table
-                size="small"
-                pagination={false}
-                rowKey={(_, i) => `p-${i}`}
-                dataSource={partners}
-                columns={[
-                  {
-                    title: 'Tên đơn vị',
-                    render: (_, __, i) => (
-                      <Input
-                        disabled={!editable}
-                        value={partners[i]?.name}
-                        onChange={(e) => {
-                          const next = [...partners];
-                          next[i] = { ...next[i], name: e.target.value };
-                          setPartners(next);
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: 'Vai trò',
-                    width: 200,
-                    render: (_, __, i) => (
-                      <Input
-                        disabled={!editable}
-                        value={partners[i]?.role || ''}
-                        onChange={(e) => {
-                          const next = [...partners];
-                          next[i] = { ...next[i], role: e.target.value };
-                          setPartners(next);
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: '',
-                    width: 70,
-                    render: (_, __, i) =>
-                      editable ? (
-                        <Button
-                          type="link"
-                          danger
-                          onClick={() => setPartners(partners.filter((_, idx) => idx !== i))}
-                        >
-                          Xóa
-                        </Button>
-                      ) : null,
-                  },
-                ]}
-              />
-              {editable && (
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  style={{ marginTop: 8 }}
-                  onClick={() => setPartners([...partners, { name: '', role: '' }])}
-                >
-                  Thêm đơn vị phối hợp
-                </Button>
-              )}
-            </Form.Item>
-            <Form.Item
-              name="applicationScope"
-              label="Phạm vi ứng dụng"
-              rules={[{ required: true, message: 'Bắt buộc khi nộp' }]}
+          <ProForm
+            key={formReadyKey}
+            formRef={formRef}
+            submitter={false}
+            disabled={!editable}
+            layout="vertical"
+            initialValues={formInitial}
+          >
+            <Card
+              title="A. Thông tin chung"
+              size="small"
+              style={{ marginBottom: 16 }}
             >
-              <RichTextHtmlField disabled={!editable} minHeight={120} />
-            </Form.Item>
-          </Card>
-
-          <Card title="B. Thuyết minh khoa học" size="small" style={{ marginBottom: 16 }}>
-            <Form.Item name="urgency" label="Tính cấp thiết" rules={[{ required: true }]}>
-              <RichTextHtmlField disabled={!editable} minHeight={140} />
-            </Form.Item>
-            <Form.Item name="detailedObjectives" label="Mục tiêu chi tiết" rules={[{ required: true }]}>
-              <RichTextHtmlField disabled={!editable} minHeight={140} />
-            </Form.Item>
-            <Form.Item name="researchContent" label="Nội dung nghiên cứu" rules={[{ required: true }]}>
-              <RichTextHtmlField disabled={!editable} minHeight={180} />
-            </Form.Item>
-            <Form.Item name="methodology" label="Phương pháp nghiên cứu" rules={[{ required: true }]}>
-              <RichTextHtmlField disabled={!editable} minHeight={140} />
-            </Form.Item>
-
-            <Form.Item label="Tiến độ thực hiện">
-              <Table
-                size="small"
-                pagination={false}
-                rowKey={(_, i) => `m-${i}`}
-                dataSource={milestones}
-                columns={[
-                  {
-                    title: 'Nội dung',
-                    render: (_, __, i) => (
-                      <RichTextHtmlField
-                        disabled={!editable}
-                        minHeight={80}
-                        value={milestones[i]?.content}
-                        onChange={(html) => {
-                          setMilestones((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], content: html };
-                            return next;
-                          });
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: 'Bắt đầu',
-                    width: 140,
-                    render: (_, __, i) => (
-                      <Input
-                        type="date"
-                        disabled={!editable}
-                        value={milestones[i]?.startDate?.slice(0, 10) || ''}
-                        onChange={(e) => {
-                          const v = e.target.value || null;
-                          setMilestones((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], startDate: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: 'Kết thúc',
-                    width: 140,
-                    render: (_, __, i) => (
-                      <Input
-                        type="date"
-                        disabled={!editable}
-                        value={milestones[i]?.endDate?.slice(0, 10) || ''}
-                        onChange={(e) => {
-                          const v = e.target.value || null;
-                          setMilestones((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], endDate: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: 'Kết quả dự kiến',
-                    render: (_, __, i) => (
-                      <Input
-                        disabled={!editable}
-                        value={milestones[i]?.expectedResult || ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setMilestones((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], expectedResult: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: '',
-                    width: 70,
-                    render: (_, __, i) =>
-                      editable ? (
-                        <Button
-                          type="link"
-                          danger
-                          onClick={() =>
-                            setMilestones((prev) => prev.filter((_, idx) => idx !== i))
-                          }
-                        >
-                          Xóa
-                        </Button>
-                      ) : null,
-                  },
-                ]}
+              <ProFormText
+                name="title"
+                label="Tên đề tài"
+                rules={[{ required: true }]}
               />
-              {editable && (
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  style={{ marginTop: 8 }}
-                  onClick={() =>
-                    setMilestones((prev) => [...prev, { content: '' }])
-                  }
-                >
-                  Thêm mốc tiến độ
-                </Button>
-              )}
-            </Form.Item>
-
-            <Form.Item label="Sản phẩm dự kiến">
-              <Table
-                size="small"
-                pagination={false}
-                rowKey={(_, i) => `pr-${i}`}
-                dataSource={products}
-                columns={[
-                  {
-                    title: 'Tên sản phẩm',
-                    render: (_, __, i) => (
-                      <Input
-                        disabled={!editable}
-                        value={products[i]?.name}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setProducts((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], name: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: 'Số lượng',
-                    width: 120,
-                    render: (_, __, i) => (
-                      <Input
-                        disabled={!editable}
-                        value={products[i]?.quantity || ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setProducts((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], quantity: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: 'Yêu cầu chất lượng',
-                    render: (_, __, i) => (
-                      <Input
-                        disabled={!editable}
-                        value={products[i]?.quality || ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setProducts((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], quality: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: '',
-                    width: 70,
-                    render: (_, __, i) =>
-                      editable ? (
-                        <Button
-                          type="link"
-                          danger
-                          onClick={() =>
-                            setProducts((prev) => prev.filter((_, idx) => idx !== i))
-                          }
-                        >
-                          Xóa
-                        </Button>
-                      ) : null,
-                  },
-                ]}
+              <Row gutter={16}>
+                <Col span={12}>
+                  <ProFormSelect
+                    name="projectProcessTypeId"
+                    label="Cấp ý tưởng/đề tài"
+                    options={processTypes.map((t) => ({
+                      value: t.id,
+                      label: `${t.code} — ${t.name}`,
+                    }))}
+                    rules={[{ required: true }]}
+                  />
+                </Col>
+                <Col span={12}>
+                  <ProFormText name="field" label="Lĩnh vực" />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <ProFormDatePicker
+                    name="startDate"
+                    label="Ngày bắt đầu"
+                    rules={[{ required: true }]}
+                  />
+                </Col>
+                <Col span={8}>
+                  <ProFormDatePicker
+                    name="endDate"
+                    label="Ngày kết thúc"
+                    rules={[{ required: true }]}
+                  />
+                </Col>
+                <Col span={8}>
+                  <ProFormDigit
+                    name="requestedBudget"
+                    label="Kinh phí đề nghị (VNĐ)"
+                    min={0}
+                    fieldProps={{
+                      precision: 0,
+                      style: { width: '100%' },
+                      ...vndInputNumberProps,
+                      addonAfter: 'đ',
+                    }}
+                    rules={[{ required: true }]}
+                  />
+                </Col>
+              </Row>
+              <ProFormText
+                name="hostUnit"
+                label="Đơn vị chủ trì"
+                rules={[{ required: true }]}
               />
-              {editable && (
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  style={{ marginTop: 8 }}
-                  onClick={() => setProducts((prev) => [...prev, { name: '' }])}
-                >
-                  Thêm sản phẩm
-                </Button>
-              )}
-            </Form.Item>
-          </Card>
+              <Form.Item label="Đơn vị phối hợp">
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey={(_, i) => `p-${i}`}
+                  dataSource={partners}
+                  columns={[
+                    {
+                      title: 'Tên đơn vị',
+                      render: (_, __, i) => (
+                        <Input
+                          disabled={!editable}
+                          value={partners[i]?.name}
+                          onChange={(e) => {
+                            const next = [...partners];
+                            next[i] = { ...next[i], name: e.target.value };
+                            setPartners(next);
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: 'Vai trò',
+                      width: 200,
+                      render: (_, __, i) => (
+                        <Input
+                          disabled={!editable}
+                          value={partners[i]?.role || ''}
+                          onChange={(e) => {
+                            const next = [...partners];
+                            next[i] = { ...next[i], role: e.target.value };
+                            setPartners(next);
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: '',
+                      width: 70,
+                      render: (_, __, i) =>
+                        editable ? (
+                          <Button
+                            type="link"
+                            danger
+                            onClick={() =>
+                              setPartners(
+                                partners.filter((_, idx) => idx !== i),
+                              )
+                            }
+                          >
+                            Xóa
+                          </Button>
+                        ) : null,
+                    },
+                  ]}
+                />
+                {editable && (
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    style={{ marginTop: 8 }}
+                    onClick={() =>
+                      setPartners([...partners, { name: '', role: '' }])
+                    }
+                  >
+                    Thêm đơn vị phối hợp
+                  </Button>
+                )}
+              </Form.Item>
+              <Form.Item
+                name="applicationScope"
+                label="Phạm vi ứng dụng"
+                rules={[{ required: true, message: 'Bắt buộc khi nộp' }]}
+              >
+                <RichTextHtmlField disabled={!editable} minHeight={120} />
+              </Form.Item>
+            </Card>
 
-          <Card title="C. Thành viên tham gia đề tài" size="small" style={{ marginBottom: 16 }}>
+            <Card
+              title="B. Thuyết minh khoa học"
+              size="small"
+              style={{ marginBottom: 16 }}
+            >
+              <Form.Item
+                name="urgency"
+                label="Tính cấp thiết"
+                rules={[{ required: true }]}
+              >
+                <RichTextHtmlField disabled={!editable} minHeight={140} />
+              </Form.Item>
+              <Form.Item
+                name="detailedObjectives"
+                label="Mục tiêu chi tiết"
+                rules={[{ required: true }]}
+              >
+                <RichTextHtmlField disabled={!editable} minHeight={140} />
+              </Form.Item>
+              <Form.Item
+                name="researchContent"
+                label="Nội dung nghiên cứu"
+                rules={[{ required: true }]}
+              >
+                <RichTextHtmlField disabled={!editable} minHeight={180} />
+              </Form.Item>
+              <Form.Item
+                name="methodology"
+                label="Phương pháp nghiên cứu"
+                rules={[{ required: true }]}
+              >
+                <RichTextHtmlField disabled={!editable} minHeight={140} />
+              </Form.Item>
+
+              <Form.Item label="Tiến độ thực hiện">
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey={(_, i) => `m-${i}`}
+                  dataSource={milestones}
+                  columns={[
+                    {
+                      title: 'Nội dung',
+                      render: (_, __, i) => (
+                        <RichTextHtmlField
+                          disabled={!editable}
+                          minHeight={80}
+                          value={milestones[i]?.content}
+                          onChange={(html) => {
+                            setMilestones((prev) => {
+                              const next = [...prev];
+                              next[i] = { ...next[i], content: html };
+                              return next;
+                            });
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: 'Bắt đầu',
+                      width: 140,
+                      render: (_, __, i) => (
+                        <Input
+                          type="date"
+                          disabled={!editable}
+                          value={milestones[i]?.startDate?.slice(0, 10) || ''}
+                          onChange={(e) => {
+                            const v = e.target.value || null;
+                            setMilestones((prev) => {
+                              const next = [...prev];
+                              next[i] = { ...next[i], startDate: v };
+                              return next;
+                            });
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: 'Kết thúc',
+                      width: 140,
+                      render: (_, __, i) => (
+                        <Input
+                          type="date"
+                          disabled={!editable}
+                          value={milestones[i]?.endDate?.slice(0, 10) || ''}
+                          onChange={(e) => {
+                            const v = e.target.value || null;
+                            setMilestones((prev) => {
+                              const next = [...prev];
+                              next[i] = { ...next[i], endDate: v };
+                              return next;
+                            });
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: 'Kết quả dự kiến',
+                      render: (_, __, i) => (
+                        <Input
+                          disabled={!editable}
+                          value={milestones[i]?.expectedResult || ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setMilestones((prev) => {
+                              const next = [...prev];
+                              next[i] = { ...next[i], expectedResult: v };
+                              return next;
+                            });
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: '',
+                      width: 70,
+                      render: (_, __, i) =>
+                        editable ? (
+                          <Button
+                            type="link"
+                            danger
+                            onClick={() =>
+                              setMilestones((prev) =>
+                                prev.filter((_, idx) => idx !== i),
+                              )
+                            }
+                          >
+                            Xóa
+                          </Button>
+                        ) : null,
+                    },
+                  ]}
+                />
+                {editable && (
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    style={{ marginTop: 8 }}
+                    onClick={() =>
+                      setMilestones((prev) => [...prev, { content: '' }])
+                    }
+                  >
+                    Thêm mốc tiến độ
+                  </Button>
+                )}
+              </Form.Item>
+
+              <Form.Item label="Sản phẩm dự kiến">
+                <Table
+                  size="small"
+                  pagination={false}
+                  rowKey={(_, i) => `pr-${i}`}
+                  dataSource={products}
+                  columns={[
+                    {
+                      title: 'Tên sản phẩm',
+                      render: (_, __, i) => (
+                        <Input
+                          disabled={!editable}
+                          value={products[i]?.name}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setProducts((prev) => {
+                              const next = [...prev];
+                              next[i] = { ...next[i], name: v };
+                              return next;
+                            });
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: 'Số lượng',
+                      width: 120,
+                      render: (_, __, i) => (
+                        <Input
+                          disabled={!editable}
+                          value={products[i]?.quantity || ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setProducts((prev) => {
+                              const next = [...prev];
+                              next[i] = { ...next[i], quantity: v };
+                              return next;
+                            });
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: 'Yêu cầu chất lượng',
+                      render: (_, __, i) => (
+                        <Input
+                          disabled={!editable}
+                          value={products[i]?.quality || ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setProducts((prev) => {
+                              const next = [...prev];
+                              next[i] = { ...next[i], quality: v };
+                              return next;
+                            });
+                          }}
+                        />
+                      ),
+                    },
+                    {
+                      title: '',
+                      width: 70,
+                      render: (_, __, i) =>
+                        editable ? (
+                          <Button
+                            type="link"
+                            danger
+                            onClick={() =>
+                              setProducts((prev) =>
+                                prev.filter((_, idx) => idx !== i),
+                              )
+                            }
+                          >
+                            Xóa
+                          </Button>
+                        ) : null,
+                    },
+                  ]}
+                />
+                {editable && (
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    style={{ marginTop: 8 }}
+                    onClick={() =>
+                      setProducts((prev) => [...prev, { name: '' }])
+                    }
+                  >
+                    Thêm sản phẩm
+                  </Button>
+                )}
+              </Form.Item>
+            </Card>
+
+            <Card
+              title="C. Thành viên tham gia đề tài"
+              size="small"
+              style={{ marginBottom: 16 }}
+            >
               <AuthorsEditor
                 value={members}
                 onChange={setMembers}
@@ -817,178 +1097,199 @@ const OutlineFormPage: React.FC = () => {
                 hideRoleColumns
                 showContribution
               />
-          </Card>
-
-          <Card title="D. Kinh phí chi tiết" size="small" style={{ marginBottom: 16 }}>
-            <Table
-              size="small"
-              pagination={false}
-              rowKey={(_, i) => `b-${i}`}
-              dataSource={budgetLines}
-              columns={[
-                {
-                  title: 'Nhóm chi',
-                  width: 150,
-                  render: (_, __, i) => (
-                    <Select
-                      style={{ width: '100%' }}
-                      disabled={!editable}
-                      options={BUDGET_GROUP_OPTIONS}
-                      value={budgetLines[i]?.groupCode}
-                      onChange={(v) => {
-                        setBudgetLines((prev) => {
-                          const next = [...prev];
-                          next[i] = { ...next[i], groupCode: v };
-                          return next;
-                        });
-                      }}
-                    />
-                  ),
-                },
-                {
-                  title: 'Nội dung chi',
-                  render: (_, __, i) => (
-                    <Input
-                      disabled={!editable}
-                      value={budgetLines[i]?.content}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setBudgetLines((prev) => {
-                          const next = [...prev];
-                          next[i] = { ...next[i], content: v };
-                          return next;
-                        });
-                      }}
-                    />
-                  ),
-                },
-                {
-                  title: 'Số tiền',
-                  width: 150,
-                  render: (_, __, i) => (
-                    <InputNumber
-                      style={{ width: '100%' }}
-                      min={0}
-                      disabled={!editable}
-                      value={budgetLines[i]?.amount}
-                      {...vndInputNumberProps}
-                      onChange={(v) => {
-                        setBudgetLines((prev) => {
-                          const next = [...prev];
-                          next[i] = { ...next[i], amount: Number(v || 0) };
-                          return next;
-                        });
-                      }}
-                    />
-                  ),
-                },
-                {
-                  title: 'Ghi chú',
-                  render: (_, __, i) => (
-                    <Input
-                      disabled={!editable}
-                      value={budgetLines[i]?.note || ''}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setBudgetLines((prev) => {
-                          const next = [...prev];
-                          next[i] = { ...next[i], note: v };
-                          return next;
-                        });
-                      }}
-                    />
-                  ),
-                },
-                {
-                  title: '',
-                  width: 70,
-                  render: (_, __, i) =>
-                    editable ? (
-                      <Button
-                        type="link"
-                        danger
-                        onClick={() =>
-                          setBudgetLines((prev) => prev.filter((_, idx) => idx !== i))
-                        }
-                      >
-                        Xóa
-                      </Button>
-                    ) : null,
-                },
-              ]}
-              summary={() => (
-                <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={2}>
-                    <strong>Tổng chi tiết</strong>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={2}>
-                    <strong>{formatVnd(totalDetail)}</strong>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} colSpan={2}>
-                    <Text type={budgetDiff > 1000 ? 'danger' : 'secondary'}>
-                      Chênh lệch: {formatVnd(budgetDiff)} (≤ {formatVnd(1000)})
-                    </Text>
-                  </Table.Summary.Cell>
-                </Table.Summary.Row>
-              )}
-            />
-            {editable && (
-              <Button
-                type="dashed"
-                icon={<PlusOutlined />}
-                style={{ marginTop: 8 }}
-                onClick={() =>
-                  setBudgetLines((prev) => [
-                    ...prev,
-                    { groupCode: 'NHAN_CONG', content: '', amount: 0, note: '' },
-                  ])
-                }
-              >
-                Thêm dòng kinh phí
-              </Button>
-            )}
-          </Card>
-
-          <Card title="E. Tài liệu đính kèm" size="small" style={{ marginBottom: 16 }}>
-            <Form.Item
-              name="outlineFileUrl"
-              label="File thuyết minh (PDF/DOCX ≤20MB)"
-              rules={[{ required: true, message: 'Bắt buộc khi nộp' }]}
-            >
-              <ProposalAttachmentUpload
-                folder="projects/outline-files"
-                maxMb={20}
-                disabled={!editable}
-              />
-            </Form.Item>
-            <Form.Item name="appendixFileUrl" label="Tài liệu phụ lục (tuỳ chọn)">
-              <ProposalAttachmentUpload
-                folder="projects/outline-files"
-                maxMb={20}
-                disabled={!editable}
-              />
-            </Form.Item>
-          </Card>
-
-          {isRevision && (
-            <Card title="F. Giải trình chỉnh sửa" size="small">
-              <Text type="secondary">
-                Bắt buộc khi nộp bản hoàn thiện (≥ {revisionCtx?.minExplanationLength || 100} ký
-                tự). Bản HĐ đã đánh giá được giữ nguyên.
-              </Text>
-              <TextArea
-                style={{ marginTop: 8 }}
-                rows={5}
-                disabled={!editable}
-                value={explanation}
-                showCount
-                maxLength={20000}
-                onChange={(e) => setExplanation(e.target.value)}
-                placeholder="Mô tả đã chỉnh sửa những gì theo góp ý HĐ..."
-              />
             </Card>
-          )}
-        </ProForm>
+
+            <Card
+              title="D. Kinh phí chi tiết"
+              size="small"
+              style={{ marginBottom: 16 }}
+            >
+              <Table
+                size="small"
+                pagination={false}
+                rowKey={(_, i) => `b-${i}`}
+                dataSource={budgetLines}
+                columns={[
+                  {
+                    title: 'Nhóm chi',
+                    width: 150,
+                    render: (_, __, i) => (
+                      <Select
+                        style={{ width: '100%' }}
+                        disabled={!editable}
+                        options={BUDGET_GROUP_OPTIONS}
+                        value={budgetLines[i]?.groupCode}
+                        onChange={(v) => {
+                          setBudgetLines((prev) => {
+                            const next = [...prev];
+                            next[i] = { ...next[i], groupCode: v };
+                            return next;
+                          });
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    title: 'Nội dung chi',
+                    render: (_, __, i) => (
+                      <Input
+                        disabled={!editable}
+                        value={budgetLines[i]?.content}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setBudgetLines((prev) => {
+                            const next = [...prev];
+                            next[i] = { ...next[i], content: v };
+                            return next;
+                          });
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    title: 'Số tiền',
+                    width: 150,
+                    render: (_, __, i) => (
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={0}
+                        disabled={!editable}
+                        value={budgetLines[i]?.amount}
+                        {...vndInputNumberProps}
+                        addonAfter="đ"
+                        onChange={(v) => {
+                          setBudgetLines((prev) => {
+                            const next = [...prev];
+                            next[i] = { ...next[i], amount: Number(v || 0) };
+                            return next;
+                          });
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    title: 'Ghi chú',
+                    render: (_, __, i) => (
+                      <Input
+                        disabled={!editable}
+                        value={budgetLines[i]?.note || ''}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setBudgetLines((prev) => {
+                            const next = [...prev];
+                            next[i] = { ...next[i], note: v };
+                            return next;
+                          });
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    title: '',
+                    width: 70,
+                    render: (_, __, i) =>
+                      editable ? (
+                        <Button
+                          type="link"
+                          danger
+                          onClick={() =>
+                            setBudgetLines((prev) =>
+                              prev.filter((_, idx) => idx !== i),
+                            )
+                          }
+                        >
+                          Xóa
+                        </Button>
+                      ) : null,
+                  },
+                ]}
+                summary={() => (
+                  <Table.Summary.Row>
+                    <Table.Summary.Cell index={0} colSpan={2}>
+                      <strong>Tổng chi tiết</strong>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={2}>
+                      <strong>{formatVnd(totalDetail)}</strong>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={3} colSpan={2}>
+                      <Text type={budgetDiff > 1000 ? 'danger' : 'secondary'}>
+                        Chênh lệch: {formatVnd(budgetDiff)} (≤ {formatVnd(1000)}
+                        )
+                      </Text>
+                    </Table.Summary.Cell>
+                  </Table.Summary.Row>
+                )}
+              />
+              {editable && (
+                <Button
+                  type="dashed"
+                  icon={<PlusOutlined />}
+                  style={{ marginTop: 8 }}
+                  onClick={() =>
+                    setBudgetLines((prev) => [
+                      ...prev,
+                      {
+                        groupCode: 'NHAN_CONG',
+                        content: '',
+                        amount: 0,
+                        note: '',
+                      },
+                    ])
+                  }
+                >
+                  Thêm dòng kinh phí
+                </Button>
+              )}
+            </Card>
+
+            <Card
+              title="E. Tài liệu đính kèm"
+              size="small"
+              style={{ marginBottom: 16 }}
+            >
+              <Form.Item
+                name="outlineFileUrl"
+                label="File thuyết minh (PDF/DOCX ≤20MB)"
+                rules={[{ required: true, message: 'Bắt buộc khi nộp' }]}
+              >
+                <ProposalAttachmentUpload
+                  folder="projects/outline-files"
+                  maxMb={20}
+                  disabled={!editable}
+                />
+              </Form.Item>
+              <Form.Item
+                name="appendixFileUrl"
+                label="Tài liệu phụ lục (tuỳ chọn)"
+              >
+                <ProposalAttachmentUpload
+                  folder="projects/outline-files"
+                  maxMb={20}
+                  disabled={!editable}
+                />
+              </Form.Item>
+            </Card>
+
+            {isRevision && (
+              <Card title="F. Giải trình chỉnh sửa" size="small">
+                <Text type="secondary">
+                  Bắt buộc khi nộp bản hoàn thiện (≥{' '}
+                  {revisionCtx?.minExplanationLength || 100} ký tự). Bản HĐ đã
+                  đánh giá được giữ nguyên.
+                </Text>
+                <TextArea
+                  style={{ marginTop: 8 }}
+                  rows={5}
+                  disabled={!editable}
+                  value={explanation}
+                  showCount
+                  maxLength={20000}
+                  onChange={(e) => setExplanation(e.target.value)}
+                  placeholder="Mô tả đã chỉnh sửa những gì theo góp ý HĐ..."
+                />
+              </Card>
+            )}
+          </ProForm>
         )}
       </Space>
 
@@ -998,7 +1299,12 @@ const OutlineFormPage: React.FC = () => {
         open={diffOpen}
         onClose={() => setDiffOpen(false)}
       >
-        <Alert type="info" showIcon style={{ marginBottom: 12 }} message={diffNote} />
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={diffNote}
+        />
         <Table
           size="small"
           rowKey="field"
@@ -1012,25 +1318,36 @@ const OutlineFormPage: React.FC = () => {
               title: 'Trước (bản HĐ)',
               dataIndex: 'before',
               ellipsis: true,
-              render: (t) => <Text style={{ whiteSpace: 'pre-wrap' }}>{t || '—'}</Text>,
+              render: (t) => (
+                <Text style={{ whiteSpace: 'pre-wrap' }}>{t || '—'}</Text>
+              ),
             },
             {
               title: 'Sau (hiện tại)',
               dataIndex: 'after',
               ellipsis: true,
-              render: (t) => <Text style={{ whiteSpace: 'pre-wrap' }}>{t || '—'}</Text>,
+              render: (t) => (
+                <Text style={{ whiteSpace: 'pre-wrap' }}>{t || '—'}</Text>
+              ),
             },
           ]}
         />
       </Drawer>
 
       <FooterToolbar>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => history.push('/projects/my')}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => history.push('/projects/my')}
+        >
           Quay lại
         </Button>
         {editable && (
           <>
-            <Button icon={<SaveOutlined />} loading={saving} onClick={() => void luuNhap()}>
+            <Button
+              icon={<SaveOutlined />}
+              loading={saving}
+              onClick={() => void luuNhap()}
+            >
               Lưu nháp
             </Button>
             {!isRevision && (
@@ -1055,7 +1372,7 @@ const OutlineFormPage: React.FC = () => {
             )}
           </>
         )}
-        {outline?.status === 'THUYETMINH_PENDING' && (
+        {duocSoan && outline?.status === 'THUYETMINH_PENDING' && (
           <Button danger onClick={() => rutLai()}>
             Rút lại
           </Button>

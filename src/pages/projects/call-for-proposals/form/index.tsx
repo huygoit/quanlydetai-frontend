@@ -6,6 +6,7 @@ import {
   ProForm,
   ProFormText,
   ProFormSelect,
+  ProFormSwitch,
   ProFormDatePicker,
   FooterToolbar,
   type ProFormInstance,
@@ -108,6 +109,7 @@ const CfpFormPage: React.FC = () => {
           projectProcessTypeIds: cap,
           contentHtml: d.contentHtml || '',
           attachmentUrls: d.attachmentUrls || [],
+          requireUnitReview: d.requireUnitReview !== false,
         });
       })
       .catch((e) => message.error(e?.message || 'Không tải được'))
@@ -128,6 +130,7 @@ const CfpFormPage: React.FC = () => {
       projectProcessTypeIds: (values.projectProcessTypeIds || []).map(Number),
       contentHtml: values.contentHtml || null,
       attachmentUrls: values.attachmentUrls || [],
+      requireUnitReview: values.requireUnitReview !== false,
     };
   };
 
@@ -238,6 +241,7 @@ const CfpFormPage: React.FC = () => {
               projectProcessTypeIds: [],
               contentHtml: '',
               attachmentUrls: [],
+              requireUnitReview: true,
             }
           }
           onValuesChange={(changed) => {
@@ -343,6 +347,11 @@ const CfpFormPage: React.FC = () => {
             }}
             extra="Phải lớn hơn ngày hiện tại ít nhất 10 ngày."
             width="md"
+          />
+          <ProFormSwitch
+            name="requireUnitReview"
+            label="Cần khoa xác nhận"
+            extra="Bỏ chọn thì người nộp đi thẳng phòng KH, không còn màn khoa."
           />
           <ProFormSelect
             name="projectProcessTypeIds"

@@ -1,20 +1,20 @@
 /**
  * US-05-01 bước 1 — danh sách dự thảo hợp đồng BM.06
  */
-import { PageContainer, ProTable } from '@ant-design/pro-components';
-import type { ProColumns } from '@ant-design/pro-components';
-import { Alert, Button, Space, Tag, message } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
-import { history, useAccess } from '@umijs/max';
-import dayjs from 'dayjs';
-import { formatVnd } from '@/utils/format';
 import {
-  queryProjectContracts,
   downloadProjectContract,
   PROJECT_CONTRACT_STATUS_MAP,
+  queryProjectContracts,
   type ProjectContract,
   type ProjectContractStatus,
 } from '@/services/api/projectContracts';
+import { formatVnd } from '@/utils/format';
+import { DownloadOutlined } from '@ant-design/icons';
+import type { ProColumns } from '@ant-design/pro-components';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { history, useAccess } from '@umijs/max';
+import { Alert, Button, message, Space, Tag } from 'antd';
+import dayjs from 'dayjs';
 
 const ProjectContractsPage: React.FC = () => {
   const access = useAccess();
@@ -55,7 +55,10 @@ const ProjectContractsPage: React.FC = () => {
       width: 120,
       hideInSearch: true,
       render: (_, r) =>
-        r.outline?.approved_budget != null ? formatVnd(r.outline.approved_budget) : '—',
+        r.outline?.approved_budget !== null &&
+        r.outline?.approved_budget !== undefined
+          ? formatVnd(r.outline.approved_budget)
+          : '—',
     },
     {
       title: 'Trạng thái',
@@ -64,12 +67,14 @@ const ProjectContractsPage: React.FC = () => {
       valueType: 'select',
       valueEnum: {
         HOP_DONG_DRAFT: { text: 'Dự thảo' },
-        HOP_DONG_CHO_KY: { text: 'Chờ ký' },
+        HOP_DONG_CHO_CNNV: { text: 'Chờ CNNV xác nhận' },
+        HOP_DONG_CHO_KY: { text: 'Chờ BGH ký' },
+        HOP_DONG_CHO_PHAT_HANH: { text: 'Chờ phát hành' },
         HOP_DONG_DA_KY: { text: 'Đã ký' },
-        DANG_THUC_HIEN: { text: 'Đang thực hiện' },
       },
       render: (_, r) => {
-        const m = PROJECT_CONTRACT_STATUS_MAP[r.status as ProjectContractStatus];
+        const m =
+          PROJECT_CONTRACT_STATUS_MAP[r.status as ProjectContractStatus];
         return m ? <Tag color={m.color}>{m.text}</Tag> : r.status;
       },
     },
@@ -88,11 +93,22 @@ const ProjectContractsPage: React.FC = () => {
     },
     {
       title: '',
-      width: 160,
+      width: 220,
       hideInSearch: true,
       render: (_, r) => (
         <Space>
-          <a onClick={() => history.push(`/projects/contracts/${r.id}`)}>Chi tiết</a>
+          <a onClick={() => history.push(`/projects/contracts/${r.id}`)}>
+            Chi tiết
+          </a>
+          {r.status === 'HOP_DONG_DA_KY' && (
+            <a
+              onClick={() =>
+                history.push(`/projects/execution/${r.project_outline_id}`)
+              }
+            >
+              Triển khai
+            </a>
+          )}
           <Button
             type="link"
             size="small"
@@ -111,13 +127,13 @@ const ProjectContractsPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer title="Dự thảo hợp đồng BM.06">
+    <PageContainer title="Hợp đồng nhiệm vụ">
       <Alert
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
-        message="Hệ thống tự sinh dự thảo khi LĐ phê duyệt thuyết minh (mẫu mặc định loại Hợp đồng)."
-        description="PKH có thể tải DOCX rà soát. Bước trình ký sẽ làm ở giai đoạn sau."
+        message="Hệ thống tự sinh dự thảo khi lãnh đạo phê duyệt thuyết minh."
+        description="Mở chi tiết để phân bổ mục chi, trình CNNV, BGH ký và TC-HC phát hành. Sau khi đã ký, vào Triển khai để theo dõi chi và đánh giá."
       />
       <ProTable<ProjectContract>
         rowKey="id"

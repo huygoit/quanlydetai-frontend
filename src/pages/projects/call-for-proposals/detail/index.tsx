@@ -29,6 +29,7 @@ import {
   publishCallForProposal,
   extendCallForProposal,
   closeCallForProposal,
+  headApproveCallForProposal,
   CFP_STATUS_MAP,
   downloadCfpNotice,
   renderCfpProcessTypeTags,
@@ -44,7 +45,8 @@ const { Text } = Typography;
 const ACTION_LABEL: Record<string, string> = {
   CREATE: 'Tạo mới',
   UPDATE: 'Cập nhật',
-  SUBMIT: 'Trình BGH',
+  SUBMIT: 'Trình duyệt',
+  HEAD_APPROVE: 'Trưởng phòng duyệt',
   APPROVE: 'BGH duyệt',
   RETURN: 'Yêu cầu chỉnh sửa',
   PUBLISH: 'Phát hành',
@@ -109,6 +111,21 @@ const CfpDetailPage: React.FC = () => {
         <Button type="primary" onClick={() => run(() => submitCallForProposal(Number(id)), 'Đã trình BGH')}>
           Trình BGH duyệt
         </Button>
+      )}
+      {st === 'PENDING_TRUONG_PHONG' && access.canApproveCfp && (
+        <>
+          <Button
+            type="primary"
+            onClick={() =>
+              run(() => headApproveCallForProposal(Number(id)), 'Đã duyệt — chờ ban giám hiệu')
+            }
+          >
+            Trưởng phòng duyệt
+          </Button>
+          <Button danger onClick={() => setReturnOpen(true)}>
+            Yêu cầu chỉnh sửa
+          </Button>
+        </>
       )}
       {st === 'PENDING_BGH' && access.canApproveCfp && (
         <Button type="primary" onClick={() => run(() => approveCallForProposal(Number(id)), 'Đã duyệt')}>
@@ -288,6 +305,10 @@ const CfpDetailPage: React.FC = () => {
                   </Tag>
                 ))
               : '—'}
+          </div>
+          <div>
+            <Text type="secondary">Cần khoa xác nhận </Text>
+            <Text strong>{data?.requireUnitReview === false ? 'Không' : 'Có'}</Text>
           </div>
           <div>
             <Text type="secondary">Người tạo </Text>
