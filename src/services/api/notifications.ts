@@ -13,7 +13,10 @@ export type NotificationType =
   | 'PUBLICATION_CORRECTED'
   | 'IDEA_SUBMITTED'
   | 'IDEA_STATUS_CHANGED'
+  | 'IDEA_ORDER_APPROVAL_NEEDED'
   | 'PROJECT_UPDATE'
+  | 'COUNCIL_SESSION_OPENED'
+  | 'COUNCIL_SESSION_READY_TO_CLOSE'
   | 'SYSTEM';
 
 export interface Notification {

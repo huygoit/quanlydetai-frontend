@@ -20,11 +20,11 @@ const HomePage: React.FC = () => {
     );
   }
 
-  // Lãnh đạo → Phong KH → cán bộ/GV (không ưu tiên báo cáo tổng quan che trang cá nhân)
+  // Lãnh đạo → Phòng KH → cán bộ/GV. Thành viên hội đồng chỉ có quyền chấm, không mở dashboard Phòng KH.
   if (access.canApproveOrder) {
     return <HomeForLanhDao />;
   }
-  if (access.canManageIdeaBank || access.canAccessCouncil || access.canReviewProjectProposal) {
+  if (access.canManageIdeaBank || access.canReviewProjectProposal) {
     return <HomeForPhongKH />;
   }
 

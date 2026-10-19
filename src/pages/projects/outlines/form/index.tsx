@@ -516,7 +516,6 @@ const OutlineFormPage: React.FC = () => {
                     precision: 0,
                     style: { width: '100%' },
                     ...vndInputNumberProps,
-                    addonAfter: 'đ',
                   }}
                   rules={[{ required: true }]}
                 />
@@ -873,7 +872,6 @@ const OutlineFormPage: React.FC = () => {
                       disabled={!editable}
                       value={budgetLines[i]?.amount}
                       {...vndInputNumberProps}
-                      addonAfter="đ"
                       onChange={(v) => {
                         setBudgetLines((prev) => {
                           const next = [...prev];

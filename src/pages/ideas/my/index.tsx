@@ -9,7 +9,8 @@ import { Badge, Button, Card, Col, Drawer, Descriptions, Progress, Row, Space, T
 import { CheckCircleOutlined, CloseCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SendOutlined, LinkOutlined, TrophyOutlined } from '@ant-design/icons';
 import { THRESHOLD_SCORE, MAX_WEIGHTED_SCORE, SCORING_CRITERIA } from '@/services/api/ideaCouncil';
 import { useEffect, useRef, useState } from 'react';
-import { useModel } from '@umijs/max';
+import dayjs from 'dayjs';
+import { history, useModel } from '@umijs/max';
 import {
   queryMyIdeas,
   createIdea,
@@ -137,6 +138,11 @@ const MyIdeasPage: React.FC = () => {
     }
   };
 
+  const xuongDong = {
+    ellipsis: false as const,
+    onCell: () => ({ style: { whiteSpace: 'normal' as const, wordBreak: 'break-word' as const } }),
+  };
+
   // Columns
   const columns: ProColumns<Idea>[] = [
     {
@@ -148,13 +154,14 @@ const MyIdeasPage: React.FC = () => {
     {
       title: 'Tiêu đề',
       dataIndex: 'title',
-      ellipsis: true,
-      width: 250,
+      width: 160,
+      ...xuongDong,
     },
     {
       title: 'Lĩnh vực',
       dataIndex: 'field',
       width: 140,
+      ...xuongDong,
       valueType: 'select',
       fieldProps: {
         options: fieldOptions,
@@ -168,26 +175,29 @@ const MyIdeasPage: React.FC = () => {
       dataIndex: 'suitableLevels',
       width: 200,
       hideInSearch: true,
+      ...xuongDong,
       render: (_, record) => (
-        <Space size={[0, 4]} wrap>
-          {record.suitableLevels.slice(0, 2).map((level) => {
+        <Space size={[4, 4]} wrap>
+          {(record.suitableLevels || []).map((level) => {
             const meta = labelLevel(level, levelMeta);
             return (
-              <Tag key={level} color={meta.color}>
+              <Tag
+                key={level}
+                color={meta.color}
+                style={{ whiteSpace: 'normal', height: 'auto', maxWidth: '100%', display: 'inline-block', wordBreak: 'break-word', marginInlineEnd: 0 }}
+              >
                 {meta.text}
               </Tag>
             );
           })}
-          {record.suitableLevels.length > 2 && (
-            <Tag>+{record.suitableLevels.length - 2}</Tag>
-          )}
         </Space>
       ),
     },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
-      width: 160,
+      width: 210,
+      ...xuongDong,
       valueType: 'select',
       valueEnum: Object.entries(IDEA_STATUS_MAP).reduce((acc, [key, val]) => {
         acc[key] = { text: val.text, status: val.color as any };
@@ -195,18 +205,22 @@ const MyIdeasPage: React.FC = () => {
       }, {} as Record<string, { text: string; status: string }>),
       render: (_, record) => {
         const status = IDEA_STATUS_MAP[record.status];
-        return <Badge status={status.color as any} text={status.text} />;
-      },
-    },
-    {
-      title: 'Mức ưu tiên',
-      dataIndex: 'priority',
-      width: 120,
-      hideInSearch: true,
-      render: (_, record) => {
-        if (!record.priority) return <Text type="secondary">-</Text>;
-        const priority = IDEA_PRIORITY_MAP[record.priority];
-        return <Tag color={priority.color}>{priority.text}</Tag>;
+        return (
+          <Space direction="vertical" size={0}>
+            <Badge status={status.color as any} text={status.text} />
+            {record.status === 'APPROVED_FOR_ORDER' && record.linkedProposalId ? (
+              <Button
+                type="link"
+                size="small"
+                icon={<LinkOutlined />}
+                style={{ paddingInline: 0, height: 'auto' }}
+                onClick={() => history.push(`/projects/register/form/${record.linkedProposalId}`)}
+              >
+                Xem đề xuất đề tài
+              </Button>
+            ) : null}
+          </Space>
+        );
       },
     },
     {
@@ -216,11 +230,12 @@ const MyIdeasPage: React.FC = () => {
       align: 'center',
       hideInSearch: true,
       render: (_, record) => {
-        if (!record.councilAvgWeightedScore) return <Text type="secondary">-</Text>;
-        const isPass = record.councilAvgWeightedScore >= THRESHOLD_SCORE;
+        if (record.councilAvgWeightedScore == null) return <Text type="secondary">—</Text>;
+        const diem = Number(record.councilAvgWeightedScore);
+        const dat = diem >= THRESHOLD_SCORE;
         return (
-          <Tag color={isPass ? 'success' : 'warning'} icon={<TrophyOutlined />}>
-            {record.councilAvgWeightedScore.toFixed(1)}
+          <Tag color={dat ? 'success' : 'warning'} icon={<TrophyOutlined />}>
+            {diem.toFixed(2)}
           </Tag>
         );
       },
@@ -229,15 +244,14 @@ const MyIdeasPage: React.FC = () => {
       title: 'Ngày tạo',
       dataIndex: 'createdAt',
       width: 120,
-      valueType: 'date',
-      sorter: true,
       hideInSearch: true,
+      render: (_, record) => (record.createdAt ? dayjs(record.createdAt).format('DD-MM-YYYY') : '—'),
     },
     {
       title: 'Hành động',
       valueType: 'option',
-      width: 200,
-      fixed: 'right',
+      width: 150,
+      ...xuongDong,
       render: (_, record) => {
         const actions = [
           <Button
@@ -302,7 +316,7 @@ const MyIdeasPage: React.FC = () => {
           );
         }
 
-        return <Space size={0}>{actions}</Space>;
+        return <Space direction="vertical" size={0}>{actions}</Space>;
       },
     },
   ];
@@ -348,7 +362,7 @@ const MyIdeasPage: React.FC = () => {
           showQuickJumper: true,
           showTotal: (total, range) => `Đang xem ${range[0]}-${range[1]} trên tổng ${total} mục`,
         }}
-        scroll={{ x: 1300 }}
+        tableLayout="fixed"
         options={{
           density: true,
           fullScreen: true,
@@ -461,23 +475,28 @@ const MyIdeasPage: React.FC = () => {
             )}
 
             {/* Thông báo nếu đã khởi tạo đề tài */}
-            {currentIdea.linkedProjectId && (
+            {currentIdea.linkedProposalId && (
               <Alert
                 type="success"
                 showIcon
                 icon={<LinkOutlined />}
                 style={{ marginBottom: 16 }}
-                message="Ý tưởng đã được khởi tạo thành đề tài"
-                description={
-                  <Tag color="purple" style={{ marginTop: 8 }}>
-                    Mã đề tài: {currentIdea.linkedProjectId}
-                  </Tag>
+                message="Ý tưởng đã được phê duyệt để đăng ký đề xuất đề tài"
+                action={
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={() => history.push(`/projects/register/form/${currentIdea.linkedProposalId}`)}
+                  >
+                    Xem đề xuất đề tài
+                  </Button>
                 }
+                description={currentIdea.linkedProjectId ? `Mã đề xuất: ${currentIdea.linkedProjectId}` : undefined}
               />
             )}
 
             {/* Kết quả chấm điểm Hội đồng */}
-            {currentIdea.councilAvgWeightedScore !== undefined && (
+            {currentIdea.councilAvgWeightedScore != null && (
               <Card 
                 title={
                   <Space>

@@ -9,6 +9,8 @@ import {
   ProFormTextArea,
   ProFormSwitch,
   ProFormSelect,
+  ProFormDependency,
+  ProFormDigit,
 } from '@ant-design/pro-components';
 import type { ProColumns, ActionType } from '@ant-design/pro-components';
 import {
@@ -125,6 +127,13 @@ const AdminContractTemplatesPage: React.FC = () => {
     if (values.form_code) fd.append('formCode', String(values.form_code).trim().toUpperCase());
     if (values.status) fd.append('status', String(values.status));
     fd.append('isDefault', values.is_default ? 'true' : 'false');
+    if (String(values.template_type || activeType) === 'THONG_BAO') {
+      fd.append('ky_hieu', String(values.ky_hieu || ''));
+      fd.append('tham_quyen_ky', String(values.tham_quyen_ky || ''));
+      fd.append('ho_ten_nguoi_ky', String(values.ho_ten_nguoi_ky || ''));
+      fd.append('noi_nhan', String(values.noi_nhan || ''));
+      fd.append('so_moi_nhat', String(values.so_moi_nhat ?? 0));
+    }
 
     const raw = fileList[0]?.originFileObj;
     if (!editing && !raw) {
@@ -317,7 +326,7 @@ const AdminContractTemplatesPage: React.FC = () => {
         showIcon
         style={{ marginBottom: 16 }}
         message="Mỗi loại có một mẫu mặc định riêng. File DOCX dùng biến {{ten_bien}}."
-        description="Loại «Hợp đồng» dùng cho BM.06; «Biên bản thanh lý» dành cho mẫu thanh lý sau nghiệm thu."
+        description="«Hợp đồng» dùng cho BM.06. «Biên bản thanh lý» dùng sau nghiệm thu. «Thông báo» dùng cho thông báo tuyển chọn đề tài."
       />
 
       <Tabs
@@ -414,18 +423,25 @@ const AdminContractTemplatesPage: React.FC = () => {
                 form_code: editing.form_code,
                 status: editing.status,
                 is_default: editing.is_default,
+                ky_hieu: editing.merge_config?.ky_hieu || '',
+                tham_quyen_ky: editing.merge_config?.tham_quyen_ky || '',
+                ho_ten_nguoi_ky: editing.merge_config?.ho_ten_nguoi_ky || '',
+                noi_nhan: editing.merge_config?.noi_nhan || '',
+                so_moi_nhat: editing.merge_config?.so_moi_nhat ?? 0,
               }
             : {
                 status: 'ACTIVE',
                 is_default: true,
                 template_type: activeType,
-                form_code: activeType === 'HOP_DONG' ? 'BM06' : '',
-                code: activeType === 'HOP_DONG' ? 'BM06_' : 'BBTL_',
+                form_code:
+                  activeType === 'HOP_DONG' ? 'BM06' : activeType === 'THONG_BAO' ? 'TB' : '',
+                code:
+                  activeType === 'HOP_DONG' ? 'BM06_' : activeType === 'THONG_BAO' ? 'TB_' : 'BBTL_',
               }
         }
         modalProps={{ destroyOnClose: true }}
         onFinish={handleSubmit}
-        width={560}
+        width={640}
       >
         <ProFormSelect
           name="template_type"
@@ -458,6 +474,39 @@ const AdminContractTemplatesPage: React.FC = () => {
           ]}
         />
         <ProFormSwitch name="is_default" label="Đặt làm mẫu mặc định của loại này" />
+        <ProFormDependency name={['template_type']}>
+          {({ template_type }) =>
+            template_type === 'THONG_BAO' ? (
+              <>
+                <ProFormDigit
+                  name="so_moi_nhat"
+                  label="Số mới nhất đã dùng"
+                  min={0}
+                  fieldProps={{ precision: 0 }}
+                  extra="Xem và tải dùng số này + 1. Số chỉ được ghi lại khi BGH phê duyệt."
+                />
+                <ProFormText
+                  name="ky_hieu"
+                  label="Ký hiệu thông báo"
+                  placeholder="ĐHSP"
+                  extra="Điền vào số hiệu, dạng Số: …/TB-ĐHSP."
+                />
+                <ProFormText
+                  name="tham_quyen_ky"
+                  label="Thẩm quyền ký"
+                  placeholder="HIỆU TRƯỞNG"
+                />
+                <ProFormText name="ho_ten_nguoi_ky" label="Họ tên người ký" />
+                <ProFormTextArea
+                  name="noi_nhan"
+                  label="Nơi nhận"
+                  fieldProps={{ rows: 5 }}
+                  extra="Mỗi dòng một nơi nhận. Xuống dòng sẽ giữ nguyên trên thông báo."
+                />
+              </>
+            ) : null
+          }
+        </ProFormDependency>
         <div style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 8 }}>
             File DOCX {editing ? '(để trống nếu giữ file cũ)' : '(bắt buộc)'}

@@ -99,12 +99,21 @@ const CallForProposalsListPage: React.FC = () => {
     {
       title: 'Thao tác',
       valueType: 'option',
-      width: 100,
-      render: (_, r) => [
-        <a key="view" onClick={() => navigate(`/projects/call-for-proposals/${r.id}`)}>
-          Chi tiết
-        </a>,
-      ],
+      width: 140,
+      render: (_, r) => {
+        const duocSua =
+          access.canUpdateCfp && (r.status === 'DRAFT' || r.status === 'RETURNED');
+        return [
+          <a key="view" onClick={() => navigate(`/projects/call-for-proposals/${r.id}`)}>
+            Chi tiết
+          </a>,
+          duocSua ? (
+            <a key="edit" onClick={() => navigate(`/projects/call-for-proposals/form/${r.id}`)}>
+              Sửa
+            </a>
+          ) : null,
+        ];
+      },
     },
   ];
 

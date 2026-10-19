@@ -46,6 +46,8 @@ export interface SessionIdea {
   field: string;
   statusSnapshot: string;
   createdAt: string;
+  /** Số phiếu đã gửi của ý tưởng trong phiên. */
+  submittedScoreCount?: number;
 }
 
 export interface IdeaCouncilScore {
@@ -85,6 +87,10 @@ export interface IdeaCouncilResult {
   memberCount: number;
   recommendation: 'PROPOSE_ORDER' | 'NOT_PROPOSE';
   thresholdScore: number;
+  ideaStatus?: string | null;
+  ownerId?: number | null;
+  linkedProjectCode?: string | null;
+  linkedProposalId?: number | null;
 }
 
 export interface SessionQueryParams {

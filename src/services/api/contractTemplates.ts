@@ -13,13 +13,21 @@ import {
 } from '../request';
 
 export type ContractTemplateStatus = 'ACTIVE' | 'INACTIVE';
-export type ContractTemplateType = 'HOP_DONG' | 'THANH_LY';
+export type ContractTemplateType = 'HOP_DONG' | 'THANH_LY' | 'THONG_BAO';
 
 export interface DocTemplateTypeDef {
   code: ContractTemplateType;
   label: string;
   defaultFormCode: string | null;
   description: string;
+}
+
+export interface ThongBaoMergeConfig {
+  ky_hieu: string;
+  noi_nhan: string;
+  tham_quyen_ky: string;
+  ho_ten_nguoi_ky: string;
+  so_moi_nhat: number;
 }
 
 export interface ContractTemplate {
@@ -30,6 +38,7 @@ export interface ContractTemplate {
   template_type: ContractTemplateType;
   template_type_label?: string;
   form_code: string;
+  merge_config?: ThongBaoMergeConfig | null;
   file_name: string;
   stored_file_name: string;
   file_url: string;
@@ -65,6 +74,7 @@ export const CONTRACT_TEMPLATE_TYPE_OPTIONS: Array<{
 }> = [
   { value: 'HOP_DONG', label: 'Hợp đồng' },
   { value: 'THANH_LY', label: 'Biên bản thanh lý hợp đồng' },
+  { value: 'THONG_BAO', label: 'Thông báo' },
 ];
 
 export async function getContractTemplateTypes(): Promise<ApiResponse<DocTemplateTypeDef[]>> {

@@ -3,7 +3,7 @@
  * Label tiếng Việt chỉ dùng hiển thị (API catalog hoặc map dưới đây).
  */
 
-export type DegreeKey = 'HIGH_SCHOOL' | 'BACHELOR' | 'MASTER' | 'DOCTORATE';
+export type DegreeKey = 'HIGH_SCHOOL' | 'BACHELOR' | 'UNDERGRADUATE' | 'MASTER' | 'DOCTORATE';
 
 export type AcademicTitleKey = 'NONE' | 'ASSOCIATE_PROFESSOR' | 'PROFESSOR';
 
@@ -11,6 +11,7 @@ export type AcademicTitleKey = 'NONE' | 'ASSOCIATE_PROFESSOR' | 'PROFESSOR';
 export const LEGACY_DEGREE_TO_KEY: Record<string, DegreeKey> = {
   'Tú tài': 'HIGH_SCHOOL',
   'Cử nhân': 'BACHELOR',
+  'Đại học': 'UNDERGRADUATE',
   'Thạc sĩ': 'MASTER',
   'Tiến sĩ': 'DOCTORATE',
   'Tiến sỹ': 'DOCTORATE',
@@ -73,17 +74,23 @@ export const FALLBACK_DEGREE_CATALOG: {
     displayOrder: 2,
   },
   {
+    value: 'UNDERGRADUATE',
+    label: 'Đại học',
+    description: 'Tốt nghiệp trình độ đại học (bằng đại học).',
+    displayOrder: 3,
+  },
+  {
     value: 'MASTER',
     label: 'Thạc sĩ',
     description: 'Tốt nghiệp trình độ cao học.',
-    displayOrder: 3,
+    displayOrder: 4,
   },
   {
     value: 'DOCTORATE',
     label: 'Tiến sĩ',
     description:
       'Trình độ học vị nghiên cứu chuyên sâu, được cấp sau khi bảo vệ thành công luận án tiến sĩ.',
-    displayOrder: 4,
+    displayOrder: 5,
   },
 ];
 

@@ -338,7 +338,6 @@ const BudgetApprovalDetailPage: React.FC = () => {
                     style={{ width: 280 }}
                     min={0}
                     {...vndInputNumberProps}
-                    addonAfter="đ"
                   />
                 </Form.Item>
                 <Form.Item name="note" label="Căn cứ / ghi chú">
@@ -395,7 +394,6 @@ const BudgetApprovalDetailPage: React.FC = () => {
                     style={{ width: 280 }}
                     min={0}
                     {...vndInputNumberProps}
-                    addonAfter="đ"
                   />
                 </Form.Item>
                 <Form.Item

@@ -31,7 +31,7 @@ import {
   CloseCircleOutlined,
   FormOutlined,
 } from '@ant-design/icons';
-import { useModel, useAccess, history } from '@umijs/max';
+import { useModel, useAccess, history, useLocation } from '@umijs/max';
 import dayjs from 'dayjs';
 import {
   queryProposals,
@@ -104,6 +104,9 @@ const ProjectRegisterPage: React.FC = () => {
   const canCreate = access.canCreateProjectProposal;
   const canUnitReview = access.canUnitReviewProjectProposal;
   const canPkhReview = access.canReviewProjectProposal;
+  const location = useLocation();
+  // Menu cá nhân "Đề xuất đề tài của tôi" luôn lọc theo người đăng nhập.
+  const chiXemCuaToi = new URLSearchParams(location.search).get('mine') === '1';
   const hideUnitSearch = !canPkhReview && !canUnitReview;
   const currentUserId = Number(currentUser?.id || 0);
 
@@ -436,7 +439,9 @@ const ProjectRegisterPage: React.FC = () => {
   ];
 
   return (
-    <PageContainer header={{ title: 'Đăng ký đề xuất đề tài' }}>
+    <PageContainer
+      header={{ title: chiXemCuaToi ? 'Đề xuất đề tài của tôi' : 'Danh mục nhiệm vụ đề xuất' }}
+    >
       <ProTable<ProjectProposal>
         actionRef={tableRef}
         rowKey="id"
@@ -451,7 +456,7 @@ const ProjectRegisterPage: React.FC = () => {
             level: params.level,
             field: params.field,
             unit: params.ownerUnit,
-            ownerOnly: isCreatorOnly || undefined,
+            ownerOnly: chiXemCuaToi || isCreatorOnly || undefined,
             page: params.current,
             perPage: params.pageSize,
           });

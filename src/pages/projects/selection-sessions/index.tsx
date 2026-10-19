@@ -9,7 +9,6 @@ import {
   AutoComplete,
   Button,
   Card,
-  Col,
   DatePicker,
   Drawer,
   Empty,
@@ -17,10 +16,8 @@ import {
   Input,
   Modal,
   Popconfirm,
-  Row,
   Select,
   Space,
-  Statistic,
   Table,
   Tabs,
   Tag,
@@ -37,6 +34,7 @@ import {
 import { history, useAccess } from '@umijs/max';
 import { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
+import { coHienThiHocHam, nhanNhanHocHam, nhanNhanHocVi } from '@/utils/profileCatalogOptions';
 import {
   listSelectionSessions,
   getSelectionSession,
@@ -59,6 +57,20 @@ import {
 import { listCallForProposals, type CallForProposal } from '@/services/api/callForProposals';
 
 const { Text } = Typography;
+
+/** Chữ trong ô tìm sau khi chọn — chỉ họ tên. */
+function tenOTimThanhVien(m: { fullName?: string | null }): string {
+  return (m.fullName || '').trim();
+}
+
+function nhanHocHamHienThi(code?: string | null): string {
+  if (!coHienThiHocHam(code)) return '';
+  return nhanNhanHocHam([], code) || '';
+}
+
+function nhanHocViHienThi(code?: string | null): string {
+  return nhanNhanHocVi([], code) || '';
+}
 
 const EDITABLE_MEMBER_STATUSES: SelectionSessionStatus[] = ['CREATED', 'OPEN', 'RETURNED'];
 const RESULTS_VISIBLE_STATUSES: SelectionSessionStatus[] = [
@@ -93,6 +105,7 @@ const SelectionSessionsPage: React.FC = () => {
   const [availableMembers, setAvailableMembers] = useState<SelectionAvailableMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [selectedMember, setSelectedMember] = useState<SelectionAvailableMember | null>(null);
+  const [tuKhoaThanhVien, setTuKhoaThanhVien] = useState('');
   const [memberRole, setMemberRole] = useState<SelectionMemberRole>('UY_VIEN');
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -231,6 +244,7 @@ const SelectionSessionsPage: React.FC = () => {
       message.success('Đã thêm thành viên');
       setAddMemberOpen(false);
       setSelectedMember(null);
+      setTuKhoaThanhVien('');
       setMemberRole('UY_VIEN');
       await refreshMembers(current.id);
     } catch (e: any) {
@@ -456,51 +470,137 @@ const SelectionSessionsPage: React.FC = () => {
       >
         {current && (
           <>
-            <Card size="small" style={{ marginBottom: 16 }}>
-              <Row gutter={16}>
-                <Col span={6}>
-                  <Statistic
-                    title="Trạng thái"
-                    value={stMeta?.label || current.status}
-                  />
-                </Col>
-                <Col span={6}>
-                  <Statistic title="Số đề tài" value={current.itemCount ?? items.length} />
-                </Col>
-                <Col span={6}>
-                  <Statistic title="Thành viên" value={current.memberCount ?? members.length} />
-                </Col>
-                <Col span={6}>
-                  <Statistic
-                    title="Ngày họp"
-                    value={dayjs(current.meetingAt).format('DD/MM/YYYY')}
-                  />
-                </Col>
-              </Row>
-              {current.location && (
-                <div style={{ marginTop: 8 }}>
-                  <Text type="secondary">Địa điểm: {current.location}</Text>
+            {(() => {
+              const mauTrangThai: Record<string, { nen: string; chu: string; vien: string }> = {
+                CREATED: { nen: '#f5f5f5', chu: '#595959', vien: '#d9d9d9' },
+                OPEN: { nen: '#e6f4ff', chu: '#0958d9', vien: '#91caff' },
+                MINUTES_SAVED: { nen: '#e6fffb', chu: '#08979c', vien: '#87e8de' },
+                PENDING_BGH: { nen: '#fff7e6', chu: '#d48806', vien: '#ffd591' },
+                LOCKED: { nen: '#f6ffed', chu: '#389e0d', vien: '#b7eb8f' },
+                RETURNED: { nen: '#fff2f0', chu: '#cf1322', vien: '#ffccc7' },
+              };
+              const mau = mauTrangThai[current.status] || mauTrangThai.CREATED;
+              const soDeTai = current.itemCount ?? items.length;
+              const soThanhVien = current.memberCount ?? members.length;
+              const o = (noiDung: JSX.Element, laCuoi?: boolean) => (
+                <div
+                  style={{
+                    padding: '14px 16px',
+                    borderRight: laCuoi ? 'none' : '1px solid #eef2f6',
+                    minWidth: 0,
+                  }}
+                >
+                  {noiDung}
                 </div>
-              )}
-              {current.status === 'RETURNED' && current.bghComment && (
-                <Alert
-                  style={{ marginTop: 12 }}
-                  type="error"
-                  showIcon
-                  message="BGH từ chối danh mục"
-                  description={
+              );
+              const nhan = (text: string) => (
+                <div style={{ fontSize: 12, color: '#8c8c8c', letterSpacing: 0.2, marginBottom: 6 }}>
+                  {text}
+                </div>
+              );
+              return (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1.15fr 0.8fr 0.9fr 1.25fr',
+                    marginBottom: 16,
+                    background: '#fff',
+                    border: '1px solid #e6edf5',
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {o(
                     <>
-                      <div>
-                        <strong>Nguyên nhân:</strong> {current.bghComment}
+                      {nhan('Trạng thái')}
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          background: mau.nen,
+                          color: mau.chu,
+                          border: `1px solid ${mau.vien}`,
+                          fontWeight: 600,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: '50%',
+                            background: mau.chu,
+                          }}
+                        />
+                        {stMeta?.label || current.status}
+                      </span>
+                    </>,
+                  )}
+                  {o(
+                    <>
+                      {nhan('Đề tài')}
+                      <div style={{ fontSize: 22, fontWeight: 600, color: '#0c2340', lineHeight: 1.2 }}>
+                        {soDeTai}
                       </div>
-                      <div style={{ marginTop: 4 }}>
-                        PKH chỉnh sửa rồi trình lại, hoặc tạo kỳ tuyển chọn mới.
+                    </>,
+                  )}
+                  {o(
+                    <>
+                      {nhan('Thành viên')}
+                      <div style={{ fontSize: 22, fontWeight: 600, color: '#0c2340', lineHeight: 1.2 }}>
+                        {soThanhVien}
                       </div>
-                    </>
-                  }
-                />
-              )}
-            </Card>
+                    </>,
+                  )}
+                  {o(
+                    <>
+                      {nhan('Ngày họp')}
+                      <div style={{ fontSize: 18, fontWeight: 600, color: '#0c2340', lineHeight: 1.2 }}>
+                        {dayjs(current.meetingAt).format('DD/MM/YYYY')}
+                      </div>
+                      {current.location ? (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            fontSize: 12,
+                            color: '#8c8c8c',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={current.location}
+                        >
+                          {current.location}
+                        </div>
+                      ) : null}
+                    </>,
+                    true,
+                  )}
+                </div>
+              );
+            })()}
+
+            {current.status === 'RETURNED' && current.bghComment && (
+              <Alert
+                style={{ marginBottom: 16 }}
+                type="error"
+                showIcon
+                message="BGH từ chối danh mục"
+                description={
+                  <>
+                    <div>
+                      <strong>Nguyên nhân:</strong> {current.bghComment}
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      PKH chỉnh sửa rồi trình lại, hoặc tạo kỳ tuyển chọn mới.
+                    </div>
+                  </>
+                }
+              />
+            )}
 
             <Tabs activeKey={activeTab} onChange={setActiveTab}>
               <Tabs.TabPane tab="Đề tài" key="proposals">
@@ -510,7 +610,10 @@ const SelectionSessionsPage: React.FC = () => {
                   columns={proposalColumns}
                   dataSource={items}
                   search={false}
+                  options={false}
                   pagination={false}
+                  tableLayout="fixed"
+                  cardProps={{ bodyStyle: { padding: 0 } }}
                   toolBarRender={false}
                 />
               </Tabs.TabPane>
@@ -522,10 +625,13 @@ const SelectionSessionsPage: React.FC = () => {
                   columns={memberColumns}
                   dataSource={members}
                   search={false}
+                  options={false}
                   pagination={false}
-                  toolBarRender={() =>
+                  tableLayout="fixed"
+                  cardProps={{ bodyStyle: { padding: 0 } }}
+                  toolBarRender={
                     membersEditable
-                      ? [
+                      ? () => [
                           <Button
                             key="add"
                             type="primary"
@@ -533,13 +639,14 @@ const SelectionSessionsPage: React.FC = () => {
                             onClick={() => {
                               setAddMemberOpen(true);
                               setSelectedMember(null);
+                              setTuKhoaThanhVien('');
                               void loadAvailableMembers();
                             }}
                           >
                             Thêm thành viên
                           </Button>,
                         ]
-                      : []
+                      : false
                   }
                 />
               </Tabs.TabPane>
@@ -550,26 +657,42 @@ const SelectionSessionsPage: React.FC = () => {
                 disabled={!RESULTS_VISIBLE_STATUSES.includes(current.status)}
               >
                 {summary && (
-                  <Row gutter={12} style={{ marginBottom: 16 }}>
-                    <Col span={8}>
-                      <Card size="small">
-                        <Statistic title="Đồng ý" value={summary.totals.dongY} />
-                      </Card>
-                    </Col>
-                    <Col span={8}>
-                      <Card size="small">
-                        <Statistic title="Không đồng ý" value={summary.totals.khongDongY} />
-                      </Card>
-                    </Col>
-                    <Col span={8}>
-                      <Card size="small">
-                        <Statistic title="Tổng" value={summary.totals.total} />
-                      </Card>
-                    </Col>
-                  </Row>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr 1fr',
+                      marginBottom: 16,
+                      background: '#fff',
+                      border: '1px solid #e6edf5',
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {(
+                      [
+                        ['Đồng ý', summary.totals.dongY, '#389e0d'],
+                        ['Không đồng ý', summary.totals.khongDongY, '#cf1322'],
+                        ['Tổng', summary.totals.total, '#0c2340'],
+                      ] as const
+                    ).map(([label, value, color], idx, arr) => (
+                      <div
+                        key={label}
+                        style={{
+                          padding: '14px 16px',
+                          borderRight: idx === arr.length - 1 ? 'none' : '1px solid #eef2f6',
+                        }}
+                      >
+                        <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 6 }}>{label}</div>
+                        <div style={{ fontSize: 22, fontWeight: 600, color, lineHeight: 1.2 }}>
+                          {value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
                 {summary?.byUnit?.length ? (
-                  <Card size="small" title="Theo đơn vị" style={{ marginBottom: 16 }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 8, color: '#0c2340' }}>Theo đơn vị</div>
                     <Table
                       size="small"
                       pagination={false}
@@ -582,7 +705,7 @@ const SelectionSessionsPage: React.FC = () => {
                         { title: 'Tổng', dataIndex: 'total', width: 80 },
                       ]}
                     />
-                  </Card>
+                  </div>
                 ) : null}
                 {items.some((i) => i.councilResult) ? (
                   <ProTable<SelectionSessionItem>
@@ -591,7 +714,10 @@ const SelectionSessionsPage: React.FC = () => {
                     columns={resultColumns}
                     dataSource={items}
                     search={false}
+                    options={false}
                     pagination={false}
+                    tableLayout="fixed"
+                    cardProps={{ bodyStyle: { padding: 0 } }}
                     toolBarRender={false}
                   />
                 ) : (
@@ -609,6 +735,7 @@ const SelectionSessionsPage: React.FC = () => {
         onCancel={() => {
           setAddMemberOpen(false);
           setSelectedMember(null);
+          setTuKhoaThanhVien('');
           setMemberRole('UY_VIEN');
         }}
         onOk={() => void handleAddMember()}
@@ -627,14 +754,18 @@ const SelectionSessionsPage: React.FC = () => {
         <AutoComplete
           style={{ width: '100%', marginBottom: 16 }}
           placeholder="Gõ tên, email hoặc đơn vị để tìm kiếm..."
-          options={availableMembers.map((m) => ({
+          value={tuKhoaThanhVien}
+          options={availableMembers.map((m) => {
+            const hocHam = nhanHocHamHienThi(m.academicTitle);
+            const hocVi = nhanHocViHienThi(m.degree);
+            return {
             value: String(m.userId),
             label: (
               <div style={{ padding: '4px 0' }}>
-                <div style={{ fontWeight: 500 }}>
-                  {m.academicTitle && `${m.academicTitle}. `}
-                  {m.degree && `${m.degree} `}
-                  {m.fullName}
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                  {hocHam ? <Tag color="blue" style={{ margin: 0 }}>{hocHam}</Tag> : null}
+                  {hocVi ? <Tag color="cyan" style={{ margin: 0 }}>{hocVi}</Tag> : null}
+                  <span style={{ fontWeight: 500 }}>{m.fullName}</span>
                 </div>
                 <div style={{ fontSize: 12, color: '#8c8c8c' }}>
                   {[m.department, m.faculty, m.organization].filter(Boolean).join(' · ') ||
@@ -642,12 +773,26 @@ const SelectionSessionsPage: React.FC = () => {
                 </div>
               </div>
             ),
-          }))}
+            };
+          })}
+          onChange={(text) => {
+            const vuaChon = availableMembers.find((m) => String(m.userId) === text);
+            if (vuaChon) {
+              setSelectedMember(vuaChon);
+              setTuKhoaThanhVien(tenOTimThanhVien(vuaChon));
+              return;
+            }
+            setTuKhoaThanhVien(text);
+            setSelectedMember((cur) => (cur && tenOTimThanhVien(cur) === text ? cur : null));
+          }}
           onSelect={(val) => {
             const m = availableMembers.find((x) => String(x.userId) === val);
-            if (m) setSelectedMember(m);
+            if (!m) return;
+            setSelectedMember(m);
+            setTuKhoaThanhVien(tenOTimThanhVien(m));
           }}
           onSearch={(v) => {
+            if (availableMembers.some((m) => String(m.userId) === v)) return;
             if (!v.trim()) void loadAvailableMembers();
             else void loadAvailableMembers(v);
           }}
@@ -661,16 +806,16 @@ const SelectionSessionsPage: React.FC = () => {
         {selectedMember && (
           <Card size="small" style={{ marginBottom: 16 }} styles={{ body: { padding: 16 } }}>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              {selectedMember.academicTitle && (
+              {nhanHocHamHienThi(selectedMember.academicTitle) ? (
                 <Tag color="blue" style={{ marginRight: 6 }}>
-                  {selectedMember.academicTitle}
+                  {nhanHocHamHienThi(selectedMember.academicTitle)}
                 </Tag>
-              )}
-              {selectedMember.degree && (
+              ) : null}
+              {nhanHocViHienThi(selectedMember.degree) ? (
                 <Tag color="cyan" style={{ marginRight: 6 }}>
-                  {selectedMember.degree}
+                  {nhanHocViHienThi(selectedMember.degree)}
                 </Tag>
-              )}
+              ) : null}
               {selectedMember.fullName}
             </div>
             <div style={{ fontSize: 12, color: '#8c8c8c' }}>
@@ -681,7 +826,15 @@ const SelectionSessionsPage: React.FC = () => {
             {selectedMember.workEmail && (
               <div style={{ fontSize: 12, color: '#8c8c8c' }}>{selectedMember.workEmail}</div>
             )}
-            <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setSelectedMember(null)}>
+            <Button
+              type="link"
+              size="small"
+              style={{ padding: 0 }}
+              onClick={() => {
+                setSelectedMember(null);
+                setTuKhoaThanhVien('');
+              }}
+            >
               Chọn lại
             </Button>
           </Card>
@@ -749,7 +902,12 @@ const SelectionSessionsPage: React.FC = () => {
             label="Thời gian họp"
             rules={[{ required: true, message: 'Bắt buộc' }]}
           >
-            <DatePicker showTime style={{ width: '100%' }} />
+            {/* Chỉ giờ:phút + ngày; ẩn cột giây trong panel chọn thời gian */}
+            <DatePicker
+              showTime={{ format: 'HH:mm', showSecond: false }}
+              format="HH:mm DD-MM-YYYY"
+              style={{ width: '100%' }}
+            />
           </Form.Item>
           <Form.Item
             name="location"

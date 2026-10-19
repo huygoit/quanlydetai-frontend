@@ -135,6 +135,7 @@ export default function access(initialState: AccessInitialState | undefined) {
     canViewMyIdeas: canUsePersonalWorkspace && has(PERM.idea.view),
     canManageIdeaBank: has(PERM.idea.manage),
     canReviewIdea: has(PERM.idea.review),
+    canApproveIdea: has(PERM.idea.approve),
     canScoreIdea: has(PERM.council.score),
     // Menu Hội đồng chấm điểm: ai có council.view hoặc council.score (từ IAM) đều vào được
     canAccessCouncil: hasAny([PERM.council.view, PERM.council.score]),
@@ -158,6 +159,9 @@ export default function access(initialState: AccessInitialState | undefined) {
         PERM.project.update,
       ]),
     canUnitReviewProjectProposal: has(PERM.project.unit_review),
+    /** Hàng chờ hồ sơ đăng ký: trưởng đơn vị xử lý, PKH xem đơn đã chuyển */
+    canOpenRegistrationQueue:
+      has(PERM.project.unit_review) || has(PERM.project.review),
     canReviewProjectProposal: has(PERM.project.review) || has(PERM.project.selection_manage),
     /** PKH phân công phản biện kín (US-04-02) */
     canAssignOutlineBlindReview:
@@ -261,6 +265,7 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.submit) ||
       has(PERM.cfp.view) ||
       has(PERM.project.review) ||
+      has(PERM.project.unit_review) ||
       has(PERM.project.approve) ||
       hasWildcard,
 

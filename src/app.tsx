@@ -4,11 +4,12 @@
  */
 import { history, Link } from '@umijs/max';
 import type { RunTimeLayoutConfig } from '@umijs/max';
-import { Avatar, ConfigProvider, Dropdown, Space, message } from 'antd';
+import { Avatar, Badge, ConfigProvider, Dropdown, Space, message } from 'antd';
 import viVN from 'antd/locale/vi_VN';
 import { ProConfigProvider, createIntl } from '@ant-design/pro-components';
 import viVNPro from '@ant-design/pro-provider/es/locale/vi_VN';
 import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { useEffect, useState } from 'react';
 import * as allIcons from '@ant-design/icons';
 import type { UserRole } from '@/services/mock/homeMockService';
 import NotificationBell from '@/components/NotificationBell';
@@ -16,6 +17,7 @@ import { getCurrentUser, logout as apiLogout, normalizePermissions } from '@/ser
 import { getToken, removeToken } from '@/services/request';
 import { isAdminKeKhaiUser, isPersonalWorkspacePath } from '@/utils/adminKeKhai';
 import { hasAnyPermission, PERM } from '@/utils/permission';
+import { demDonDangKyChoXacNhan } from '@/services/api/proposalRegistrations';
 import {
   ganMenuConKetQuaNckh,
   taiNhomGocMenuKqnc,
@@ -316,23 +318,52 @@ const laVaiTroAnTrenUi = (code?: string | null) =>
 function layVaiTroHienThi(
   roles?: Array<{ id?: number; code?: string; name?: string }> | null,
   fallbackRole?: string,
-): { codes: string[]; label: string } {
+): { codes: string[]; labels: string[]; label: string } {
   const list = Array.isArray(roles) ? roles : [];
   const visible = list.filter((r) => !laVaiTroAnTrenUi(r?.code));
   if (visible.length > 0) {
-    const labels = visible.map(
-      (r) => (r.name || '').trim() || getRoleLabel(r.code) || String(r.code || ''),
-    );
+    const labels = visible
+      .map((r) => (r.name || '').trim() || getRoleLabel(r.code) || String(r.code || ''))
+      .filter(Boolean);
     return {
       codes: visible.map((r) => String(r.code || '')).filter(Boolean),
-      label: labels.filter(Boolean).join(', '),
+      labels,
+      label: labels.join(', '),
     };
   }
   // Không có roles từ API — fallback role đơn (vẫn ẩn BASIC)
   if (fallbackRole && !laVaiTroAnTrenUi(fallbackRole)) {
-    return { codes: [fallbackRole], label: getRoleLabel(fallbackRole) };
+    const ten = getRoleLabel(fallbackRole);
+    return { codes: [fallbackRole], labels: ten ? [ten] : [], label: ten };
   }
-  return { codes: [], label: '' };
+  return { codes: [], labels: [], label: '' };
+}
+
+/** Mỗi vai trò một dòng. Ưu tiên danh sách IAM, không thì tách chuỗi đã lưu. */
+function dsVaiTroTheoDong(user?: CurrentUser): string[] {
+  if (!user) return [];
+  const tuApi = layVaiTroHienThi(user.roles, user.role).labels;
+  if (tuApi.length) return tuApi;
+  return (user.roleLabel || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Số đơn đăng ký đang chờ người có quyền xác nhận, cùng đơn vị. */
+function MucDonChoXacNhan() {
+  const [so, setSo] = useState(0);
+  useEffect(() => {
+    demDonDangKyChoXacNhan()
+      .then((res) => setSo(Number(res.data?.count || 0)))
+      .catch(() => setSo(0));
+  }, []);
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      Đơn đăng ký chờ xác nhận
+      {so > 0 ? <Badge count={so} size="small" /> : null}
+    </span>
+  );
 }
 
 /**
@@ -341,6 +372,13 @@ function layVaiTroHienThi(
 export const layout: RunTimeLayoutConfig = ({ initialState }) => {
   const currentUser = initialState?.currentUser;
   const canUsePersonalWorkspace = !!currentUser && !isAdminKeKhaiUser(currentUser);
+  const dsVaiTro = dsVaiTroTheoDong(currentUser);
+  // Header chỉ cao đủ 2 dòng vai trò. Từ vai trò thứ 3 thì gộp vào dấu ...
+  const vaiTroTrenHeader = dsVaiTro.slice(0, 2);
+  const conVaiTroAn = dsVaiTro.length > 2;
+  const coQuyenXacNhanDangKy = hasAnyPermission(currentUser?.permissions ?? [], [
+    PERM.project.unit_review,
+  ]);
 
   // Helper function để lấy icon component từ tên
   const getIcon = (iconName?: string) => {
@@ -455,11 +493,11 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
                 label: (
                   <div className="khcn-user-dropdown-info">
                     <div className="khcn-user-name">{currentUser.name}</div>
-                    {currentUser.roleLabel ? (
-                      <div className="khcn-user-role" title={currentUser.roleLabel}>
-                        {currentUser.roleLabel}
+                    {dsVaiTro.map((ten, i) => (
+                      <div className="khcn-user-role" key={`${ten}-${i}`}>
+                        {ten}
                       </div>
-                    ) : null}
+                    ))}
                   </div>
                 ),
                 disabled: true,
@@ -482,6 +520,20 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
                       label: 'Ý tưởng của tôi',
                       onClick: () => history.push('/ideas/my'),
                     },
+                    {
+                      key: 'myProposals',
+                      label: 'Đề xuất đề tài của tôi',
+                      onClick: () => history.push('/projects/register?mine=1'),
+                    },
+                    ...(coQuyenXacNhanDangKy
+                      ? [
+                          {
+                            key: 'donDangKyChoXacNhan',
+                            label: <MucDonChoXacNhan />,
+                            onClick: () => history.push('/projects/dang-ky-cho-xac-nhan'),
+                          },
+                        ]
+                      : []),
                     {
                       key: 'myProjects',
                       label: 'Đề tài của tôi',
@@ -508,7 +560,17 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
               src={currentUser.avatar}
               style={{ backgroundColor: '#1890ff' }}
             />
-            <span className="khcn-user-name-top">{currentUser.name}</span>
+            <span className="khcn-user-text-top" title={dsVaiTro.join('\n')}>
+              <span className="khcn-user-name-top">{currentUser.name}</span>
+              {vaiTroTrenHeader.map((ten, i) => {
+                const laDongCuoiBiCat = conVaiTroAn && i === vaiTroTrenHeader.length - 1;
+                return (
+                  <span className="khcn-user-role-top" key={`${ten}-${i}`}>
+                    {laDongCuoiBiCat ? `${ten}...` : ten}
+                  </span>
+                );
+              })}
+            </span>
           </Space>
         </Dropdown>,
       ];

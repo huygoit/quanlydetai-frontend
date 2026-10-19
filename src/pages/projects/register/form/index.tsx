@@ -17,7 +17,6 @@ import {
   Button,
   Card,
   Col,
-  Divider,
   Form,
   Input,
   Modal,
@@ -41,15 +40,12 @@ import {
   submitCouncilAdjustment,
   getProposalAdjustmentVersions,
   extendProposalAdjustment,
-  getProposalMembers,
-  saveProposalMembers,
   PROPOSAL_STATUS_MAP,
   type ProposalCreateData,
   type ProposalLevel,
   type ProjectProposal,
   type ProposalAdjustmentVersion,
 } from '@/services/api/projectProposals';
-import type { PublicationAuthor } from '@/services/api/profilePublications';
 import { getActiveSubmissionPeriod } from '@/services/api/callForProposals';
 import {
   getProjectProcessTypeOptions,
@@ -57,7 +53,6 @@ import {
 } from '@/services/api/projectProcessTypes';
 import { openOrCreateOutlineFromProposal } from '@/services/api/projectOutlines';
 import ProposalAttachmentUpload from '@/components/ProposalAttachmentUpload';
-import AuthorsEditor from '@/components/AuthorsEditor';
 import { loadFieldSelectOptions, type SelectOption } from '@/utils/researchCatalogOptions';
 
 const { Text, Title, Paragraph } = Typography;
@@ -69,6 +64,18 @@ const QT_CODE_TO_LEVEL: Record<string, ProposalLevel> = {
   'QT-III': 'CO_SO',
   'QT-IV': 'NHA_NUOC',
   'QT-V': 'CO_SO',
+};
+
+/** Mã cấp ý tưởng cũ → QT (khớp BE IdeaToProposalService) */
+const LEGACY_LEVEL_TO_QT: Record<string, string> = {
+  TRUONG_THUONG_NIEN: 'QT-I',
+  TRUONG_DAT_HANG: 'QT-I',
+  DAI_HOC_DA_NANG: 'QT-II',
+  BO_GDDT: 'QT-II',
+  NHA_NUOC: 'QT-IV',
+  NAFOSTED: 'QT-IV',
+  TINH_THANH_PHO: 'QT-III',
+  DOANH_NGHIEP: 'QT-III',
 };
 
 const ProposalFormPage: React.FC = () => {
@@ -92,7 +99,6 @@ const ProposalFormPage: React.FC = () => {
     levels: string[];
   } | null>(null);
   const [kyHetHan, setKyHetHan] = useState(false);
-  const [members, setMembers] = useState<PublicationAuthor[]>([]);
   const [explanation, setExplanation] = useState('');
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [versions, setVersions] = useState<ProposalAdjustmentVersion[]>([]);
@@ -108,15 +114,16 @@ const ProposalFormPage: React.FC = () => {
     proposal?.status === 'RETURNED' ||
     proposal?.status === 'YEU_CAU_BS';
 
-  /** Form mở khi sửa thường hoặc đang điều chỉnh HĐ (chưa quá hạn).
-   * Tạo mới: luôn cho nhập để đổi cấp QT; chỉ chặn lúc Gửi nếu không có kỳ khớp. */
+  /** Nháp / trả lại vẫn soạn được khi chưa có kỳ. Chỉ chặn nút Gửi. */
+  const dangSoan =
+    !isEdit || proposal?.status === 'DRAFT' || proposal?.status === 'RETURNED';
   const formMo =
-    (coTheSua && (!isEdit || !kyHetHan || proposal?.status === 'YEU_CAU_BS')) ||
+    (coTheSua && (dangSoan || !kyHetHan || proposal?.status === 'YEU_CAU_BS')) ||
     (dangDieuChinh && !khoaTruongDieuChinh);
   const khoaTruongKhac =
     !coTheSua ||
     dangDieuChinh ||
-    (isEdit && kyHetHan && proposal?.status !== 'YEU_CAU_BS');
+    (isEdit && kyHetHan && !dangSoan && proposal?.status !== 'YEU_CAU_BS');
 
   const processTypeOptions = useMemo(
     () =>
@@ -130,6 +137,25 @@ const ProposalFormPage: React.FC = () => {
   const levelTuProcessTypeId = (processTypeId: number): ProposalLevel => {
     const row = processTypes.find((p) => Number(p.id) === Number(processTypeId));
     return (row && QT_CODE_TO_LEVEL[row.code]) || 'TRUONG';
+  };
+
+  /** Mã QT trên đề xuất → id danh mục để prefill multi-select */
+  const idsTuSuitableLevels = (proposalRow?: ProjectProposal | null): number[] => {
+    if (!proposalRow || !processTypes.length) return [];
+    const codes = (proposalRow.suitableLevels || [])
+      .map((c) => {
+        const raw = String(c || '').trim();
+        if (!raw) return '';
+        return raw.startsWith('QT-') ? raw : LEGACY_LEVEL_TO_QT[raw] || raw;
+      })
+      .filter(Boolean);
+    if (codes.length) {
+      return processTypes
+        .filter((p) => codes.includes(p.code))
+        .map((p) => Number(p.id));
+    }
+    if (proposalRow.projectProcessTypeId) return [Number(proposalRow.projectProcessTypeId)];
+    return [];
   };
 
   const kiemTraKy = async (level: ProposalLevel, processTypeId?: number | null) => {
@@ -196,12 +222,11 @@ const ProposalFormPage: React.FC = () => {
   useEffect(() => {
     if (!isEdit) return;
     setLoading(true);
-    Promise.all([getProposal(Number(id)), getProposalMembers(Number(id))])
-      .then(([res, memRes]) => {
+    getProposal(Number(id))
+      .then((res) => {
         const d = res.data;
         if (!d) return;
         setProposal(d);
-        setMembers(Array.isArray(memRes?.data) ? memRes.data : []);
         void kiemTraKy(d.level, d.projectProcessTypeId);
         if (
           d.status !== 'DRAFT' &&
@@ -219,21 +244,24 @@ const ProposalFormPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [id, isEdit]);
 
-  /** Lưu danh sách thành viên sau khi có id đề xuất */
-  const luuThanhVien = async (proposalId: number) => {
-    await saveProposalMembers(proposalId, members);
-  };
-
   if (!access.canCreateProjectProposal) {
     return <PageContainer>Bạn không có quyền nộp đề xuất đề tài.</PageContainer>;
   }
 
   const buildPayload = (values: Record<string, unknown>): ProposalCreateData => {
-    const projectProcessTypeId = Number(values.projectProcessTypeId);
+    const rawIds = Array.isArray(values.suitableProcessTypeIds)
+      ? (values.suitableProcessTypeIds as (number | string)[]).map(Number).filter((n) => n > 0)
+      : [];
+    const projectProcessTypeId =
+      rawIds[0] || Number(values.projectProcessTypeId) || 0;
+    const suitableLevels = processTypes
+      .filter((p) => rawIds.includes(Number(p.id)))
+      .map((p) => p.code);
     return {
       title: String(values.title || '').trim(),
       field: String(values.field || ''),
       projectProcessTypeId,
+      suitableLevels: suitableLevels.length ? suitableLevels : undefined,
       level: levelTuProcessTypeId(projectProcessTypeId),
       year: Number(values.year) || dayjs().year(),
       durationMonths: Number(values.durationMonths),
@@ -244,8 +272,6 @@ const ProposalFormPage: React.FC = () => {
         ? String(values.researchDirection).trim()
         : null,
       requestedBudgetTotal: Number(values.requestedBudgetTotal),
-      // coAuthors đồng bộ từ bảng members trên BE sau khi saveProposalMembers
-      coAuthors: members.map((m) => m.fullName).filter(Boolean),
       attachmentUrl: (values.attachmentUrl as string) || null,
     };
   };
@@ -271,13 +297,11 @@ const ProposalFormPage: React.FC = () => {
       if (isEdit) {
         const res = await updateProposal(Number(id), payload);
         setProposal(res.data || null);
-        await luuThanhVien(Number(id));
         message.success('Đã lưu nháp');
       } else {
         const res = await createProposal(payload);
         const newId = res.data?.id;
         if (newId) {
-          await luuThanhVien(newId);
           message.success('Đã tạo nháp');
           history.replace(`/projects/register/form/${newId}`);
         } else {
@@ -318,7 +342,6 @@ const ProposalFormPage: React.FC = () => {
         pid = res.data?.id || 0;
       }
       if (!pid) throw new Error('Không có mã đề xuất');
-      await luuThanhVien(pid);
       if (dangBoSungPkh) {
         await resubmitProposalToPkh(pid);
         message.success('Đã gửi lại hồ sơ cho PKH');
@@ -412,7 +435,15 @@ const ProposalFormPage: React.FC = () => {
             description="Hệ thống đối chiếu cấp bạn chọn với thông báo tuyển chọn đã công bố. Chọn đúng cấp trên CFP thì mới nộp được."
           />
         )}
-        {kyHetHan && (
+        {kyHetHan && dangSoan && (
+          <Alert
+            type="warning"
+            showIcon
+            message="Chưa có kỳ thông báo tuyển chọn đang mở"
+            description="Vẫn soạn và lưu được đề xuất. Nút gửi hồ sơ hiện khi Phòng KH mở kỳ cho cấp này."
+          />
+        )}
+        {kyHetHan && !dangSoan && (
           <Alert
             type="error"
             showIcon
@@ -567,6 +598,7 @@ const ProposalFormPage: React.FC = () => {
                   ? {
                       title: proposal.title,
                       field: proposal.field,
+                      suitableProcessTypeIds: idsTuSuitableLevels(proposal),
                       projectProcessTypeId: proposal.projectProcessTypeId,
                       year: proposal.year,
                       durationMonths: proposal.durationMonths,
@@ -577,6 +609,9 @@ const ProposalFormPage: React.FC = () => {
                       attachmentUrl: proposal.attachmentUrl,
                     }
                   : {
+                      suitableProcessTypeIds: defaultProcessTypeId
+                        ? [defaultProcessTypeId]
+                        : [],
                       projectProcessTypeId: defaultProcessTypeId,
                       year: dayjs().year(),
                       durationMonths: 12,
@@ -586,7 +621,7 @@ const ProposalFormPage: React.FC = () => {
               key={
                 proposal
                   ? `p-${proposal.id}-${proposal.updatedAt}`
-                  : `new-${processTypes.map((p) => p.id).join('-')}-${fieldOptions.length}`
+                  : 'new-proposal'
               }
             >
               <Row gutter={[16, 0]}>
@@ -602,25 +637,42 @@ const ProposalFormPage: React.FC = () => {
                 </Col>
                 <Col xs={24} md={12}>
                   <ProFormSelect
-                    name="projectProcessTypeId"
+                    name="suitableProcessTypeIds"
                     label="Cấp ý tưởng/đề tài"
                     options={processTypeOptions}
-                    rules={[{ required: true, message: 'Bắt buộc' }]}
+                    rules={[
+                      {
+                        required: true,
+                        type: 'array',
+                        min: 1,
+                        message: 'Chọn ít nhất một cấp',
+                      },
+                    ]}
                     disabled={khoaTruongKhac}
                     placeholder={
                       processTypeOptions.length
-                        ? 'Chọn cấp ý tưởng/đề tài'
+                        ? 'Chọn một hoặc nhiều cấp'
                         : 'Không có dữ liệu danh mục'
                     }
                     fieldProps={{
+                      mode: 'multiple',
                       size: 'large',
                       showSearch: true,
                       optionFilterProp: 'label',
                       loading: loadingTypes,
-                      onChange: (v: number) =>
-                        void kiemTraKy(levelTuProcessTypeId(v), v),
+                      onChange: (ids: number[]) => {
+                        const primary = ids?.[0];
+                        formRef.current?.setFieldsValue({
+                          projectProcessTypeId: primary,
+                        });
+                        if (primary) {
+                          void kiemTraKy(levelTuProcessTypeId(primary), primary);
+                        } else {
+                          void kiemTraKy('TRUONG', null);
+                        }
+                      },
                     }}
-                    extra="Nguồn: danh mục Cấp ý tưởng/đề tài (QT-I … QT-V)"
+                    extra="Có thể chọn nhiều cấp (giống ý tưởng). Cấp đầu tiên dùng để khớp kỳ tiếp nhận."
                   />
                 </Col>
                 <Col xs={24} md={12}>
@@ -672,7 +724,6 @@ const ProposalFormPage: React.FC = () => {
                       size: 'large',
                       style: { width: '100%' },
                       ...vndInputNumberProps,
-                      addonAfter: 'đ',
                     }}
                   />
                 </Col>
@@ -721,23 +772,6 @@ const ProposalFormPage: React.FC = () => {
                     disabled={khoaTruongKhac}
                     fieldProps={{ rows: 4, showCount: true, maxLength: 4000 }}
                   />
-                </Col>
-                <Col span={24}>
-                  <Divider orientation="left" plain>
-                    Danh sách thành viên
-                  </Divider>
-                  <Form.Item
-                    label="Thành viên tham gia"
-                    extra="Chọn từ hồ sơ NCV/sinh viên hoặc nhập tay. Không bắt buộc. Có thể bỏ trống."
-                  >
-                    <AuthorsEditor
-                      value={members}
-                      onChange={setMembers}
-                      disabled={khoaTruongKhac}
-                      hideRoleColumns
-                      showContribution
-                    />
-                  </Form.Item>
                 </Col>
                 <Col span={24}>
                   <Form.Item
@@ -793,20 +827,20 @@ const ProposalFormPage: React.FC = () => {
             Nộp lại điều chỉnh
           </Button>
         )}
+        {coTheSua && (dangSoan || !kyHetHan || proposal?.status === 'YEU_CAU_BS') && (
+          <Button icon={<SaveOutlined />} loading={saving} onClick={() => void luuNhap()}>
+            Lưu
+          </Button>
+        )}
         {coTheSua && (!kyHetHan || proposal?.status === 'YEU_CAU_BS') && (
-          <>
-            <Button icon={<SaveOutlined />} loading={saving} onClick={() => void luuNhap()}>
-              Lưu
-            </Button>
-            <Button
-              type="primary"
-              icon={<SendOutlined />}
-              loading={submitting}
-              onClick={() => void guiHoSo()}
-            >
-              {proposal?.status === 'YEU_CAU_BS' ? 'Gửi lại PKH' : 'Gửi lên Khoa'}
-            </Button>
-          </>
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            loading={submitting}
+            onClick={() => void guiHoSo()}
+          >
+            {proposal?.status === 'YEU_CAU_BS' ? 'Gửi lại PKH' : 'Gửi lên Khoa'}
+          </Button>
         )}
       </FooterToolbar>
 

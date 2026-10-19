@@ -60,6 +60,12 @@ export default defineConfig({
       component: '@/pages/user/Register',
       layout: false,
     },
+    {
+      path: '/projects/call-for-proposals/:id/xem',
+      component: '@/pages/projects/call-for-proposals/xem',
+      layout: false,
+      access: 'canViewCfp',
+    },
 
     {
       path: '/home',
@@ -177,6 +183,13 @@ export default defineConfig({
       access: 'canViewProjectsSection',
       routes: [
         {
+          path: '/projects/register',
+          name: 'Danh mục nhiệm vụ đề xuất',
+          icon: 'FormOutlined',
+          component: '@/pages/projects/register',
+          access: 'canViewProjectRegister',
+        },
+        {
           path: '/projects/call-for-proposals',
           name: 'Thông báo tuyển chọn',
           icon: 'NotificationOutlined',
@@ -199,7 +212,7 @@ export default defineConfig({
         },
         {
           path: '/projects/call-for-proposals/news',
-          name: 'Tin tuyển chọn đề tài',
+          name: 'Tin tức tuyển chọn nhiệm vụ',
           icon: 'ReadOutlined',
           component: '@/pages/projects/call-for-proposals/news',
           access: 'canViewCfp',
@@ -217,13 +230,6 @@ export default defineConfig({
           component: '@/pages/projects/call-for-proposals/detail',
           access: 'canViewCfp',
           hideInMenu: true,
-        },
-        {
-          path: '/projects/register',
-          name: 'Đăng ký đề xuất đề tài',
-          icon: 'FormOutlined',
-          component: '@/pages/projects/register',
-          access: 'canViewProjectRegister',
         },
         {
           path: '/projects/pkh-review',
@@ -293,6 +299,20 @@ export default defineConfig({
           name: 'Chi tiết hợp đồng',
           component: '@/pages/projects/contracts/detail',
           access: 'canViewProjectContracts',
+          hideInMenu: true,
+        },
+        {
+          path: '/projects/dang-ky-cho-xac-nhan',
+          name: 'Đơn đăng ký chờ xác nhận',
+          component: '@/pages/projects/dang-ky-cho-xac-nhan',
+          access: 'canOpenRegistrationQueue',
+          hideInMenu: true,
+        },
+        {
+          path: '/projects/dang-ky',
+          name: 'Đăng ký thực hiện',
+          component: '@/pages/projects/dang-ky',
+          access: 'canViewCfp',
           hideInMenu: true,
         },
         {

@@ -71,6 +71,8 @@ interface AuthorsEditorProps {
   hideRoleColumns?: boolean;
   /** Nhãn nút thêm dòng (mặc định: Thêm tác giả / Thêm thành viên khi hideRoleColumns). */
   addRowLabel?: string;
+  /** Trần số dòng. Hết chỗ thì ẩn nút thêm. */
+  maxRows?: number;
 }
 
 type AuthorEditableRow = PublicationAuthor & { id: React.Key };
@@ -83,6 +85,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   showContribution = false,
   hideRoleColumns = false,
   addRowLabel,
+  maxRows,
 }) => {
   const nhanDong = hideRoleColumns ? 'thành viên' : 'tác giả';
   const nhanThemDong = addRowLabel || (hideRoleColumns ? 'Thêm thành viên' : 'Thêm tác giả');
@@ -102,6 +105,10 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
   const dataSourceRef = useRef<AuthorEditableRow[]>([]);
   /** Dòng vừa bấm "Bỏ liên kết" — không khôi phục profileId/studentId trong merge. */
   const unlinkingRowIdsRef = useRef<Set<string>>(new Set());
+  /** Sau chọn NCV: khóa họ tên/profile theo rowKey — chống ProTable onChange đè thành rỗng. */
+  const khoaSauChonRef = useRef<
+    Map<string, Pick<AuthorEditableRow, 'fullName' | 'profileId' | 'studentId' | 'gender'>>
+  >(new Map());
   dataSourceRef.current = dataSource;
 
   useEffect(() => {
@@ -249,8 +256,12 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       }
     }
 
+    if (maxRows != null && dataSource.length > maxRows) {
+      errors.push(`Chỉ được tối đa ${maxRows} ${nhanDong}`);
+    }
+
     return { errors, warnings, n, p, isValid: errors.length === 0 };
-  }, [dataSource, ownerProfileId, showContribution, hideRoleColumns, nhanDong]);
+  }, [dataSource, ownerProfileId, showContribution, hideRoleColumns, nhanDong, maxRows]);
 
   /** Tìm dòng tương ứng trước đó: ưu id (cả so khớp chuỗi), rồi profileId, rồi STT — tránh mất merge khi Pro Table đổi kiểu key hoặc gửi form rỗng. */
   function timDongTuongUng(prevDs: AuthorEditableRow[], row: AuthorEditableRow): AuthorEditableRow | undefined {
@@ -285,17 +296,31 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
           proposalMemberRole: next.proposalMemberRole ?? prevRow.proposalMemberRole,
         };
       }
+      const khoaKey = String(row.id ?? prevRow?.id ?? '');
+      const banChon = khoaKey ? khoaSauChonRef.current.get(khoaKey) : undefined;
+      if (banChon && !unlinkingRowIdsRef.current.has(khoaKey)) {
+        next = { ...next, ...banChon };
+      }
       if (prevRow) {
         const rowKey = String(prevRow.id);
         const vuaBoLienKet = unlinkingRowIdsRef.current.has(rowKey);
         const tenMoi = String(next.fullName ?? '').trim();
         const tenCu = String(prevRow.fullName ?? '').trim();
+        // ProTable thoát edit / form lồng có thể gửi fullName rỗng — giữ bản đã chọn NCV.
         if (!tenMoi && tenCu) next = { ...next, fullName: prevRow.fullName };
         if (!vuaBoLienKet && next.profileId == null && prevRow.profileId != null) {
-          next = { ...next, profileId: prevRow.profileId };
+          next = {
+            ...next,
+            profileId: prevRow.profileId,
+            fullName: tenMoi || prevRow.fullName,
+          };
         }
         if (!vuaBoLienKet && next.studentId == null && prevRow.studentId != null) {
-          next = { ...next, studentId: prevRow.studentId };
+          next = {
+            ...next,
+            studentId: prevRow.studentId,
+            fullName: tenMoi || prevRow.fullName,
+          };
         }
         if (!vuaBoLienKet && next.gender == null && prevRow.gender != null) {
           next = { ...next, gender: prevRow.gender };
@@ -360,20 +385,25 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
 
   const applyProfilePick = (item: AuthorProfileLookupItem) => {
     if (pickerRowKey == null) return;
+    const key = pickerRowKey;
     const hoTen = tenTuLookup(item);
     const gender = normalizeAuthorGender(item.gender);
-    editableFormRef.current?.setRowData?.(pickerRowKey, {
+    const patch = {
       fullName: hoTen,
       profileId: item.id,
-      studentId: null,
+      studentId: null as null,
       gender,
-    });
+    };
+    khoaSauChonRef.current.set(String(key), patch);
     const newData = dataSourceRef.current.map((r) =>
-      String(r.id) === String(pickerRowKey)
-        ? { ...r, fullName: hoTen, profileId: item.id, studentId: null, gender }
-        : r
+      String(r.id) === String(key) ? { ...r, ...patch } : r,
     );
     handleDataChange(newData);
+    try {
+      editableFormRef.current?.setRowData?.(key, patch);
+    } catch {
+      /* ignore */
+    }
     setPickerOpen(false);
     setPickerRowKey(null);
   };
@@ -412,20 +442,25 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
 
   const applyStudentPick = (item: AuthorStudentLookupItem) => {
     if (pickerRowKey == null) return;
+    const key = pickerRowKey;
     const hoTen = tenTuStudentLookup(item);
     const gender = normalizeAuthorGender(item.gender);
-    editableFormRef.current?.setRowData?.(pickerRowKey, {
+    const patch = {
       fullName: hoTen,
-      profileId: null,
+      profileId: null as null,
       studentId: item.id,
       gender,
-    });
+    };
+    khoaSauChonRef.current.set(String(key), patch);
     const newData = dataSourceRef.current.map((r) =>
-      String(r.id) === String(pickerRowKey)
-        ? { ...r, fullName: hoTen, profileId: null, studentId: item.id, gender }
-        : r
+      String(r.id) === String(key) ? { ...r, ...patch } : r,
     );
     handleDataChange(newData);
+    try {
+      editableFormRef.current?.setRowData?.(key, patch);
+    } catch {
+      /* ignore */
+    }
     setPickerOpen(false);
     setPickerRowKey(null);
   };
@@ -434,6 +469,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
     if (rowMatchesOwner(record, ownerProfileId)) return;
     const rowKey = String(record.id);
     unlinkingRowIdsRef.current.add(rowKey);
+    khoaSauChonRef.current.delete(rowKey);
     const newData = dataSourceRef.current.map((r) =>
       String(r.id) === rowKey
         ? { ...r, profileId: null, studentId: null, gender: null }
@@ -560,7 +596,12 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
       title: hideRoleColumns ? 'Họ và tên' : 'Họ tên',
       dataIndex: 'fullName',
       width: hideRoleColumns ? 280 : 260,
-      editable: (_, record) => choPhepSuaThongTin(record),
+      // Đã gắn hồ sơ NCV/SV: không dùng Input (hay bị trống) — hiện tên bằng render.
+      editable: (_, record) => {
+        const live =
+          dataSourceRef.current.find((r) => String(r.id) === String(record?.id)) || record;
+        return choPhepSuaThongTin(live) && laTacGiaNhapTay(live);
+      },
       formItemProps: {
         rules: [{ required: true, message: 'Bắt buộc' }],
       },
@@ -570,71 +611,99 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
           : 'Tác giả ngoài: nhập tay. NCV nội bộ: bấm “Chọn hồ sơ”.',
       },
       /** Hiển thị: ID · học hàm · học vị · họ tên (đã liên kết) hoặc đúng như nhập tay */
-      render: (_, record) => (
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <Text strong>{nhanHienThiHoTen(record)}</Text>
-          {laDongChuDangNhap(record, ownerProfileId) && (
-            <Tag color="purple" style={{ margin: 0 }}>
-              Bạn (chỉ đổi vai trò)
-            </Tag>
-          )}
-          <Space size={4} wrap>
-            <Button
-              type="link"
-              size="small"
-              disabled={disabled || laDongChuDangNhap(record, ownerProfileId)}
-              onClick={() => openPicker(record)}
-              style={{ padding: 0 }}
-            >
-              Chọn từ hồ sơ NCV
-            </Button>
-            {(record.profileId != null || record.studentId != null) &&
-              !rowMatchesOwner(record, ownerProfileId) && (
-                <Button
-                  type="link"
-                  size="small"
-                  danger
-                  disabled={disabled}
-                  onClick={() => clearProfileLink(record)}
-                  style={{ padding: 0 }}
-                >
-                  Bỏ liên kết
-                </Button>
-              )}
-          </Space>
-        </Space>
-      ),
-      renderFormItem: (_, { defaultRender, record }) => (
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          {defaultRender ? defaultRender(_) : null}
-          {record && (
+      render: (_, record) => {
+        const live =
+          dataSourceRef.current.find((r) => String(r.id) === String(record.id)) || record;
+        return (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Text strong>{nhanHienThiHoTen(live)}</Text>
+            {laDongChuDangNhap(live, ownerProfileId) && (
+              <Tag color="purple" style={{ margin: 0 }}>
+                Bạn (chỉ đổi vai trò)
+              </Tag>
+            )}
             <Space size={4} wrap>
               <Button
                 type="link"
                 size="small"
-                disabled={disabled || laDongChuDangNhap(record, ownerProfileId)}
-                onClick={() => openPicker(record)}
+                disabled={disabled || laDongChuDangNhap(live, ownerProfileId)}
+                onClick={() => openPicker(live)}
                 style={{ padding: 0 }}
               >
                 Chọn từ hồ sơ NCV
               </Button>
-              {(record.profileId != null || record.studentId != null) &&
-                !rowMatchesOwner(record, ownerProfileId) && (
+              {(live.profileId != null || live.studentId != null) &&
+                !rowMatchesOwner(live, ownerProfileId) && (
                   <Button
                     type="link"
                     size="small"
                     danger
                     disabled={disabled}
-                    onClick={() => clearProfileLink(record)}
+                    onClick={() => clearProfileLink(live)}
                     style={{ padding: 0 }}
                   >
                     Bỏ liên kết
                   </Button>
                 )}
             </Space>
-          )}
-        </Space>
-      ),
+          </Space>
+        );
+      },
+      renderFormItem: (_, { defaultRender, record }) => {
+        const live =
+          (record &&
+            dataSourceRef.current.find((r) => String(r.id) === String(record.id))) ||
+          record;
+        // Đã chọn hồ sơ: hiện tên (không Input trống).
+        if (live && !laTacGiaNhapTay(live)) {
+          return (
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <Text strong>{nhanHienThiHoTen(live)}</Text>
+              <Space size={4} wrap>
+                <Button
+                  type="link"
+                  size="small"
+                  disabled={disabled || laDongChuDangNhap(live, ownerProfileId)}
+                  onClick={() => openPicker(live)}
+                  style={{ padding: 0 }}
+                >
+                  Chọn từ hồ sơ NCV
+                </Button>
+                {!rowMatchesOwner(live, ownerProfileId) && (
+                  <Button
+                    type="link"
+                    size="small"
+                    danger
+                    disabled={disabled}
+                    onClick={() => clearProfileLink(live)}
+                    style={{ padding: 0 }}
+                  >
+                    Bỏ liên kết
+                  </Button>
+                )}
+              </Space>
+            </Space>
+          );
+        }
+        return (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            {defaultRender ? defaultRender(_) : null}
+            {live && (
+              <Space size={4} wrap>
+                <Button
+                  type="link"
+                  size="small"
+                  disabled={disabled || laDongChuDangNhap(live, ownerProfileId)}
+                  onClick={() => openPicker(live)}
+                  style={{ padding: 0 }}
+                >
+                  Chọn từ hồ sơ NCV
+                </Button>
+              </Space>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: 'Giới tính',
@@ -876,7 +945,7 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         value={dataSource}
         onChange={(rows) => handleDataChange(rows as AuthorEditableRow[])}
         recordCreatorProps={
-          disabled
+          disabled || (maxRows != null && dataSource.length >= maxRows)
             ? false
             : {
                 position: 'bottom',
@@ -942,6 +1011,11 @@ const AuthorsEditor: React.FC<AuthorsEditorProps> = ({
         bordered
         size="small"
       />
+      {maxRows != null ? (
+        <div style={{ marginTop: 8, color: '#8c8c8c', fontSize: 13 }}>
+          {dataSource.length}/{maxRows} {nhanDong}. Hết chỗ thì không thêm được nữa.
+        </div>
+      ) : null}
 
       <Modal
         title="Chọn liên kết nội bộ"

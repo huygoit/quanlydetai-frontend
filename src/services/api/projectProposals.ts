@@ -56,9 +56,15 @@ export interface ProjectProposal {
   researchOutputType?: { id: number; code: string; name: string } | null;
   researchDirection?: string | null;
   attachmentUrl?: string | null;
+  /** Số thành viên tối đa khi đăng ký thực hiện */
+  maxMembers?: number;
+  /** Bắt buộc file đăng ký / thuyết minh sơ bộ */
+  requireRegistrationFile?: boolean;
   callForProposalId?: number | null;
   projectProcessTypeId?: number | null;
   projectProcessType?: { id: number; code: string; name: string } | null;
+  /** Các cấp phù hợp (mã QT-*), copy từ ý tưởng */
+  suitableLevels?: string[];
   supplementDueAt?: string | null;
   supplementOverdue?: boolean;
   pkhComment?: string | null;
@@ -100,8 +106,10 @@ export interface ProposalQueryParams {
 export interface ProposalCreateData {
   title: string;
   field: string;
-  /** Phân cấp đề tài = loại quy trình (QT-I…) */
+  /** Phân cấp chính = loại quy trình (QT-I…) — khớp kỳ CFP */
   projectProcessTypeId: number;
+  /** Các cấp phù hợp (mã QT-*) */
+  suitableLevels?: string[];
   /** Tuỳ chọn — BE tự suy từ QT nếu thiếu */
   level?: ProposalLevel;
   year: number;
@@ -118,6 +126,8 @@ export interface ProposalCreateData {
   researchOutputTypeId?: number | null;
   researchDirection?: string | null;
   attachmentUrl?: string | null;
+  maxMembers?: number;
+  requireRegistrationFile?: boolean;
 }
 
 export async function queryProposals(

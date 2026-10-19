@@ -10,12 +10,16 @@ import {
   FooterToolbar,
   type ProFormInstance,
 } from '@ant-design/pro-components';
-import { Card, message, Button, Form } from 'antd';
+import { Card, message, Button, Form, Modal, Space } from 'antd';
+import { DownloadOutlined, EyeOutlined, SendOutlined } from '@ant-design/icons';
 import { history, useParams, useAccess } from '@umijs/max';
 import { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import {
+  attachCfpProposals,
   createCallForProposal,
+  downloadCfpNotice,
+  submitCallForProposal,
   updateCallForProposal,
   getCallForProposal,
   CFP_PERIOD_KIND_OPTIONS,
@@ -24,6 +28,7 @@ import {
 import { getProjectProcessTypeOptions } from '@/services/api/projectProcessTypes';
 import PublicationAttachmentUpload from '@/components/PublicationForm/PublicationAttachmentUpload';
 import RichTextHtmlField from '@/components/RichTextHtmlField';
+import NhiemVuThongBao from '../detail/NhiemVuThongBao';
 
 /** Tự sinh nhãn kỳ theo loại kỳ + ngày hiện tại (field ẩn trên form). */
 const sinhNhanKy = (periodKind: string, ngay = dayjs()) => {
@@ -74,7 +79,12 @@ const CfpFormPage: React.FC = () => {
   const access = useAccess();
   const [loading, setLoading] = useState(false);
   const [initial, setInitial] = useState<Partial<CfpWritePayload> | undefined>();
+  const [capIds, setCapIds] = useState<number[]>([]);
   const formRef = useRef<ProFormInstance>();
+  const nhiemVuChoGanRef = useRef<number[]>([]);
+  const [dangXem, setDangXem] = useState(false);
+  const [dangTaiFile, setDangTaiFile] = useState(false);
+  const [dangTrinh, setDangTrinh] = useState(false);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -88,12 +98,14 @@ const CfpFormPage: React.FC = () => {
           history.push(`/projects/call-for-proposals/${d.id}`);
           return;
         }
+        const cap = (d.projectProcessTypeIds || []).map(Number);
+        setCapIds(cap);
         setInitial({
           title: d.title,
           periodKind: d.periodKind,
           periodLabel: d.periodLabel,
           deadlineAt: d.deadlineAt ? dayjs(d.deadlineAt).format('YYYY-MM-DD') : undefined,
-          projectProcessTypeIds: d.projectProcessTypeIds || [],
+          projectProcessTypeIds: cap,
           contentHtml: d.contentHtml || '',
           attachmentUrls: d.attachmentUrls || [],
         });
@@ -101,6 +113,110 @@ const CfpFormPage: React.FC = () => {
       .catch((e) => message.error(e?.message || 'Không tải được'))
       .finally(() => setLoading(false));
   }, [id, isEdit]);
+
+  const lapPayload = (values: Record<string, any>): CfpWritePayload | null => {
+    const deadlineAt = chuanHoaHanNop(values.deadlineAt);
+    if (!deadlineAt) {
+      message.error('Ngày hạn nộp không hợp lệ.');
+      return null;
+    }
+    return {
+      title: values.title,
+      periodKind: values.periodKind,
+      periodLabel: values.periodLabel || sinhNhanKy(values.periodKind),
+      deadlineAt,
+      projectProcessTypeIds: (values.projectProcessTypeIds || []).map(Number),
+      contentHtml: values.contentHtml || null,
+      attachmentUrls: values.attachmentUrls || [],
+    };
+  };
+
+  const luuDeXuat = async (): Promise<number | null> => {
+    let values: Record<string, any>;
+    try {
+      values = (await formRef.current?.validateFields()) || {};
+    } catch {
+      return null;
+    }
+    const payload = lapPayload(values);
+    if (!payload) return null;
+    if (isEdit && id) {
+      await updateCallForProposal(Number(id), payload);
+      return Number(id);
+    }
+    const res = await createCallForProposal(payload);
+    const newId = Number(res.data?.id);
+    if (!newId) return null;
+    const choGan = nhiemVuChoGanRef.current;
+    if (choGan.length) {
+      try {
+        await attachCfpProposals(newId, choGan);
+        nhiemVuChoGanRef.current = [];
+      } catch {
+        message.warning('Đã tạo nháp nhưng chưa gắn được nhiệm vụ. Mở lại form để thêm.');
+        history.push(`/projects/call-for-proposals/form/${newId}`);
+        return null;
+      }
+    }
+    return newId;
+  };
+
+  const xemThongBao = async () => {
+    if (!isEdit || !id) {
+      message.warning('Lưu nháp trước để xem thông báo.');
+      return;
+    }
+    setDangXem(true);
+    try {
+      const savedId = await luuDeXuat();
+      if (!savedId) return;
+      window.open(`/projects/call-for-proposals/${savedId}/xem`, '_blank', 'noopener,noreferrer');
+    } catch (e: any) {
+      if (!e?.response && e?.message) message.error(e.message);
+    } finally {
+      setDangXem(false);
+    }
+  };
+
+  const taiThongBao = async () => {
+    if (!isEdit || !id) {
+      message.warning('Lưu nháp trước để tải thông báo.');
+      return;
+    }
+    setDangTaiFile(true);
+    try {
+      const savedId = await luuDeXuat();
+      if (!savedId) return;
+      await downloadCfpNotice(savedId);
+    } catch (e: any) {
+      message.error(e?.message || 'Tải thông báo thất bại');
+    } finally {
+      setDangTaiFile(false);
+    }
+  };
+
+  const trinhBgh = () => {
+    Modal.confirm({
+      title: 'Trình BGH duyệt thông báo này?',
+      content: 'Nội dung hiện tại sẽ được lưu, rồi chuyển sang chờ BGH duyệt.',
+      okText: 'Trình BGH',
+      cancelText: 'Hủy',
+      onOk: async () => {
+        setDangTrinh(true);
+        try {
+          const savedId = await luuDeXuat();
+          if (!savedId) return;
+          await submitCallForProposal(savedId);
+          message.success('Đã trình BGH');
+          history.push(`/projects/call-for-proposals/${savedId}`);
+        } catch (e: any) {
+          if (!e?.response && e?.message) message.error(e.message);
+        } finally {
+          setDangTrinh(false);
+        }
+      },
+    });
+  };
 
   if (isEdit && !access.canUpdateCfp) {
     return <PageContainer>Bạn không có quyền sửa.</PageContainer>;
@@ -124,32 +240,23 @@ const CfpFormPage: React.FC = () => {
               attachmentUrls: [],
             }
           }
-          onFinish={async (values) => {
-            const deadlineAt = chuanHoaHanNop(values.deadlineAt);
-            if (!deadlineAt) {
-              message.error('Ngày hạn nộp không hợp lệ.');
-              return false;
+          onValuesChange={(changed) => {
+            if (changed.projectProcessTypeIds) {
+              setCapIds(
+                (changed.projectProcessTypeIds as number[]).map(Number).filter((n) => n > 0),
+              );
             }
-            const payload: CfpWritePayload = {
-              title: values.title,
-              periodKind: values.periodKind,
-              // Field ẩn: nếu trống thì tự sinh theo loại kỳ
-              periodLabel: values.periodLabel || sinhNhanKy(values.periodKind),
-              deadlineAt,
-              projectProcessTypeIds: (values.projectProcessTypeIds || []).map(Number),
-              contentHtml: values.contentHtml || null,
-              attachmentUrls: values.attachmentUrls || [],
-            };
+          }}
+          onFinish={async () => {
             try {
+              const savedId = await luuDeXuat();
+              if (!savedId) return false;
               if (isEdit) {
-                const res = await updateCallForProposal(Number(id), payload);
-                message.success('Đã cập nhật');
-                history.push(`/projects/call-for-proposals/${res.data?.id || id}`);
-              } else {
-                const res = await createCallForProposal(payload);
-                message.success('Đã tạo nháp');
-                history.push(`/projects/call-for-proposals/${res.data?.id}`);
+                message.success('Lưu thông báo thành công !');
+                return true;
               }
+              message.success('Đã tạo nháp');
+              history.push(`/projects/call-for-proposals/${savedId}`);
               return true;
             } catch (e: any) {
               message.error(e?.data?.message || e?.message || 'Lưu thất bại');
@@ -159,12 +266,33 @@ const CfpFormPage: React.FC = () => {
           submitter={{
             searchConfig: { submitText: 'Lưu nháp' },
             resetButtonProps: { style: { display: 'none' } },
-            // Thanh nút cố định dưới cùng khi cuộn trang
             render: (_, dom) => (
-              <FooterToolbar>
-                <Button onClick={() => history.push('/projects/call-for-proposals')}>
-                  Quay lại
-                </Button>
+              <FooterToolbar
+                extra={
+                  <Space>
+                    <Button icon={<EyeOutlined />} loading={dangXem} onClick={() => void xemThongBao()}>
+                      Xem thông báo
+                    </Button>
+                    <Button
+                      icon={<DownloadOutlined />}
+                      loading={dangTaiFile}
+                      onClick={() => void taiThongBao()}
+                    >
+                      Tải về
+                    </Button>
+                    {access.canSubmitCfp ? (
+                      <Button
+                        icon={<SendOutlined />}
+                        loading={dangTrinh}
+                        onClick={trinhBgh}
+                      >
+                        Trình BGH
+                      </Button>
+                    ) : null}
+                  </Space>
+                }
+              >
+                <Button onClick={() => history.push('/projects/call-for-proposals')}>Quay lại</Button>
                 {dom}
               </FooterToolbar>
             ),
@@ -246,6 +374,19 @@ const CfpFormPage: React.FC = () => {
             <PublicationAttachmentUpload />
           </Form.Item>
         </ProForm>
+        <div style={{ marginTop: 8 }}>
+          {isEdit ? (
+            <NhiemVuThongBao cfpId={Number(id)} coTheSua />
+          ) : (
+            <NhiemVuThongBao
+              processTypeIds={capIds}
+              coTheSua
+              onPendingChange={(ids) => {
+                nhiemVuChoGanRef.current = ids;
+              }}
+            />
+          )}
+        </div>
       </Card>
     </PageContainer>
   );

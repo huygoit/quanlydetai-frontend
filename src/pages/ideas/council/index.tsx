@@ -24,7 +24,6 @@ import {
   Row, 
   Select,
   Space, 
-  Statistic, 
   Table, 
   Tabs,
   Tag, 
@@ -49,7 +48,49 @@ import {
   UserAddOutlined,
 } from '@ant-design/icons';
 import { useRef, useState, useEffect } from 'react';
-import { useAccess } from '@umijs/max';
+import { coHienThiHocHam, nhanNhanHocHam, nhanNhanHocVi } from '@/utils/profileCatalogOptions';
+import PhieuChamModal, { donViHienThi, TheKetQuaChung, tinhKetQuaChung } from './PhieuChamModal';
+import { history, useAccess, useLocation, useModel } from '@umijs/max';
+
+/** Học hàm NONE là "không có học hàm" — không gắn trước tên. */
+function nhanHocHamHienThi(code?: string | null): string {
+  if (!coHienThiHocHam(code)) return '';
+  return nhanNhanHocHam([], code) || '';
+}
+
+function nhanHocViHienThi(code?: string | null): string {
+  return nhanNhanHocVi([], code) || '';
+}
+
+/** Chữ trong ô tìm sau khi chọn — chỉ họ tên, học hàm/học vị nằm badge trong danh sách. */
+function tenOTimThanhVien(m: { fullName?: string | null }): string {
+  return (m.fullName || '').trim();
+}
+
+/** Phần tiếng Việt trong ngoặc của tên trường song ngữ. */
+function tenTruongHienThi(organization?: string | null): string {
+  const raw = organization?.trim() ?? '';
+  if (!raw) return '';
+  const khop = raw.match(/\(([^)]+)\)\s*$/);
+  return (khop?.[1] ?? raw).trim();
+}
+
+/** Tên đơn vị từ danh mục, kèm tên trường. Bỏ chuỗi đơn vị cũ và tên tiếng Anh. */
+function donViThanhVien(m: {
+  unit?: string | null;
+  faculty?: string | null;
+  organization?: string | null;
+}): string {
+  const tuApi = m.unit?.trim() ?? '';
+  const laChuoiCu = tuApi.includes('University of') || tuApi.includes(' – ');
+  const truong = tenTruongHienThi(m.organization);
+  if (tuApi && !laChuoiCu) {
+    if (truong && !tuApi.includes(truong)) return `${tuApi}, ${truong}`;
+    return tuApi;
+  }
+  const donVi = m.faculty?.trim() || '';
+  return [donVi, truong && !donVi.includes(truong) ? truong : ''].filter(Boolean).join(', ');
+}
 import {
   querySessions,
   getSession,
@@ -91,6 +132,11 @@ const { Text, Title } = Typography;
 
 const CouncilPage: React.FC = () => {
   const access = useAccess();
+  const location = useLocation();
+  const { initialState } = useModel('@@initialState');
+  const maNguoiDung = Number(initialState?.currentUser?.id);
+  const laNguoiTaoPhien = (session: CouncilSession) =>
+    Number.isFinite(maNguoiDung) && maNguoiDung > 0 && maNguoiDung === Number(session.createdById);
   const actionRef = useRef<ActionType>();
   
   // Session list state
@@ -113,6 +159,7 @@ const CouncilPage: React.FC = () => {
   const [loadingAvailableIdeas, setLoadingAvailableIdeas] = useState(false);
   const [availableMembers, setAvailableMembers] = useState<AvailableMember[]>([]);
   const [selectedMember, setSelectedMember] = useState<AvailableMember | null>(null);
+  const [tuKhoaThanhVien, setTuKhoaThanhVien] = useState('');
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [memberRole, setMemberRole] = useState<SessionMemberRole>('UY_VIEN');
   
@@ -138,6 +185,7 @@ const CouncilPage: React.FC = () => {
   const [scoringStats, setScoringStats] = useState<any>(null);
   const [allScoresDrawerVisible, setAllScoresDrawerVisible] = useState(false);
   const [ideaScores, setIdeaScores] = useState<IdeaCouncilScore[]>([]);
+  const [phieuDangXem, setPhieuDangXem] = useState<IdeaCouncilScore | null>(null);
 
   // Load sessions
   const loadSessions = async () => {
@@ -177,10 +225,11 @@ const CouncilPage: React.FC = () => {
     const ideasRes = await getSessionIdeas(session.id);
     if (ideasRes.success) setSessionIdeas(ideasRes.data);
     
-    // Load results if closed
-    if (['CLOSED', 'PUBLISHED'].includes(session.status)) {
+    if (session.status !== 'DRAFT') {
       const resultsRes = await getSessionResults(session.id);
-      if (resultsRes.success) setResults(resultsRes.data);
+      if (resultsRes.success) setResults(resultsRes.data ?? []);
+    } else {
+      setResults([]);
     }
     
     // Load stats từ API stats (tính theo số phiếu chấm đã submit)
@@ -193,6 +242,28 @@ const CouncilPage: React.FC = () => {
       });
     }
   };
+
+  // Thông báo mở phiên dẫn về danh sách, rồi tự mở Chi tiết đúng phiên.
+  useEffect(() => {
+    const phienId = Number(new URLSearchParams(location.search).get('phien'));
+    if (!Number.isFinite(phienId) || phienId <= 0) return;
+    let daHuy = false;
+    (async () => {
+      try {
+        const res = await getSession(phienId);
+        if (!daHuy && res?.success && res.data) {
+          await loadSessionDetail(res.data);
+        }
+      } catch {
+        if (!daHuy) message.warning('Không mở được phiên từ thông báo.');
+      } finally {
+        if (!daHuy) history.replace('/ideas/council');
+      }
+    })();
+    return () => {
+      daHuy = true;
+    };
+  }, [location.search]);
 
   // Create session
   const handleCreateSession = async (values: any) => {
@@ -232,15 +303,22 @@ const CouncilPage: React.FC = () => {
 
   // Close session - Tự động áp dụng kết quả
   const handleCloseSession = async (session: CouncilSession) => {
-    const res = await closeSession(session.id);
+    let res;
+    try {
+      res = await closeSession(session.id);
+    } catch {
+      return;
+    }
     if (res.success) {
+      const deXuat = res.data?.proposedCount ?? 0;
+      const khongDat = res.data?.rejectedCount ?? 0;
       message.success(
-        `Đã khóa phiên và cập nhật trạng thái ý tưởng: ${res.proposedCount} đề xuất đặt hàng, ${res.rejectedCount} không đạt ngưỡng`
+        `Đã khóa phiên và cập nhật trạng thái ý tưởng: ${deXuat} đề xuất đặt hàng, ${khongDat} không đạt ngưỡng`
       );
       loadSessions();
       if (currentSession?.id === session.id) {
-        setCurrentSession(res.data);
-        // Load results
+        const sessionRes = await getSession(session.id);
+        if (sessionRes.success && sessionRes.data) setCurrentSession(sessionRes.data);
         const resultsRes = await getSessionResults(session.id);
         if (resultsRes.success) setResults(resultsRes.data);
       }
@@ -268,7 +346,7 @@ const CouncilPage: React.FC = () => {
       message.warning('Vui lòng chọn thành viên từ danh sách');
       return;
     }
-    const unit = selectedMember.unit || selectedMember.department || selectedMember.faculty || selectedMember.organization || undefined;
+    const unit = donViThanhVien(selectedMember) || undefined;
     const res = await addSessionMember(currentSession.id, {
       memberId: selectedMember.userId,
       memberName: selectedMember.fullName,
@@ -284,6 +362,7 @@ const CouncilPage: React.FC = () => {
       if (sessionRes.data) setCurrentSession(sessionRes.data);
       setAddMemberModalVisible(false);
       setSelectedMember(null);
+      setTuKhoaThanhVien('');
       setMemberRole('UY_VIEN');
     } else {
       message.error('Không thể thêm thành viên');
@@ -293,7 +372,8 @@ const CouncilPage: React.FC = () => {
   // Remove member
   const handleRemoveMember = async (member: SessionMember) => {
     if (!currentSession) return;
-    const res = await removeSessionMember(currentSession.id, member.id);
+    // API xóa theo member_id (user), không phải id dòng trong bảng phiên.
+    const res = await removeSessionMember(currentSession.id, member.memberId);
     if (res.success) {
       message.success('Đã xóa thành viên');
       const membersRes = await getSessionMembers(currentSession.id);
@@ -450,7 +530,11 @@ const CouncilPage: React.FC = () => {
     if (submitRes.success) {
       message.success('Đã gửi phiếu chấm điểm');
       setScoreModalVisible(false);
-      
+      const ideasRes = await getSessionIdeas(currentSession.id);
+      if (ideasRes.success) setSessionIdeas(ideasRes.data);
+      const resultsRes = await getSessionResults(currentSession.id);
+      if (resultsRes.success) setResults(resultsRes.data ?? []);
+
       // Refresh stats từ API stats
       const statsRes = await getSessionStats(currentSession.id);
       if (statsRes.success && statsRes.data) {
@@ -471,10 +555,14 @@ const CouncilPage: React.FC = () => {
     
     setCurrentIdea(idea);
     const res = await getIdeaAllScores(currentSession.id, idea.ideaId);
-    if (res.success) {
-      setIdeaScores(res.data);
-      setAllScoresDrawerVisible(true);
+    if (!res.success) return;
+    const ds = res.data ?? [];
+    setIdeaScores(ds);
+    if (ds.length === 0) {
+      message.info('Chưa có phiếu đã gửi.');
+      return;
     }
+    setAllScoresDrawerVisible(true);
   };
 
   // NOTE: Kết quả được tự động áp dụng khi khóa phiên (handleCloseSession)
@@ -549,7 +637,7 @@ const CouncilPage: React.FC = () => {
               </Button>
             </Popconfirm>
           )}
-          {record.status === 'OPEN' && (
+          {record.status === 'OPEN' && laNguoiTaoPhien(record) && (
             <Popconfirm
               title="Khóa phiên chấm điểm?"
               description="Khi khóa, ý tưởng đạt ngưỡng ≥7.0 sẽ tự động chuyển sang 'Đã đề xuất đặt hàng'."
@@ -567,50 +655,62 @@ const CouncilPage: React.FC = () => {
     },
   ];
 
-  // Member columns
+  const xuongDong = {
+    ellipsis: false as const,
+    onCell: () => ({ style: { whiteSpace: 'normal' as const, wordBreak: 'break-word' as const } }),
+  };
+
   const memberColumns: ProColumns<SessionMember>[] = [
-    { title: 'Họ tên', dataIndex: 'memberName', width: 200 },
-    { title: 'Email', dataIndex: 'memberEmail', width: 200 },
-    { title: 'Đơn vị', dataIndex: 'unit', width: 150 },
+    { title: 'Họ tên', dataIndex: 'memberName', width: 180, ...xuongDong },
+    { title: 'Email', dataIndex: 'memberEmail', width: 210, ...xuongDong },
+    {
+      title: 'Đơn vị',
+      dataIndex: 'unit',
+      width: 260,
+      ...xuongDong,
+      render: (_, record) => donViHienThi(record.unit),
+    },
     {
       title: 'Vai trò',
       dataIndex: 'roleInCouncil',
       width: 120,
       render: (_, record) => {
         const role = MEMBER_ROLE_MAP[record.roleInCouncil];
-        return <Tag color={role.color}>{role.text}</Tag>;
+        return <Tag color={role?.color}>{role?.text || record.roleInCouncil}</Tag>;
       },
     },
-    {
-      title: 'Hành động',
-      valueType: 'option',
-      width: 100,
-      render: (_, record) => (
-        currentSession?.status === 'DRAFT' && (
-          <Popconfirm title="Xóa thành viên này?" onConfirm={() => handleRemoveMember(record)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              Xóa
-            </Button>
-          </Popconfirm>
-        )
-      ),
-    },
+    ...(currentSession?.status === 'DRAFT'
+      ? [{
+          title: 'Hành động',
+          valueType: 'option' as const,
+          width: 90,
+          render: (_: unknown, record: SessionMember) => (
+            <Popconfirm title="Xóa thành viên này?" onConfirm={() => handleRemoveMember(record)}>
+              <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                Xóa
+              </Button>
+            </Popconfirm>
+          ),
+        }]
+      : []),
   ];
 
   // Idea columns (in session)
   const ideaColumns: ProColumns<SessionIdea>[] = [
-    { title: 'Mã', dataIndex: 'ideaCode', width: 130 },
-    { title: 'Tiêu đề', dataIndex: 'ideaTitle', ellipsis: true, width: 250 },
-    { title: 'Tác giả', dataIndex: 'ownerName', width: 150 },
-    { title: 'Đơn vị', dataIndex: 'ownerUnit', width: 140 },
-    { title: 'Lĩnh vực', dataIndex: 'field', width: 130 },
+    { title: 'Mã', dataIndex: 'ideaCode', width: 118, ...xuongDong },
+    { title: 'Tiêu đề', dataIndex: 'ideaTitle', width: 160, ...xuongDong },
+    { title: 'Tác giả', dataIndex: 'ownerName', width: 120, ...xuongDong },
+    { title: 'Đơn vị', dataIndex: 'ownerUnit', width: 150, ...xuongDong },
+    { title: 'Lĩnh vực', dataIndex: 'field', width: 120, ...xuongDong },
     {
       title: 'Hành động',
       valueType: 'option',
-      width: 200,
+      width: 130,
       render: (_, record) => (
         <Space>
-          {currentSession?.status === 'OPEN' && (
+          {currentSession?.status === 'OPEN' &&
+            access.canScoreIdea &&
+            members.some((m) => Number(m.memberId) === maNguoiDung) && (
             <Button
               type="primary"
               size="small"
@@ -618,15 +718,6 @@ const CouncilPage: React.FC = () => {
               onClick={() => handleOpenScoreModal(record)}
             >
               Chấm điểm
-            </Button>
-          )}
-          {['CLOSED', 'PUBLISHED'].includes(currentSession?.status || '') && (
-            <Button
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={() => handleViewAllScores(record)}
-            >
-              Xem phiếu
             </Button>
           )}
           {currentSession?.status === 'DRAFT' && (
@@ -641,63 +732,128 @@ const CouncilPage: React.FC = () => {
     },
   ];
 
-  // Result columns
+  // Result columns — cùng lề với tab Ý tưởng, giữ đủ cột điểm.
   const resultColumns: ProColumns<IdeaCouncilResult>[] = [
-    { title: 'Mã', dataIndex: 'ideaCode', width: 130 },
-    { title: 'Tiêu đề', dataIndex: 'ideaTitle', ellipsis: true, width: 200 },
+    { title: 'Mã', dataIndex: 'ideaCode', width: 100, ...xuongDong },
+    { title: 'Tiêu đề', dataIndex: 'ideaTitle', width: 120, ...xuongDong },
     {
-      title: 'Điểm TB (trọng số)',
+      title: 'Điểm TB',
       dataIndex: 'avgWeightedScore',
-      width: 140,
+      width: 88,
       align: 'center',
       render: (_, record) => (
-        <Tag color={record.avgWeightedScore >= THRESHOLD_SCORE ? 'success' : 'warning'}>
-          {record.avgWeightedScore.toFixed(2)}/{MAX_WEIGHTED_SCORE}
+        <Tag
+          color={Number(record.avgWeightedScore) >= THRESHOLD_SCORE ? 'success' : 'warning'}
+          style={{ margin: 0 }}
+        >
+          {Number(record.avgWeightedScore).toFixed(2)}/{MAX_WEIGHTED_SCORE}
         </Tag>
       ),
     },
-    { title: 'Tính mới (30%)', dataIndex: 'avgNoveltyScore', width: 100, align: 'center', render: (v) => (v as number).toFixed(1) },
-    { title: 'Khả thi (30%)', dataIndex: 'avgFeasibilityScore', width: 100, align: 'center', render: (v) => (v as number).toFixed(1) },
-    { title: 'Phù hợp (20%)', dataIndex: 'avgAlignmentScore', width: 100, align: 'center', render: (v) => (v as number).toFixed(1) },
-    { title: 'Năng lực (20%)', dataIndex: 'avgAuthorCapacityScore', width: 100, align: 'center', render: (v) => (v as number).toFixed(1) },
+    {
+      title: 'Tính mới (30%)',
+      dataIndex: 'avgNoveltyScore',
+      width: 72,
+      align: 'center',
+      onHeaderCell: () => ({ style: { whiteSpace: 'normal', wordBreak: 'break-word' } }),
+      render: (v) => (v == null ? '—' : Number(v).toFixed(1)),
+    },
+    {
+      title: 'Khả thi (30%)',
+      dataIndex: 'avgFeasibilityScore',
+      width: 72,
+      align: 'center',
+      onHeaderCell: () => ({ style: { whiteSpace: 'normal', wordBreak: 'break-word' } }),
+      render: (v) => (v == null ? '—' : Number(v).toFixed(1)),
+    },
+    {
+      title: 'Phù hợp (20%)',
+      dataIndex: 'avgAlignmentScore',
+      width: 72,
+      align: 'center',
+      onHeaderCell: () => ({ style: { whiteSpace: 'normal', wordBreak: 'break-word' } }),
+      render: (v) => (v == null ? '—' : Number(v).toFixed(1)),
+    },
+    {
+      title: 'Năng lực (20%)',
+      dataIndex: 'avgAuthorCapacityScore',
+      width: 72,
+      align: 'center',
+      onHeaderCell: () => ({ style: { whiteSpace: 'normal', wordBreak: 'break-word' } }),
+      render: (v) => (v == null ? '—' : Number(v).toFixed(1)),
+    },
     {
       title: 'Số phiếu',
-      width: 90,
+      width: 148,
       align: 'center',
-      render: (_, record) => `${record.submittedCount}/${record.memberCount}`,
+      render: (_, record) => (
+        <Button
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => {
+            const yTuong = sessionIdeas.find((muc) => Number(muc.ideaId) === Number(record.ideaId));
+            if (yTuong) handleViewAllScores(yTuong);
+          }}
+        >
+          {`Xem phiếu (${record.submittedCount}/${record.memberCount})`}
+        </Button>
+      ),
     },
     {
       title: 'Kết luận',
       dataIndex: 'recommendation',
-      width: 150,
-      render: (_, record) => (
-        record.recommendation === 'PROPOSE_ORDER' ? (
-          <Tag color="success" icon={<CheckCircleOutlined />}>Đề xuất đặt hàng</Tag>
-        ) : (
-          <Tag color="error" icon={<CloseCircleOutlined />}>Không đề xuất</Tag>
-        )
-      ),
+      width: 168,
+      ...xuongDong,
+      render: (_, record) => {
+        if (!record.submittedCount) return '—';
+        return (
+          <Space direction="vertical" size={6} align="start">
+            {record.recommendation === 'PROPOSE_ORDER' ? (
+              <Tag color="success" icon={<CheckCircleOutlined />}>Đề xuất đặt hàng</Tag>
+            ) : (
+              <Tag color="error" icon={<CloseCircleOutlined />}>Không đề xuất</Tag>
+            )}
+            {record.linkedProposalId ? (
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => history.push(`/projects/register/form/${record.linkedProposalId}`)}
+              >
+                Xem đề xuất đề tài
+              </Button>
+            ) : null}
+          </Space>
+        );
+      },
     },
   ];
 
-  // Render criteria input - Compact PRO (không scroll)
-  const renderCriteriaInputCompact = (key: string, name: string, description: string, weight: number) => (
-    <Card 
-      size="small" 
-      style={{ marginBottom: 12 }}
-      title={
-        <Space>
-          <Text strong style={{ fontSize: 14 }}>{name}</Text>
-          <Tag color="blue" style={{ marginLeft: 4 }}>{(weight * 100).toFixed(0)}%</Tag>
-        </Space>
-      }
-      extra={
-        <Text type="secondary" style={{ fontSize: 13 }}>{description}</Text>
-      }
-      bodyStyle={{ padding: '10px 12px' }}
+  const mauNenTieuChi = ['#e6f4ff', '#f6ffed', '#fff7e6', '#f9f0ff'];
+
+  // Một nhãn: tên tiêu chí + mô tả và trọng số in nghiêng. Ô điểm và ô nhận xét cùng một hàng.
+  const renderCriteriaInputCompact = (key: string, name: string, description: string, weight: number, thuTu: number) => (
+    <div
+      style={{
+        marginBottom: 12,
+        border: '1px solid #f0f0f0',
+        borderRadius: 8,
+        overflow: 'hidden',
+      }}
     >
-      <Row gutter={12} align="top">
-        <Col span={5}>
+      <div
+        style={{
+          background: mauNenTieuChi[thuTu % mauNenTieuChi.length],
+          padding: '8px 12px',
+          lineHeight: 1.45,
+        }}
+      >
+        <Text strong style={{ fontSize: 14 }}>{name}</Text>
+        <Text style={{ fontSize: 13, color: '#595959', fontStyle: 'italic' }}>
+          {` (${description}, trọng số ${(weight * 100).toFixed(0)}%)`}
+        </Text>
+      </div>
+      <Row gutter={12} align="middle" style={{ padding: '10px 12px' }}>
+        <Col flex="96px">
           <ProFormDigit
             name={`${key}Score`}
             min={0}
@@ -711,21 +867,22 @@ const CouncilPage: React.FC = () => {
             formItemProps={{ style: { marginBottom: 0 } }}
           />
         </Col>
-        <Col span={19}>
+        <Col flex="auto" style={{ minWidth: 0 }}>
           <ProFormTextArea
             name={`${key}Comment`}
             placeholder="Nhận xét ngắn gọn..."
             rules={[{ required: true, message: 'Nhập nhận xét' }]}
             fieldProps={{
-              rows: 2,
+              rows: 1,
               maxLength: 500,
+              style: { height: 32, minHeight: 32, maxHeight: 32, resize: 'none', paddingTop: 4 },
               onChange: (e) => setFormValues(prev => ({ ...prev, [`${key}Comment`]: e.target.value })),
             }}
             formItemProps={{ style: { marginBottom: 0 } }}
           />
         </Col>
       </Row>
-    </Card>
+    </div>
   );
 
   // Check form validity for submit button
@@ -803,7 +960,7 @@ const CouncilPage: React.FC = () => {
                 Mở phiên
               </Button>
             )}
-            {currentSession?.status === 'OPEN' && (
+            {currentSession?.status === 'OPEN' && laNguoiTaoPhien(currentSession) && (
               <Popconfirm
                 title="Khóa phiên chấm điểm?"
                 description="Khi khóa, ý tưởng đạt ngưỡng ≥7.0 sẽ tự động chuyển sang 'Đã đề xuất đặt hàng' để Lãnh đạo phê duyệt."
@@ -822,30 +979,102 @@ const CouncilPage: React.FC = () => {
       >
         {currentSession && (
           <>
-            {/* Session info */}
-            <Card size="small" style={{ marginBottom: 16 }}>
-              <Row gutter={16}>
-                <Col span={6}>
-                  <Statistic title="Trạng thái" value={SESSION_STATUS_MAP[currentSession.status].text} />
-                </Col>
-                <Col span={6}>
-                  <Statistic title="Số ý tưởng" value={currentSession.ideaCount} />
-                </Col>
-                <Col span={6}>
-                  <Statistic title="Thành viên" value={currentSession.memberCount} />
-                </Col>
-                <Col span={6}>
-                  {scoringStats && (
-                    <Statistic
-                      title="Tiến độ chấm"
-                      value={scoringStats.completionRate}
-                      suffix="%"
-                      valueStyle={{ color: scoringStats.completionRate === 100 ? '#52c41a' : '#faad14' }}
-                    />
+            {(() => {
+              const mauTrangThai: Record<string, { nen: string; chu: string; vien: string }> = {
+                DRAFT: { nen: '#f5f5f5', chu: '#595959', vien: '#d9d9d9' },
+                OPEN: { nen: '#e6f4ff', chu: '#0958d9', vien: '#91caff' },
+                CLOSED: { nen: '#fff7e6', chu: '#d48806', vien: '#ffd591' },
+                PUBLISHED: { nen: '#f6ffed', chu: '#389e0d', vien: '#b7eb8f' },
+              };
+              const mau = mauTrangThai[currentSession.status] || mauTrangThai.DRAFT;
+              const tienDo = Number(scoringStats?.completionRate ?? 0);
+              const xong = tienDo >= 100;
+              const o = (noiDung: JSX.Element, laCuoi?: boolean) => (
+                <div
+                  style={{
+                    padding: '14px 16px',
+                    borderRight: laCuoi ? 'none' : '1px solid #eef2f6',
+                    minWidth: 0,
+                  }}
+                >
+                  {noiDung}
+                </div>
+              );
+              const nhan = (text: string) => (
+                <div style={{ fontSize: 12, color: '#8c8c8c', letterSpacing: 0.2, marginBottom: 6 }}>{text}</div>
+              );
+              return (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1.15fr 0.8fr 0.9fr 1.25fr',
+                    marginBottom: 16,
+                    background: '#fff',
+                    border: '1px solid #e6edf5',
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {o(
+                    <>
+                      {nhan('Trạng thái')}
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          background: mau.nen,
+                          color: mau.chu,
+                          border: `1px solid ${mau.vien}`,
+                          fontWeight: 600,
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: mau.chu }} />
+                        {SESSION_STATUS_MAP[currentSession.status]?.text || '—'}
+                      </span>
+                    </>,
                   )}
-                </Col>
-              </Row>
-            </Card>
+                  {o(
+                    <>
+                      {nhan('Ý tưởng')}
+                      <div style={{ fontSize: 22, fontWeight: 600, color: '#0c2340', lineHeight: 1.2 }}>
+                        {currentSession.ideaCount}
+                      </div>
+                    </>,
+                  )}
+                  {o(
+                    <>
+                      {nhan('Thành viên')}
+                      <div style={{ fontSize: 22, fontWeight: 600, color: '#0c2340', lineHeight: 1.2 }}>
+                        {currentSession.memberCount}
+                      </div>
+                    </>,
+                  )}
+                  {o(
+                    <>
+                      {nhan('Tiến độ chấm')}
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
+                        <span style={{ fontSize: 22, fontWeight: 600, color: xong ? '#389e0d' : '#d48806', lineHeight: 1.2 }}>
+                          {tienDo}
+                        </span>
+                        <span style={{ color: '#8c8c8c' }}>%</span>
+                      </div>
+                      <Progress
+                        percent={tienDo}
+                        showInfo={false}
+                        strokeColor={xong ? '#52c41a' : '#faad14'}
+                        trailColor="#f0f0f0"
+                        size="small"
+                      />
+                    </>,
+                    true,
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Tabs */}
             <Tabs activeKey={activeTab} onChange={setActiveTab}>
@@ -856,9 +1085,11 @@ const CouncilPage: React.FC = () => {
                   columns={ideaColumns}
                   dataSource={sessionIdeas}
                   search={false}
+                  options={false}
                   pagination={false}
-                  toolBarRender={() => 
-                    currentSession.status === 'DRAFT' ? [
+                  tableLayout="fixed"
+                  cardProps={{ bodyStyle: { padding: 0 } }}
+                  toolBarRender={currentSession.status === 'DRAFT' ? () => [
                       <Button
                         key="add"
                         type="primary"
@@ -870,7 +1101,8 @@ const CouncilPage: React.FC = () => {
                       >
                         Thêm ý tưởng
                       </Button>,
-                    ] : []
+                    ]
+                    : false
                   }
                 />
               </Tabs.TabPane>
@@ -882,44 +1114,46 @@ const CouncilPage: React.FC = () => {
                   columns={memberColumns}
                   dataSource={members}
                   search={false}
+                  options={false}
                   pagination={false}
-                  toolBarRender={() =>
-                    currentSession.status === 'DRAFT' ? [
-                      <Button
-                        key="add"
-                        type="primary"
-                        icon={<UserAddOutlined />}
-                        onClick={() => {
-                          setAddMemberModalVisible(true);
-                          setSelectedMember(null);
-                          loadAvailableMembers();
-                        }}
-                      >
-                        Thêm thành viên
-                      </Button>,
-                    ] : []
+                  tableLayout="fixed"
+                  cardProps={{ bodyStyle: { padding: 0 } }}
+                  toolBarRender={
+                    currentSession.status === 'DRAFT'
+                      ? () => [
+                          <Button
+                            key="add"
+                            type="primary"
+                            icon={<UserAddOutlined />}
+                            onClick={() => {
+                              setAddMemberModalVisible(true);
+                              setSelectedMember(null);
+                              setTuKhoaThanhVien('');
+                              loadAvailableMembers();
+                            }}
+                          >
+                            Thêm thành viên
+                          </Button>,
+                        ]
+                      : false
                   }
                 />
               </Tabs.TabPane>
 
-              <Tabs.TabPane tab="Kết quả" key="results" disabled={!['CLOSED', 'PUBLISHED'].includes(currentSession.status)}>
-                {results.length > 0 ? (
-                  <>
-                    <Alert
-                      type="info"
-                      showIcon
-                      style={{ marginBottom: 16 }}
-                      message={`Ngưỡng đề xuất đặt hàng: ${THRESHOLD_SCORE}/${MAX_WEIGHTED_SCORE} điểm (có trọng số)`}
-                    />
-                    <ProTable<IdeaCouncilResult>
-                      headerTitle={false}
-                      rowKey="ideaId"
-                      columns={resultColumns}
-                      dataSource={results}
-                      search={false}
-                      pagination={false}
-                    />
-                  </>
+              <Tabs.TabPane tab="Kết quả" key="results" disabled={currentSession.status === 'DRAFT'}>
+                {results.some((muc) => muc.submittedCount > 0) ? (
+                  <ProTable<IdeaCouncilResult>
+                    headerTitle={false}
+                    rowKey="ideaId"
+                    columns={resultColumns}
+                    dataSource={results.filter((muc) => muc.submittedCount > 0)}
+                    search={false}
+                    options={false}
+                    pagination={false}
+                    tableLayout="fixed"
+                    cardProps={{ bodyStyle: { padding: 0 } }}
+                    toolBarRender={false}
+                  />
                 ) : (
                   <Empty description="Chưa có kết quả" />
                 )}
@@ -936,6 +1170,7 @@ const CouncilPage: React.FC = () => {
         onCancel={() => {
           setAddMemberModalVisible(false);
           setSelectedMember(null);
+          setTuKhoaThanhVien('');
           setMemberRole('UY_VIEN');
         }}
         onOk={handleAddMember}
@@ -954,26 +1189,44 @@ const CouncilPage: React.FC = () => {
         <AutoComplete
           style={{ width: '100%', marginBottom: 16 }}
           placeholder="Gõ tên, email hoặc đơn vị để tìm kiếm..."
-          options={availableMembers.map((m) => ({
+          value={tuKhoaThanhVien}
+          options={availableMembers.map((m) => {
+            const hocHam = nhanHocHamHienThi(m.academicTitle);
+            const hocVi = nhanHocViHienThi(m.degree);
+            return {
             value: String(m.userId),
             label: (
               <div style={{ padding: '4px 0' }}>
-                <div style={{ fontWeight: 500 }}>
-                  {m.academicTitle && `${m.academicTitle}. `}
-                  {m.degree && `${m.degree} `}
-                  {m.fullName}
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                  {hocHam ? <Tag color="blue" style={{ margin: 0 }}>{hocHam}</Tag> : null}
+                  {hocVi ? <Tag color="cyan" style={{ margin: 0 }}>{hocVi}</Tag> : null}
+                  <span style={{ fontWeight: 500 }}>{m.fullName}</span>
                 </div>
                 <div style={{ fontSize: 12, color: '#8c8c8c' }}>
-                  {[m.department, m.faculty, m.organization].filter(Boolean).join(' · ') || m.workEmail}
+                  {donViThanhVien(m) || m.workEmail}
                 </div>
               </div>
             ),
-          }))}
+            };
+          })}
+          onChange={(text) => {
+            const vuaChon = availableMembers.find((m) => String(m.userId) === text);
+            if (vuaChon) {
+              setSelectedMember(vuaChon);
+              setTuKhoaThanhVien(tenOTimThanhVien(vuaChon));
+              return;
+            }
+            setTuKhoaThanhVien(text);
+            setSelectedMember((cur) => (cur && tenOTimThanhVien(cur) === text ? cur : null));
+          }}
           onSelect={(val) => {
             const m = availableMembers.find((x) => String(x.userId) === val);
-            if (m) setSelectedMember(m);
+            if (!m) return;
+            setSelectedMember(m);
+            setTuKhoaThanhVien(tenOTimThanhVien(m));
           }}
           onSearch={(v) => {
+            if (availableMembers.some((m) => String(m.userId) === v)) return;
             if (!v.trim()) loadAvailableMembers();
             else loadAvailableMembers(v);
           }}
@@ -1014,25 +1267,23 @@ const CouncilPage: React.FC = () => {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, color: '#1a1a1a' }}>
-                  {selectedMember.academicTitle && (
+                  {nhanHocHamHienThi(selectedMember.academicTitle) ? (
                     <Tag color="blue" style={{ marginRight: 6 }}>
-                      {selectedMember.academicTitle}
+                      {nhanHocHamHienThi(selectedMember.academicTitle)}
                     </Tag>
-                  )}
-                  {selectedMember.degree && (
+                  ) : null}
+                  {nhanHocViHienThi(selectedMember.degree) ? (
                     <Tag color="cyan" style={{ marginRight: 6 }}>
-                      {selectedMember.degree}
+                      {nhanHocViHienThi(selectedMember.degree)}
                     </Tag>
-                  )}
+                  ) : null}
                   {selectedMember.fullName}
                 </div>
                 {selectedMember.currentTitle && (
                   <div style={{ fontSize: 13, color: '#595959', marginBottom: 2 }}>{selectedMember.currentTitle}</div>
                 )}
                 <div style={{ fontSize: 12, color: '#8c8c8c' }}>
-                  {[selectedMember.department, selectedMember.faculty, selectedMember.organization]
-                    .filter(Boolean)
-                    .join(' · ') || '—'}
+                  {donViThanhVien(selectedMember) || '—'}
                 </div>
                 {selectedMember.workEmail && (
                   <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 2 }}>📧 {selectedMember.workEmail}</div>
@@ -1046,7 +1297,10 @@ const CouncilPage: React.FC = () => {
                   type="link"
                   size="small"
                   style={{ padding: 0, marginTop: 4, fontSize: 12 }}
-                  onClick={() => setSelectedMember(null)}
+                  onClick={() => {
+                    setSelectedMember(null);
+                    setTuKhoaThanhVien('');
+                  }}
                 >
                   Chọn lại
                 </Button>
@@ -1154,9 +1408,9 @@ const CouncilPage: React.FC = () => {
         title={null}
         open={scoreModalVisible}
         onCancel={() => setScoreModalVisible(false)}
-        width={1100}
+        width="min(1100px, calc(100vw - 32px))"
         style={{ top: 32 }}
-        bodyStyle={{ padding: 16, maxHeight: '80vh', overflow: 'auto' }}
+        bodyStyle={{ padding: 16, maxHeight: '80vh', overflowX: 'hidden', overflowY: 'auto' }}
         footer={null}
         destroyOnClose
       >
@@ -1190,7 +1444,7 @@ const CouncilPage: React.FC = () => {
               {/* Cột trái: 4 tiêu chí */}
               <Col span={16}>
                 <ProForm submitter={false} initialValues={formValues} disabled={myScore?.submitted}>
-                  {SCORING_CRITERIA.map(c => renderCriteriaInputCompact(c.key, c.name, c.description, c.weight))}
+                  {SCORING_CRITERIA.map((c, i) => renderCriteriaInputCompact(c.key, c.name, c.description, c.weight, i))}
                   
                   {/* Nhận xét chung - compact */}
                   <Card size="small" bodyStyle={{ padding: '10px 12px' }}>
@@ -1292,11 +1546,6 @@ const CouncilPage: React.FC = () => {
                             Gửi phiếu chấm
                           </Button>
                         </Popconfirm>
-                        {!isFormValid() && (
-                          <Text type="warning" style={{ fontSize: 13, display: 'block', textAlign: 'center', marginTop: 8 }}>
-                            <ExclamationCircleOutlined /> Điền đủ điểm & nhận xét để gửi
-                          </Text>
-                        )}
                       </Space>
                     )}
 
@@ -1313,55 +1562,57 @@ const CouncilPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* All Scores Drawer */}
       <Drawer
-        title={`Phiếu chấm: ${currentIdea?.ideaCode}`}
-        width={700}
+        title={`Xem phiếu: ${currentIdea?.ideaCode || ''}`}
+        width={480}
         open={allScoresDrawerVisible}
         onClose={() => setAllScoresDrawerVisible(false)}
       >
-        <Table
-          dataSource={ideaScores}
-          rowKey="id"
-          pagination={false}
-          size="small"
-          columns={[
-            {
-              title: 'Thành viên',
-              dataIndex: 'councilMemberName',
-              width: 200,
-              render: (name, record) => (
-                <Space>
-                  <Text>{name}</Text>
-                  <Tag color={MEMBER_ROLE_MAP[record.councilRole].color}>
-                    {MEMBER_ROLE_MAP[record.councilRole].text}
-                  </Tag>
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          {(() => {
+            const ketQua = tinhKetQuaChung(ideaScores, currentSession?.memberCount || ideaScores.length);
+            return ketQua ? <TheKetQuaChung ketQua={ketQua} /> : null;
+          })()}
+          <Text strong>Từng phiếu</Text>
+          {ideaScores.map((phieu) => {
+            const vaiTro = MEMBER_ROLE_MAP[phieu.councilRole];
+            const donVi = members.find((m) => Number(m.memberId) === Number(phieu.councilMemberId))?.unit;
+            return (
+              <Card key={phieu.id} size="small" bodyStyle={{ padding: 14 }}>
+                <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                  <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                    <Text strong>{phieu.councilMemberName}</Text>
+                    <Tag color={Number(phieu.weightedScore) >= THRESHOLD_SCORE ? 'success' : 'warning'}>
+                      {Number(phieu.weightedScore).toFixed(2)}/10
+                    </Tag>
+                  </Space>
+                  <Space size={6}>
+                    <Tag color={vaiTro?.color}>{vaiTro?.text}</Tag>
+                    {donVi ? <Text type="secondary">{donViHienThi(donVi)}</Text> : null}
+                  </Space>
+                  <Button type="primary" block icon={<EyeOutlined />} onClick={() => setPhieuDangXem(phieu)}>
+                    Mở phiếu
+                  </Button>
                 </Space>
-              ),
-            },
-            { title: 'Tính mới (30%)', dataIndex: 'noveltyScore', width: 100, align: 'center' },
-            { title: 'Khả thi (30%)', dataIndex: 'feasibilityScore', width: 100, align: 'center' },
-            { title: 'Phù hợp (20%)', dataIndex: 'alignmentScore', width: 100, align: 'center' },
-            { title: 'Năng lực (20%)', dataIndex: 'authorCapacityScore', width: 100, align: 'center' },
-            {
-              title: 'Điểm TT',
-              dataIndex: 'weightedScore',
-              width: 100,
-              align: 'center',
-              render: (score) => (
-                <Tag color={score >= THRESHOLD_SCORE ? 'success' : 'warning'}>{score?.toFixed(2)}</Tag>
-              ),
-            },
-            {
-              title: 'Trạng thái',
-              dataIndex: 'submitted',
-              width: 100,
-              render: (submitted) =>
-                submitted ? <Badge status="success" text="Đã gửi" /> : <Badge status="processing" text="Nháp" />,
-            },
-          ]}
-        />
+              </Card>
+            );
+          })}
+        </Space>
       </Drawer>
+
+      <PhieuChamModal
+        open={!!phieuDangXem}
+        onClose={() => setPhieuDangXem(null)}
+        phieu={phieuDangXem}
+        yTuong={currentIdea}
+        phien={currentSession}
+        thanhVien={
+          members.find((m) => Number(m.memberId) === Number(phieuDangXem?.councilMemberId)) ?? null
+        }
+        tenChuTich={members.find((m) => m.roleInCouncil === 'CHU_TICH')?.memberName}
+        tenThuKy={members.find((m) => m.roleInCouncil === 'THU_KY')?.memberName}
+        ketQuaChung={tinhKetQuaChung(ideaScores, currentSession?.memberCount || ideaScores.length)}
+      />
     </PageContainer>
   );
 };

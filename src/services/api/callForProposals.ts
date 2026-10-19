@@ -2,7 +2,7 @@
  * API Thông báo tuyển chọn đề tài (CFP)
  * Spec: specs/call-for-proposal-notice.md
  */
-import { get, post, put, ApiResponse } from '../request';
+import { get, post, put, ApiResponse, PaginatedResponse, API_BASE_URL, getToken } from '../request';
 
 export type CfpStatus = 'DRAFT' | 'PENDING_BGH' | 'RETURNED' | 'APPROVED' | 'PUBLISHED';
 export type CfpPeriodKind = 'ACADEMIC' | 'FINANCIAL';
@@ -48,6 +48,8 @@ export interface CallForProposal {
   publishedBy?: number | null;
   publishedAt?: string | null;
   officialDocNo?: string | null;
+  /** Số/ký hiệu đang hiện trên file thông báo */
+  soVanBan?: string | null;
   officialDocDate?: string | null;
   signedFileUrl?: string | null;
   createdAt?: string | null;
@@ -196,6 +198,59 @@ export async function getPublishedCfp(id: number) {
   >;
 }
 
+/** Nhiệm vụ (đề xuất) gắn với thông báo tuyển chọn */
+export interface CfpNhiemVu {
+  id: number;
+  code: string;
+  title: string;
+  ownerName: string;
+  ownerUnit: string;
+  status: string;
+  projectProcessType?: { id: number; code: string; name: string } | null;
+  callForProposalId?: number | null;
+  callForProposalTitle?: string | null;
+}
+
+export async function listCfpProposals(id: number) {
+  return get<CfpNhiemVu[]>(`/api/call-for-proposals/${id}/proposals`) as Promise<
+    ApiResponse<CfpNhiemVu[]>
+  >;
+}
+
+export async function listProposalCandidatesByTypes(params: {
+  projectProcessTypeIds: number[];
+  keyword?: string;
+  page?: number;
+  perPage?: number;
+}) {
+  return get<PaginatedResponse<CfpNhiemVu>>('/api/call-for-proposals/proposal-candidates', {
+    ...params,
+    projectProcessTypeIds: params.projectProcessTypeIds.join(','),
+  });
+}
+
+export async function listCfpProposalCandidates(
+  id: number,
+  params: { keyword?: string; page?: number; perPage?: number },
+) {
+  return get<PaginatedResponse<CfpNhiemVu>>(
+    `/api/call-for-proposals/${id}/proposal-candidates`,
+    params,
+  );
+}
+
+export async function attachCfpProposals(id: number, proposalIds: number[]) {
+  return post<{ attached: number; moved: number }>(`/api/call-for-proposals/${id}/proposals`, {
+    proposalIds,
+  }) as Promise<ApiResponse<{ attached: number; moved: number }>>;
+}
+
+export async function detachCfpProposals(id: number, proposalIds: number[]) {
+  return post<{ removed: number }>(`/api/call-for-proposals/${id}/proposals/detach`, {
+    proposalIds,
+  }) as Promise<ApiResponse<{ removed: number }>>;
+}
+
 export async function getActiveSubmissionPeriod(
   level: CfpLevel,
   projectProcessTypeId?: number | null,
@@ -220,4 +275,51 @@ export async function getActiveSubmissionPeriod(
       projectProcessTypeIds?: number[];
     } | null>
   >;
+}
+
+export interface CfpNoticeHang {
+  stt: string;
+  tenNhiemVu: string;
+  mucTieu: string;
+  sanPhamDuKien: string;
+  thoiGianThucHien: string;
+}
+
+export interface CfpNoticeView {
+  id: number;
+  status: CfpStatus;
+  truong: Record<string, string>;
+  hang: CfpNoticeHang[];
+}
+
+export async function getCfpNoticeView(id: number) {
+  return get<CfpNoticeView>(`/api/call-for-proposals/${id}/notice-view`) as Promise<
+    ApiResponse<CfpNoticeView>
+  >;
+}
+
+export async function previewCfpNotice(id: number) {
+  return get<{ text: string }>(`/api/call-for-proposals/${id}/notice-preview`) as Promise<
+    ApiResponse<{ text: string }>
+  >;
+}
+
+export async function downloadCfpNotice(id: number) {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/api/call-for-proposals/${id}/notice-file`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => null);
+    throw new Error(json?.message || 'Tải thông báo thất bại');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Thong-bao-tuyen-chon.docx';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

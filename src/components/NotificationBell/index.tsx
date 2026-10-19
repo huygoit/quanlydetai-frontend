@@ -16,6 +16,7 @@ import {
   message,
 } from 'antd';
 import {
+  AuditOutlined,
   BellOutlined,
   UserOutlined,
   CheckCircleOutlined,
@@ -23,7 +24,9 @@ import {
   FileSearchOutlined,
   BulbOutlined,
   ProjectOutlined,
+  TeamOutlined,
   ClockCircleOutlined,
+  LockOutlined,
 } from '@ant-design/icons';
 import {
   queryNotifications,
@@ -47,7 +50,10 @@ const ICON_MAP: Record<NotificationType, React.ReactNode> = {
   PUBLICATION_CORRECTED: <CheckCircleOutlined style={{ color: '#1890ff' }} />,
   IDEA_SUBMITTED: <BulbOutlined style={{ color: '#eb2f96' }} />,
   IDEA_STATUS_CHANGED: <BulbOutlined style={{ color: '#eb2f96' }} />,
+  IDEA_ORDER_APPROVAL_NEEDED: <AuditOutlined style={{ color: '#52c41a' }} />,
   PROJECT_UPDATE: <ProjectOutlined style={{ color: '#13c2c2' }} />,
+  COUNCIL_SESSION_OPENED: <TeamOutlined style={{ color: '#1890ff' }} />,
+  COUNCIL_SESSION_READY_TO_CLOSE: <LockOutlined style={{ color: '#faad14' }} />,
   SYSTEM: <BellOutlined style={{ color: '#8c8c8c' }} />,
 };
 
