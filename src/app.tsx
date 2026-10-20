@@ -208,56 +208,6 @@ const handleLogout = async () => {
   }
 };
 
-// Helper để lấy label cho role (map legacy code → tên hiển thị)
-function getRoleLabel(role: UserRole | string | undefined): string {
-  const roleLabels: Record<string, string> = {
-    NCV: 'Nghiên cứu viên',
-    CNDT: 'Chủ nhiệm đề tài',
-    TRUONG_DON_VI: 'Trưởng đơn vị',
-    PHONG_KH: 'Phòng KH',
-    QUANLY_KH_CNTT_HTQT: 'Phòng KH CNTT & HTQT',
-    HOI_DONG: 'Thành viên hội đồng',
-    LANH_DAO: 'Lãnh đạo',
-    ADMIN: 'Quản trị viên',
-    SUPER_ADMIN: 'Super Admin',
-    BASIC: 'Cơ bản',
-  };
-  return roleLabels[role || ''] || (role as string) || '';
-}
-
-/** BASIC là vai trò nền — không hiển thị trên header user */
-const laVaiTroAnTrenUi = (code?: string | null) =>
-  String(code || '')
-    .trim()
-    .toUpperCase() === 'BASIC';
-
-/**
- * Danh sách vai trò hiển thị: ưu tiên name từ API, bỏ BASIC.
- * Nếu chỉ còn BASIC → không hiện gì (hoặc để trống).
- */
-function layVaiTroHienThi(
-  roles?: Array<{ id?: number; code?: string; name?: string }> | null,
-  fallbackRole?: string,
-): { codes: string[]; label: string } {
-  const list = Array.isArray(roles) ? roles : [];
-  const visible = list.filter((r) => !laVaiTroAnTrenUi(r?.code));
-  if (visible.length > 0) {
-    const labels = visible.map(
-      (r) =>
-        (r.name || '').trim() || getRoleLabel(r.code) || String(r.code || ''),
-    );
-    return {
-      codes: visible.map((r) => String(r.code || '')).filter(Boolean),
-      label: labels.filter(Boolean).join(', '),
-    };
-  }
-  // Không có roles từ API — fallback role đơn (vẫn ẩn BASIC)
-  if (fallbackRole && !laVaiTroAnTrenUi(fallbackRole)) {
-    return { codes: [fallbackRole], label: getRoleLabel(fallbackRole) };
-  }
-  return { codes: [], label: '' };
-}
-
 /**
  * getInitialState - Load user info khi app khởi động
  * Kiểm tra token và fetch user từ API

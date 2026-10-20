@@ -232,6 +232,20 @@ export default defineConfig({
           hideInMenu: true,
         },
         {
+          path: '/projects/xet-duyet-dang-ky',
+          name: 'Xét duyệt đăng ký',
+          icon: 'AuditOutlined',
+          component: '@/pages/projects/xet-duyet-dang-ky',
+          access: 'canReviewRegistration',
+        },
+        {
+          path: '/projects/xet-duyet-dang-ky/:id',
+          name: 'So sánh đơn đăng ký',
+          component: '@/pages/projects/xet-duyet-dang-ky/detail',
+          access: 'canReviewRegistration',
+          hideInMenu: true,
+        },
+        {
           path: '/projects/pkh-review',
           name: 'Kiểm duyệt và tổng hợp đề xuất',
           icon: 'AuditOutlined',

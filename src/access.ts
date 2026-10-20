@@ -191,6 +191,8 @@ export default function access(initialState: AccessInitialState | undefined) {
     /** Hàng chờ hồ sơ đăng ký: trưởng đơn vị xử lý, PKH xem đơn đã chuyển */
     canOpenRegistrationQueue:
       has(PERM.project.unit_review) || has(PERM.project.review),
+    /** Menu Xét duyệt đăng ký: đơn đơn vị đã xác nhận, chờ PKH */
+    canReviewRegistration: has(PERM.project.review),
     canReviewProjectProposal:
       has(PERM.project.review) || has(PERM.project.selection_manage),
     /** PKH phân công phản biện kín (US-04-02) */

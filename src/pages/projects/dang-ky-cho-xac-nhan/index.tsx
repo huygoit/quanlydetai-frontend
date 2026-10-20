@@ -3,7 +3,6 @@
  */
 import { PageContainer } from '@ant-design/pro-components';
 import {
-  Alert,
   Button,
   Descriptions,
   Drawer,
@@ -34,7 +33,6 @@ function tien(n?: number | null) {
 
 const DonChoXacNhanPage: React.FC = () => {
   const [danhSach, setDanhSach] = useState<DonChoXacNhan[]>([]);
-  const [coTheXuLy, setCoTheXuLy] = useState(true);
   const [dangTai, setDangTai] = useState(true);
   const [mo, setMo] = useState(false);
   const [dangXem, setDangXem] = useState(false);
@@ -52,7 +50,6 @@ const DonChoXacNhanPage: React.FC = () => {
     try {
       const res = await danhSachDonChoXacNhan();
       setDanhSach(res.data || []);
-      setCoTheXuLy(res.coTheXuLy !== false);
     } catch {
       setDanhSach([]);
     } finally {
@@ -155,23 +152,15 @@ const DonChoXacNhanPage: React.FC = () => {
 
   return (
     <PageContainer
-      title={coTheXuLy ? 'Đơn đăng ký chờ xác nhận' : 'Hồ sơ đăng ký đã chuyển PKH&HTQT'}
+      title="Đơn đăng ký chờ xác nhận"
     >
-      {!coTheXuLy ? (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="Các hồ sơ đơn vị đã xác nhận, đang chờ Phòng Khoa học và Hợp tác quốc tế."
-        />
-      ) : null}
       <Table<DonChoXacNhan>
         rowKey="id"
         loading={dangTai}
         columns={cot}
         dataSource={danhSach}
         pagination={{ pageSize: 10, showSizeChanger: true }}
-        locale={{ emptyText: coTheXuLy ? 'Không có đơn chờ xác nhận.' : 'Chưa có hồ sơ chuyển sang.' }}
+        locale={{ emptyText: 'Không có đơn chờ xác nhận.' }}
       />
 
       <Drawer

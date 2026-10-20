@@ -1,11 +1,16 @@
 /**
  * Hồ sơ đăng ký thực hiện một nhiệm vụ trong thông báo.
  */
-import { get, post, ApiResponse } from '../request';
+import { get, patch, post, ApiResponse } from '../request';
 import type { PublicationAuthor } from './profilePublications';
 import { normalizePublicationAuthor } from './profilePublications';
 
-export type TrangThaiHoSoDangKy = 'DRAFT' | 'CHO_DON_VI' | 'CHO_PKH';
+export type TrangThaiHoSoDangKy =
+  | 'DRAFT'
+  | 'CHO_DON_VI'
+  | 'CHO_PKH'
+  | 'DKDT_DUOC_CHAP_THUAN'
+  | 'DKDT_TU_CHOI';
 
 export type KhungNhiemVu = {
   id: number;
@@ -34,6 +39,7 @@ export type HoSoDangKy = {
   status: TrangThaiHoSoDangKy;
   submittedAt?: string | null;
   unitComment?: string | null;
+  pkhReason?: string | null;
 };
 
 export type NguCanhDangKy = {
@@ -112,6 +118,109 @@ export async function demDonDangKyChoXacNhan() {
 export async function danhSachDonChoXacNhan() {
   return get<ApiResponse<DonChoXacNhan[]> & { coTheXuLy?: boolean }>(
     '/api/proposal-registrations/pending',
+  );
+}
+
+export async function danhSachDonChoPkh() {
+  return get<ApiResponse<DonChoXacNhan[]>>('/api/proposal-registrations/pkh-pending');
+}
+
+export type NguoiDangKyTomTat = {
+  id: number;
+  ten: string;
+  donVi: string;
+  status: TrangThaiHoSoDangKy;
+};
+
+export type NhiemVuXetDuyet = {
+  id: number;
+  code: string;
+  title: string;
+  soDon: number;
+  choDonVi: number;
+  choPhong: number;
+  nguoiDangKy: NguoiDangKyTomTat[];
+  trangThai: string | null;
+  ghiChu?: string | null;
+  chuNhiem?: string | null;
+};
+
+export type DonSoSanh = {
+  id: number;
+  code: string;
+  ownerId: number;
+  ownerName: string;
+  ownerUnit: string;
+  proposedBudget: number;
+  durationMonths: number;
+  note?: string | null;
+  attachmentUrl?: string | null;
+  status: TrangThaiHoSoDangKy;
+  pkhReason?: string | null;
+  unitComment?: string | null;
+  thanhVien: ThanhVienSoSanh[];
+};
+
+export type ThanhVienSoSanh = {
+  ten: string;
+  vaiTro: string;
+  hocVi?: string | null;
+  hocHam?: string | null;
+  diemNckh?: number | null;
+  soNhiemVuDangLam: number;
+};
+
+export type SoSanhDangKy = {
+  nhiemVu: {
+    id: number;
+    code: string;
+    title: string;
+    ideaId?: number | null;
+    trangThai?: string | null;
+    ghiChu?: string | null;
+  };
+  daPhanCong?: {
+    id: number;
+    code: string;
+    dangKyId: number;
+    principalName: string;
+    outlineId?: number | null;
+  } | null;
+  don: DonSoSanh[];
+};
+
+export async function danhSachNhiemVuXetDuyet() {
+  return get<ApiResponse<NhiemVuXetDuyet[]>>('/api/proposal-registrations/pkh-tasks');
+}
+
+export async function soSanhDonDangKy(nhiemVuId: number) {
+  return get<ApiResponse<SoSanhDangKy>>(`/api/proposal-registrations/pkh-tasks/${nhiemVuId}`);
+}
+
+export async function chapThuanDonDangKy(nhiemVuId: number, registrationId: number, reason?: string) {
+  return post<ApiResponse<SoSanhDangKy>>(`/api/proposal-registrations/pkh-tasks/${nhiemVuId}/accept`, {
+    registrationId,
+    reason: reason || null,
+  });
+}
+
+export async function suaLyDoTuChoiDon(id: number, reason: string) {
+  return patch<ApiResponse<{ id: number; pkhReason: string }>>(
+    `/api/proposal-registrations/${id}/pkh-reason`,
+    { reason },
+  );
+}
+
+export async function xacNhanPhanCong(nhiemVuId: number) {
+  return post<ApiResponse<{ id: number; code: string; outlineId: number; principalName: string }>>(
+    `/api/proposal-registrations/pkh-tasks/${nhiemVuId}/assign`,
+  );
+}
+
+export async function dongDangKyNhiemVu(nhiemVuId: number, reason: string) {
+  return post<ApiResponse<{ id: number; trangThai: string; ghiChu: string }>>(
+    `/api/proposal-registrations/pkh-tasks/${nhiemVuId}/close`,
+    { reason },
   );
 }
 
