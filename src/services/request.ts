@@ -112,6 +112,9 @@ export async function request<T = any>(
         case 500:
           message.error('Lỗi máy chủ. Vui lòng thử lại sau.');
           break;
+        case 503:
+          message.error(data.message || 'Hệ thống đang bận. Vui lòng thử lại sau.');
+          break;
         default:
           message.error(data.message || 'Đã có lỗi xảy ra.');
       }

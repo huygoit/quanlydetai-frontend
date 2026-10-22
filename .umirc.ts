@@ -17,9 +17,9 @@ export default defineConfig({
     '/api': {
       target: 'http://localhost:3333',
       changeOrigin: true,
-      // Báo cáo/Excel có thể lâu — tránh 504 mặc định của proxy
-      timeout: 120000,
-      proxyTimeout: 120000,
+      // Sao lưu / báo cáo có thể lâu — tránh 504 mặc định của proxy
+      timeout: 600000,
+      proxyTimeout: 600000,
     },
     /**
      * Proxy file tĩnh upload (chứng chỉ/đính kèm) sang backend.
@@ -576,6 +576,13 @@ export default defineConfig({
           icon: 'FileSearchOutlined',
           component: '@/pages/admin/audit-log',
           access: 'canViewAdmin',
+        },
+        {
+          path: '/admin/backup',
+          name: 'Sao lưu dữ liệu',
+          icon: 'DatabaseOutlined',
+          component: '@/pages/admin/backup',
+          access: 'isSuperAdmin',
         },
         {
           path: '/admin/config',
