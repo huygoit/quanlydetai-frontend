@@ -17,8 +17,20 @@ export type DanhSachSaoLuu = {
 };
 
 async function docLoi(res: Response): Promise<string> {
-  const json = await res.json().catch(() => null);
-  return json?.message || 'Thao tác thất bại';
+  const text = await res.text().catch(() => '');
+  try {
+    const json = text ? JSON.parse(text) : null;
+    if (json?.message) return String(json.message);
+  } catch {
+    /* HTML 502/504 từ nginx — không phải JSON */
+  }
+  if (res.status === 502 || res.status === 504) {
+    return `Máy chủ hết thời gian chờ (${res.status}). Khôi phục có thể đã chạy xong — kiểm tra dữ liệu / restart PM2.`;
+  }
+  if (res.status === 401 || res.status === 403) {
+    return 'Phiên đăng nhập hết hạn hoặc không đủ quyền. Đăng nhập lại rồi thử lại.';
+  }
+  return text?.slice(0, 200) || `Thao tác thất bại (HTTP ${res.status}).`;
 }
 
 function headerAuth(): HeadersInit {

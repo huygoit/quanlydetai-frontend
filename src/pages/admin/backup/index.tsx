@@ -69,13 +69,13 @@ const TrangSaoLuu: React.FC = () => {
     setDangKhoiPhuc(true);
     try {
       await khoiPhucBanSao(fileChon.name, tenXacNhan);
-      message.success('Đã khôi phục dữ liệu');
+      message.success('Đã khôi phục. Đang tải lại trang…');
       setFileChon(null);
       setTenXacNhan('');
-      await taiLai();
+      // Không gọi taiLai: pool DB / token thường chết sau restore
+      window.setTimeout(() => window.location.reload(), 800);
     } catch (e: unknown) {
       message.error((e as Error).message || 'Khôi phục thất bại');
-    } finally {
       setDangKhoiPhuc(false);
     }
   };
