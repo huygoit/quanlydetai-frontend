@@ -294,7 +294,7 @@ const UserRoleDrawer: React.FC<UserRoleDrawerProps> = ({
                           </Text>
                           {item.created_at && (
                             <Text type="secondary" style={{ fontSize: 12 }}>
-                              Gán lúc: {dayjs(item.created_at).format('DD/MM/YYYY HH:mm')}
+                              Gán lúc: {dayjs(item.created_at).format('HH:mm DD/MM/YYYY')}
                             </Text>
                           )}
                         </Space>

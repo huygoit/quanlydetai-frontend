@@ -127,11 +127,31 @@ const AdminContractTemplatesPage: React.FC = () => {
     if (values.form_code) fd.append('formCode', String(values.form_code).trim().toUpperCase());
     if (values.status) fd.append('status', String(values.status));
     fd.append('isDefault', values.is_default ? 'true' : 'false');
-    if (String(values.template_type || activeType) === 'THONG_BAO') {
+    const loai = String(values.template_type || activeType);
+    if (loai === 'THONG_BAO') {
       fd.append('ky_hieu', String(values.ky_hieu || ''));
       fd.append('tham_quyen_ky', String(values.tham_quyen_ky || ''));
       fd.append('ho_ten_nguoi_ky', String(values.ho_ten_nguoi_ky || ''));
       fd.append('noi_nhan', String(values.noi_nhan || ''));
+      fd.append('so_moi_nhat', String(values.so_moi_nhat ?? 0));
+    }
+    if (loai === 'QUYET_DINH') {
+      fd.append(
+        'van_ban_quy_dinh_chuc_nang_nhiem_vu_tham_quyen',
+        String(values.van_ban_quy_dinh_chuc_nang_nhiem_vu_tham_quyen || ''),
+      );
+      fd.append(
+        'quy_dinh_quan_ly_nhiem_vu_khcn_dmst',
+        String(values.quy_dinh_quan_ly_nhiem_vu_khcn_dmst || ''),
+      );
+      fd.append(
+        'van_ban_phe_duyet_danh_muc_hoac_ke_hoach_tham_dinh',
+        String(values.van_ban_phe_duyet_danh_muc_hoac_ke_hoach_tham_dinh || ''),
+      );
+      fd.append('chuc_danh_nguoi_de_nghi', String(values.chuc_danh_nguoi_de_nghi || ''));
+      fd.append('don_vi_dau_moi', String(values.don_vi_dau_moi || ''));
+      fd.append('don_vi_luu_ho_so', String(values.don_vi_luu_ho_so || ''));
+      fd.append('ho_ten_nguoi_ky', String(values.ho_ten_nguoi_ky || ''));
       fd.append('so_moi_nhat', String(values.so_moi_nhat ?? 0));
     }
 
@@ -226,7 +246,7 @@ const AdminContractTemplatesPage: React.FC = () => {
       width: 140,
       hideInSearch: true,
       render: (_, r) =>
-        r.updated_at ? dayjs(r.updated_at).format('DD/MM/YYYY HH:mm') : '—',
+        r.updated_at ? dayjs(r.updated_at).format('HH:mm DD/MM/YYYY') : '—',
     },
     {
       title: '',
@@ -428,15 +448,40 @@ const AdminContractTemplatesPage: React.FC = () => {
                 ho_ten_nguoi_ky: editing.merge_config?.ho_ten_nguoi_ky || '',
                 noi_nhan: editing.merge_config?.noi_nhan || '',
                 so_moi_nhat: editing.merge_config?.so_moi_nhat ?? 0,
+                van_ban_quy_dinh_chuc_nang_nhiem_vu_tham_quyen:
+                  editing.merge_config?.van_ban_quy_dinh_chuc_nang_nhiem_vu_tham_quyen || '',
+                quy_dinh_quan_ly_nhiem_vu_khcn_dmst:
+                  editing.merge_config?.quy_dinh_quan_ly_nhiem_vu_khcn_dmst || '',
+                van_ban_phe_duyet_danh_muc_hoac_ke_hoach_tham_dinh:
+                  editing.merge_config?.van_ban_phe_duyet_danh_muc_hoac_ke_hoach_tham_dinh || '',
+                chuc_danh_nguoi_de_nghi: editing.merge_config?.chuc_danh_nguoi_de_nghi || '',
+                don_vi_dau_moi: editing.merge_config?.don_vi_dau_moi || '',
+                don_vi_luu_ho_so: editing.merge_config?.don_vi_luu_ho_so || '',
               }
             : {
                 status: 'ACTIVE',
                 is_default: true,
                 template_type: activeType,
                 form_code:
-                  activeType === 'HOP_DONG' ? 'BM06' : activeType === 'THONG_BAO' ? 'TB' : '',
+                  activeType === 'HOP_DONG'
+                    ? 'BM06'
+                    : activeType === 'THONG_BAO'
+                      ? 'TB'
+                      : activeType === 'QUYET_DINH'
+                        ? 'QD'
+                        : '',
                 code:
-                  activeType === 'HOP_DONG' ? 'BM06_' : activeType === 'THONG_BAO' ? 'TB_' : 'BBTL_',
+                  activeType === 'HOP_DONG'
+                    ? 'BM06_'
+                    : activeType === 'THONG_BAO'
+                      ? 'TB_'
+                      : activeType === 'QUYET_DINH'
+                        ? 'QD_'
+                        : 'BBTL_',
+                chuc_danh_nguoi_de_nghi: 'Trưởng phòng Khoa học và Hợp tác quốc tế',
+                don_vi_dau_moi: 'Phòng Khoa học và Hợp tác quốc tế',
+                don_vi_luu_ho_so: 'PKH&HTQT',
+                so_moi_nhat: 0,
               }
         }
         modalProps={{ destroyOnClose: true }}
@@ -475,37 +520,84 @@ const AdminContractTemplatesPage: React.FC = () => {
         />
         <ProFormSwitch name="is_default" label="Đặt làm mẫu mặc định của loại này" />
         <ProFormDependency name={['template_type']}>
-          {({ template_type }) =>
-            template_type === 'THONG_BAO' ? (
-              <>
-                <ProFormDigit
-                  name="so_moi_nhat"
-                  label="Số mới nhất đã dùng"
-                  min={0}
-                  fieldProps={{ precision: 0 }}
-                  extra="Xem và tải dùng số này + 1. Số chỉ được ghi lại khi BGH phê duyệt."
-                />
-                <ProFormText
-                  name="ky_hieu"
-                  label="Ký hiệu thông báo"
-                  placeholder="ĐHSP"
-                  extra="Điền vào số hiệu, dạng Số: …/TB-ĐHSP."
-                />
-                <ProFormText
-                  name="tham_quyen_ky"
-                  label="Thẩm quyền ký"
-                  placeholder="HIỆU TRƯỞNG"
-                />
-                <ProFormText name="ho_ten_nguoi_ky" label="Họ tên người ký" />
-                <ProFormTextArea
-                  name="noi_nhan"
-                  label="Nơi nhận"
-                  fieldProps={{ rows: 5 }}
-                  extra="Mỗi dòng một nơi nhận. Xuống dòng sẽ giữ nguyên trên thông báo."
-                />
-              </>
-            ) : null
-          }
+          {({ template_type }) => {
+            if (template_type === 'THONG_BAO') {
+              return (
+                <>
+                  <ProFormDigit
+                    name="so_moi_nhat"
+                    label="Số mới nhất đã dùng"
+                    min={0}
+                    fieldProps={{ precision: 0 }}
+                    extra="Xem và tải dùng số này + 1. Số chỉ được ghi lại khi BGH phê duyệt."
+                  />
+                  <ProFormText
+                    name="ky_hieu"
+                    label="Ký hiệu thông báo"
+                    placeholder="ĐHSP"
+                    extra="Điền vào số hiệu, dạng Số: …/TB-ĐHSP."
+                  />
+                  <ProFormText
+                    name="tham_quyen_ky"
+                    label="Thẩm quyền ký"
+                    placeholder="HIỆU TRƯỞNG"
+                  />
+                  <ProFormText name="ho_ten_nguoi_ky" label="Họ tên người ký" />
+                  <ProFormTextArea
+                    name="noi_nhan"
+                    label="Nơi nhận"
+                    fieldProps={{ rows: 5 }}
+                    extra="Mỗi dòng một nơi nhận. Xuống dòng sẽ giữ nguyên trên thông báo."
+                  />
+                </>
+              );
+            }
+            if (template_type === 'QUYET_DINH') {
+              return (
+                <>
+                  <ProFormDigit
+                    name="so_moi_nhat"
+                    label="Số quyết định mới nhất đã dùng"
+                    min={0}
+                    fieldProps={{ precision: 0 }}
+                    extra="Dự thảo dùng số này + 1. Cập nhật khi phát hành chính thức."
+                  />
+                  <ProFormTextArea
+                    name="van_ban_quy_dinh_chuc_nang_nhiem_vu_tham_quyen"
+                    label="Văn bản quy định chức năng, nhiệm vụ, thẩm quyền"
+                    fieldProps={{ rows: 2 }}
+                  />
+                  <ProFormTextArea
+                    name="quy_dinh_quan_ly_nhiem_vu_khcn_dmst"
+                    label="Quy định quản lý nhiệm vụ KHCN&ĐMST"
+                    fieldProps={{ rows: 2 }}
+                  />
+                  <ProFormTextArea
+                    name="van_ban_phe_duyet_danh_muc_hoac_ke_hoach_tham_dinh"
+                    label="Văn bản phê duyệt danh mục / kế hoạch thẩm định"
+                    fieldProps={{ rows: 2 }}
+                  />
+                  <ProFormText
+                    name="chuc_danh_nguoi_de_nghi"
+                    label="Chức danh người đề nghị"
+                    placeholder="Trưởng phòng Khoa học và Hợp tác quốc tế"
+                  />
+                  <ProFormText
+                    name="don_vi_dau_moi"
+                    label="Đơn vị đầu mối thi hành"
+                    placeholder="Phòng Khoa học và Hợp tác quốc tế"
+                  />
+                  <ProFormText
+                    name="don_vi_luu_ho_so"
+                    label="Đơn vị lưu hồ sơ (nơi nhận)"
+                    placeholder="PKH&HTQT"
+                  />
+                  <ProFormText name="ho_ten_nguoi_ky" label="Họ tên người ký (Hiệu trưởng)" />
+                </>
+              );
+            }
+            return null;
+          }}
         </ProFormDependency>
         <div style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 8 }}>

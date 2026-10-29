@@ -191,7 +191,7 @@ const Universities: React.FC = () => {
       dataIndex: 'updated_at',
       width: 140,
       hideInSearch: true,
-      render: (_, r) => (r.updated_at ? dayjs(r.updated_at).format('DD/MM/YYYY HH:mm') : '-'),
+      render: (_, r) => (r.updated_at ? dayjs(r.updated_at).format('HH:mm DD/MM/YYYY') : '-'),
     },
     {
       title: 'Hành động',

@@ -129,7 +129,7 @@ const ProjectProcessTypes: React.FC = () => {
       dataIndex: 'updated_at',
       width: 160,
       hideInSearch: true,
-      render: (_, r) => (r.updated_at ? dayjs(r.updated_at).format('DD/MM/YYYY HH:mm') : '—'),
+      render: (_, r) => (r.updated_at ? dayjs(r.updated_at).format('HH:mm DD/MM/YYYY') : '—'),
     },
     {
       title: 'Từ khóa',

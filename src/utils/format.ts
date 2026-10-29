@@ -1,6 +1,14 @@
 import { DEGREE_KEY_LABEL_MAP, LEGACY_DEGREE_TO_KEY } from '@/constants/scientificProfileCatalog';
 import { chuanHoaDegreeKey } from '@/utils/profileCatalogOptions';
 
+/** Re-export chuẩn ngày/giờ — ưu tiên import trực tiếp từ `@/utils/datetime`. */
+export {
+  DATE_FORMAT,
+  DATETIME_FORMAT,
+  formatDate,
+  formatDateTime,
+} from '@/utils/datetime';
+
 // 示例方法，没有实际意义
 export function trim(str: string) {
   return str.trim();

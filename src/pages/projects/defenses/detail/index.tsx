@@ -1,47 +1,74 @@
 /**
- * US-04-04 — Chi tiết buổi bảo vệ + biên bản / kết luận
+ * Chi tiết phiên thẩm định — QĐ / BGH / TC-HC / theo dõi BM.05a
  */
-import { PageContainer } from '@ant-design/pro-components';
+import OutlinePreviewSheet, {
+  type OutlinePreviewData,
+} from '@/components/OutlinePreviewSheet';
+import { getOutline } from '@/services/api/projectOutlines';
+import {
+  bghSignDefense,
+  cancelDefenseSession,
+  DEFENSE_ROLE_OPTIONS,
+  DEFENSE_STATUS_MAP,
+  getDefenseSession,
+  openEarlyDefenseMeeting,
+  publishDefense,
+  remindDefenseMember,
+  submitDefenseToBgh,
+  type DefenseSession,
+} from '@/services/api/projectOutlineDefenses';
+import {
+  ArrowLeftOutlined,
+  CloseCircleOutlined,
+  DownloadOutlined,
+  EyeOutlined,
+  FileTextOutlined,
+  FormOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons';
+import { FooterToolbar, PageContainer } from '@ant-design/pro-components';
+import { history, useAccess, useModel, useParams } from '@umijs/max';
 import {
   Alert,
   Button,
   Card,
-  DatePicker,
   Descriptions,
-  Form,
   Input,
-  InputNumber,
   Modal,
-  Select,
   Space,
   Table,
+  Tabs,
   Tag,
+  Typography,
   message,
 } from 'antd';
-import { history, useAccess, useParams } from '@umijs/max';
-import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
-import {
-  getDefenseSession,
-  confirmDefenseSession,
-  cancelDefenseSession,
-  saveDefenseMinutes,
-  finalizeDefenseSession,
-  DEFENSE_STATUS_MAP,
-  DEFENSE_CONCLUSION_MAP,
-  DEFENSE_ROLE_OPTIONS,
-  type DefenseSession,
-  type DefenseConclusion,
-} from '@/services/api/projectOutlineDefenses';
-import { OUTLINE_STATUS_MAP, type ProjectOutlineStatus } from '@/services/api/projectOutlines';
+import { useEffect, useMemo, useState } from 'react';
+import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+import Bm05aScoreSheet from '../bm05a/Bm05aScoreSheet';
+import BienBanThamDinh from './BienBanThamDinh';
+
+const { Paragraph } = Typography;
 
 const DefenseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const access = useAccess();
+  const { initialState } = useModel('@@initialState');
+  const currentUserId = Number((initialState?.currentUser as any)?.id || 0);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<DefenseSession | null>(null);
-  const [form] = Form.useForm();
+  const [tmOpen, setTmOpen] = useState(false);
+  const [tmLoading, setTmLoading] = useState(false);
+  const [tmOutline, setTmOutline] = useState<OutlinePreviewData | null>(null);
+  const [phieuOpen, setPhieuOpen] = useState(false);
+  const [phieuSheetId, setPhieuSheetId] = useState<number | null>(null);
+  const [tabKey, setTabKey] = useState('phien');
   const sessionId = Number(id);
+
+  const openPhieuSheet = (sheetId: number) => {
+    setPhieuSheetId(sheetId);
+    setPhieuOpen(true);
+  };
 
   const load = async () => {
     if (!sessionId) return;
@@ -49,20 +76,6 @@ const DefenseDetailPage: React.FC = () => {
     try {
       const res = await getDefenseSession(sessionId);
       setSession(res.data);
-      const att: Record<number, string> = {};
-      (res.data.members || []).forEach((m) => {
-        if (m.id) att[m.id] = m.attendance || 'PENDING';
-      });
-      form.setFieldsValue({
-        discussionNotes: res.data.discussionNotes,
-        finalScore: res.data.finalScore,
-        conclusion: res.data.conclusion,
-        adjustmentRequirements: res.data.adjustmentRequirements,
-        adjustmentDeadline: res.data.adjustmentDeadline
-          ? dayjs(res.data.adjustmentDeadline)
-          : null,
-        attendances: att,
-      });
     } catch (e: any) {
       message.error(e?.data?.message || e?.message || 'Không tải được');
     } finally {
@@ -71,41 +84,68 @@ const DefenseDetailPage: React.FC = () => {
   };
 
   useEffect(() => {
-    load();
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  if (!access.canManageOutlineDefense) {
-    return (
-      <PageContainer>
-        <Alert type="error" message="Chỉ PKH thao tác buổi bảo vệ." />
-      </PageContainer>
-    );
-  }
+  const st = session?.status;
+  const canPkh = access.canManageOutlineDefense;
+  const canBgh =
+    access.canApproveProjectProposal ||
+    access.canApproveSelectionSession ||
+    access.canApproveOutlineBudget;
+  const canTchc = access.canConfirmOutlineBudget || access.canManageOutlineDefense;
 
-  const editableMinutes = session?.status === 'CONFIRMED';
-  const canConfirm = session?.status === 'DRAFT';
-  const canCancel = session?.status === 'DRAFT' || session?.status === 'CONFIRMED';
-
-  const buildAttendances = (strict: boolean) => {
-    const att = form.getFieldValue('attendances') || {};
-    return (session?.members || [])
-      .filter((m) => m.id)
-      .map((m) => ({
-        memberId: m.id!,
-        attendance: (att[m.id!] || (strict ? 'PRESENT' : 'PENDING')) as any,
-      }));
-  };
-
-  const handleConfirm = () => {
+  const handleSubmitBgh = () => {
     Modal.confirm({
-      title: 'Xác nhận lịch bảo vệ?',
-      content: 'Hệ thống sẽ chuyển thuyết minh sang BAOVE_PENDING và gửi lời mời.',
+      title: 'Trình BGH ký QĐ thành lập HĐ?',
+      content: 'Hệ thống tạo dự thảo QĐ và chuyển trạng thái chờ BGH ký số.',
       onOk: async () => {
         try {
-          const res = await confirmDefenseSession(sessionId);
+          const res = await submitDefenseToBgh(sessionId);
           setSession(res.data);
-          message.success(res.message || 'Đã xác nhận');
+          message.success(res.message || 'Đã trình BGH');
+        } catch (e: any) {
+          message.error(e?.data?.message || e?.message || 'Thất bại');
+        }
+      },
+    });
+  };
+
+  const handleBghSign = () => {
+    let note = '';
+    Modal.confirm({
+      title: 'BGH ký số QĐ?',
+      content: (
+        <Input.TextArea
+          rows={2}
+          placeholder="Ghi chú (tuỳ chọn)"
+          onChange={(e) => {
+            note = e.target.value;
+          }}
+        />
+      ),
+      onOk: async () => {
+        try {
+          const res = await bghSignDefense(sessionId, note || null);
+          setSession(res.data);
+          message.success(res.message || 'Đã ký');
+        } catch (e: any) {
+          message.error(e?.data?.message || e?.message || 'Thất bại');
+        }
+      },
+    });
+  };
+
+  const handlePublish = () => {
+    Modal.confirm({
+      title: 'TC-HC phát hành QĐ?',
+      content: 'Hệ thống gửi email mời + mở phiếu BM.05a cho thành viên HĐ.',
+      onOk: async () => {
+        try {
+          const res = await publishDefense(sessionId);
+          setSession(res.data);
+          message.success(res.message || 'Đã phát hành');
         } catch (e: any) {
           message.error(e?.data?.message || e?.message || 'Thất bại');
         }
@@ -116,19 +156,20 @@ const DefenseDetailPage: React.FC = () => {
   const handleCancel = () => {
     let reason = '';
     Modal.confirm({
-      title: 'Hủy buổi bảo vệ',
+      title: 'Hủy phiên thẩm định',
       content: (
         <Input.TextArea
           rows={3}
-          placeholder="Lý do hủy (≥ 5 ký tự)"
+          placeholder="Lý do ≥ 5 ký tự"
           onChange={(e) => {
             reason = e.target.value;
           }}
         />
       ),
+      okButtonProps: { danger: true },
       onOk: async () => {
         if (!reason.trim() || reason.trim().length < 5) {
-          message.warning('Nhập lý do');
+          message.warning('Nhập lý do ≥ 5 ký tự');
           return Promise.reject();
         }
         try {
@@ -143,235 +184,468 @@ const DefenseDetailPage: React.FC = () => {
     });
   };
 
-  const handleSaveMinutes = async () => {
+  const handleRemind = async (memberId: number) => {
     try {
-      const v = await form.validateFields(['discussionNotes']);
-      const res = await saveDefenseMinutes(sessionId, {
-        discussionNotes: v.discussionNotes,
-        finalScore: form.getFieldValue('finalScore'),
-        conclusion: form.getFieldValue('conclusion'),
-        adjustmentRequirements: form.getFieldValue('adjustmentRequirements'),
-        adjustmentDeadline: form.getFieldValue('adjustmentDeadline')
-          ? dayjs(form.getFieldValue('adjustmentDeadline')).toISOString()
-          : null,
-        attendances: buildAttendances(false),
-      });
-      setSession(res.data);
-      message.success('Đã lưu nháp biên bản');
+      const res = await remindDefenseMember(sessionId, memberId);
+      message.success(res.message || 'Đã nhắc');
+      await load();
     } catch (e: any) {
-      message.error(e?.data?.message || e?.message || 'Lưu thất bại');
+      message.error(e?.data?.message || e?.message || 'Thất bại');
     }
   };
 
-  const handleFinalize = async () => {
+  const statusMeta = st ? DEFENSE_STATUS_MAP[st] : null;
+  const sheets = session?.scoreSheets || [];
+  const myMember = useMemo(
+    () => (session?.members || []).find((m) => Number(m.userId) === currentUserId),
+    [session?.members, currentUserId],
+  );
+  const mySheets = useMemo(() => {
+    if (!myMember?.id) return [];
+    return sheets.filter((s) => s.memberId === myMember.id);
+  }, [sheets, myMember?.id]);
+
+  const memberRows = (session?.members || []).map((m) => {
+    const mine = sheets.filter((s) => s.memberId === m.id);
+    const submitted = mine.filter((s) => s.status === 'SUBMITTED').length;
+    return {
+      ...m,
+      sheetTotal: mine.length,
+      sheetSubmitted: submitted,
+      pending: mine.length - submitted,
+    };
+  });
+
+  const outlineCode = (outlineId: number) =>
+    session?.outlines?.find((o) => o.id === outlineId)?.code || `TM #${outlineId}`;
+
+  const openOutlineSheet = async (outlineId: number) => {
+    setTmOpen(true);
+    setTmLoading(true);
     try {
-      const v = await form.validateFields();
-      Modal.confirm({
-        title: 'Chốt biên bản?',
-        content: 'Không thể chốt lại. Trạng thái thuyết minh sẽ chuyển theo kết luận.',
-        onOk: async () => {
-          try {
-            const res = await finalizeDefenseSession(sessionId, {
-              discussionNotes: v.discussionNotes,
-              finalScore: v.finalScore ?? null,
-              conclusion: v.conclusion as DefenseConclusion,
-              adjustmentRequirements: v.adjustmentRequirements || null,
-              adjustmentDeadline: v.adjustmentDeadline
-                ? dayjs(v.adjustmentDeadline).toISOString()
-                : null,
-              attendances: buildAttendances(true).map((a) => ({
-                memberId: a.memberId,
-                attendance: a.attendance === 'ABSENT' ? 'ABSENT' : 'PRESENT',
-              })),
-            });
-            setSession(res.data);
-            message.success(res.message || 'Đã chốt');
-          } catch (e: any) {
-            message.error(e?.data?.message || e?.message || 'Chốt thất bại');
-          }
-        },
-      });
-    } catch {
-      message.warning('Hoàn thiện biểu mẫu trước khi chốt');
+      const lite =
+        session?.outlines?.find((o) => o.id === outlineId) ||
+        (session?.outline?.id === outlineId ? session.outline : null);
+      setTmOutline((lite as OutlinePreviewData) || { id: outlineId });
+      const res = await getOutline(outlineId);
+      if (res.data) setTmOutline(res.data as OutlinePreviewData);
+    } catch (e: any) {
+      message.error(e?.data?.message || e?.message || 'Không tải được thuyết minh');
+    } finally {
+      setTmLoading(false);
     }
   };
 
-  const o = session?.outline;
-  const outlineStatus = o?.status as ProjectOutlineStatus | undefined;
+  const hasActions =
+    mySheets.some((s) => s.status === 'DRAFT') ||
+    (canPkh && st === 'DRAFT') ||
+    (canBgh && st === 'PENDING_BGH') ||
+    (canTchc && st === 'BGH_SIGNED') ||
+    (canPkh && !!st && !['FINALIZED', 'CANCELLED'].includes(st));
 
   return (
     <PageContainer
       loading={loading}
-      title={o ? `Bảo vệ — ${o.code}` : 'Chi tiết bảo vệ'}
-      onBack={() => history.push('/projects/defenses')}
-      extra={
-        <Space>
-          {canConfirm && (
-            <Button type="primary" onClick={handleConfirm}>
-              Xác nhận lịch
-            </Button>
-          )}
-          {canCancel && <Button danger onClick={handleCancel}>Hủy buổi</Button>}
-          {editableMinutes && (
-            <>
-              <Button onClick={() => void handleSaveMinutes()}>Lưu nháp biên bản</Button>
-              <Button type="primary" onClick={() => void handleFinalize()}>
-                Chốt biên bản
-              </Button>
-            </>
-          )}
-          {session?.minutesFileUrl && (
-            <Button href={session.minutesFileUrl} target="_blank">
-              Xem biên bản
-            </Button>
-          )}
-        </Space>
+      title={session?.title || session?.decisionCode || `Phiên #${sessionId}`}
+      onBack={() =>
+        history.push(canPkh ? '/projects/defenses' : '/projects/defenses/my-tasks')
       }
+      tags={statusMeta ? <Tag color={statusMeta.color}>{statusMeta.label}</Tag> : undefined}
     >
-      {session && (
+      {!session ? (
+        <Alert type="warning" message="Không tìm thấy phiên." />
+      ) : (
         <>
-          <Card size="small" style={{ marginBottom: 16 }}>
-            <Descriptions column={2} size="small">
-              <Descriptions.Item label="Trạng thái buổi">
-                <Tag color={DEFENSE_STATUS_MAP[session.status]?.color}>
-                  {DEFENSE_STATUS_MAP[session.status]?.label || session.status}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Trạng thái TM">
-                {outlineStatus ? (
-                  <Tag color={OUTLINE_STATUS_MAP[outlineStatus]?.color}>
-                    {OUTLINE_STATUS_MAP[outlineStatus]?.label}
-                  </Tag>
-                ) : (
-                  '—'
-                )}
-              </Descriptions.Item>
-              <Descriptions.Item label="Thời gian">
-                {session.meetingAt
-                  ? dayjs(session.meetingAt).format('DD/MM/YYYY HH:mm')
-                  : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Hình thức">{session.meetingMode}</Descriptions.Item>
-              <Descriptions.Item label="Địa điểm">{session.location || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Link">{session.meetingUrl || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Đề tài" span={2}>
-                {o?.title}
-              </Descriptions.Item>
-              <Descriptions.Item label="CNĐT">
-                {o?.ownerName}
-                {o?.ownerUnit ? ` — ${o.ownerUnit}` : ''}
-              </Descriptions.Item>
-              <Descriptions.Item label="Điểm TB phản biện">
-                {o?.reviewAverageScore ?? '—'}
-              </Descriptions.Item>
-              {session.conclusion && (
-                <Descriptions.Item label="Kết luận" span={2}>
-                  {DEFENSE_CONCLUSION_MAP[session.conclusion]}
-                </Descriptions.Item>
-              )}
-            </Descriptions>
-          </Card>
-
-          <Card size="small" title="Thành phần hội đồng" style={{ marginBottom: 16 }}>
-            <Table
-              size="small"
-              pagination={false}
-              rowKey={(r) => String(r.id || r.memberName)}
-              dataSource={session.members || []}
-              columns={[
-                { title: 'Họ tên', dataIndex: 'memberName' },
-                {
-                  title: 'Vai trò',
-                  width: 120,
-                  render: (_, r) =>
-                    DEFENSE_ROLE_OPTIONS.find((x) => x.value === r.roleInCouncil)?.label ||
-                    r.roleInCouncil,
-                },
-                {
-                  title: 'Ngoài',
-                  width: 80,
-                  render: (_, r) => (r.isExternal ? <Tag color="orange">Ngoài</Tag> : '—'),
-                },
-                {
-                  title: 'Có mặt',
-                  width: 140,
-                  render: (_, r) =>
-                    editableMinutes && r.id ? (
-                      <Form form={form} component={false}>
-                        <Form.Item name={['attendances', r.id]} noStyle>
-                          <Select
-                            style={{ width: 120 }}
-                            options={[
-                              { value: 'PRESENT', label: 'Có mặt' },
-                              { value: 'ABSENT', label: 'Vắng' },
-                              { value: 'PENDING', label: 'Chưa ghi' },
+          <div style={{ paddingBottom: hasActions || tabKey === 'bienban' ? 72 : 0 }}>
+          <Tabs
+            activeKey={tabKey}
+            onChange={setTabKey}
+            items={[
+              {
+                key: 'phien',
+                label: 'Thông tin phiên',
+                children: (
+                  <>
+                    {myMember && ['PUBLISHED', 'CONFIRMED'].includes(st || '') ? (
+                      <Card
+                        size="small"
+                        title="Phiếu đánh giá thuyết minh của bạn"
+                        style={{ marginBottom: 16 }}
+                        extra={
+                          <Button
+                            type="link"
+                            onClick={() => history.push('/projects/defenses/my-tasks')}
+                          >
+                            Tất cả phiếu của tôi
+                          </Button>
+                        }
+                      >
+                        {!mySheets.length ? (
+                          <Alert
+                            type="warning"
+                            message="Chưa có phiếu — liên hệ PKH kiểm tra phát hành QĐ."
+                          />
+                        ) : (
+                          <Table
+                            size="small"
+                            rowKey="id"
+                            pagination={false}
+                            dataSource={mySheets}
+                            columns={[
+                              {
+                                title: 'Thuyết minh',
+                                render: (_, r) => outlineCode(r.projectOutlineId),
+                              },
+                              {
+                                title: 'Trạng thái',
+                                width: 160,
+                                render: (_, r) =>
+                                  r.status === 'SUBMITTED' ? (
+                                    <Tag color="green">Đã nộp</Tag>
+                                  ) : (
+                                    <Tag color="orange">Chưa nộp</Tag>
+                                  ),
+                              },
+                              {
+                                title: 'Điểm',
+                                width: 120,
+                                align: 'center',
+                                render: (_, r) => r.totalScore ?? '—',
+                              },
+                              {
+                                title: 'Thao tác',
+                                width: 300,
+                                render: (_, r) => (
+                                  <Space size={4} wrap>
+                                    {/* Icon tài liệu: mở xem hồ sơ thuyết minh */}
+                                    <Button
+                                      type="link"
+                                      size="small"
+                                      icon={<FileTextOutlined />}
+                                      onClick={() =>
+                                        void openOutlineSheet(r.projectOutlineId)
+                                      }
+                                      style={{ paddingInline: 4 }}
+                                    >
+                                      Xem thuyết minh
+                                    </Button>
+                                    {/* Icon form: nhập/xem phiếu BM.05a */}
+                                    <Button
+                                      type="link"
+                                      size="small"
+                                      icon={
+                                        r.status === 'SUBMITTED' ? (
+                                          <EyeOutlined />
+                                        ) : (
+                                          <FormOutlined />
+                                        )
+                                      }
+                                      onClick={() => openPhieuSheet(r.id)}
+                                      style={{ paddingInline: 4 }}
+                                    >
+                                      {r.status === 'SUBMITTED'
+                                        ? 'Xem phiếu'
+                                        : 'Nhập phiếu đánh giá'}
+                                    </Button>
+                                  </Space>
+                                ),
+                              },
                             ]}
                           />
-                        </Form.Item>
-                      </Form>
-                    ) : (
-                      r.attendance || '—'
-                    ),
-                },
-              ]}
-            />
-          </Card>
+                        )}
+                      </Card>
+                    ) : null}
 
-          {(editableMinutes || session.status === 'FINALIZED') && (
-            <Card size="small" title="Biên bản / kết luận">
-              <Form form={form} layout="vertical" disabled={!editableMinutes}>
-                <Form.Item
-                  name="discussionNotes"
-                  label="Ý kiến thảo luận / kết luận"
-                  rules={[{ required: true, min: 10 }]}
+                    <Card
+                      size="small"
+                      title="Thông tin phiên"
+                      style={{ marginBottom: 16 }}
+                      extra={
+                        canPkh &&
+                        st &&
+                        ['PUBLISHED', 'CONFIRMED'].includes(st) &&
+                        session.meetingAt &&
+                        dayjs(session.meetingAt).isAfter(dayjs()) &&
+                        !session.earlyMeetingOpened ? (
+                          <Button
+                            type="primary"
+                            ghost
+                            size="small"
+                            icon={<ThunderboltOutlined />}
+                            onClick={() => {
+                              Modal.confirm({
+                                title: 'Xác nhận họp trước ngày dự kiến?',
+                                content:
+                                  'Thư ký hội đồng sẽ được quyền soạn biên bản thẩm định, xuất PDF và gửi ngay — không cần chờ đến lịch họp.',
+                                okText: 'Xác nhận họp trước',
+                                onOk: async () => {
+                                  try {
+                                    const res = await openEarlyDefenseMeeting(sessionId);
+                                    setSession(res.data);
+                                    message.success(
+                                      res.message || 'Đã mở biên bản cho Thư ký',
+                                    );
+                                  } catch (e: any) {
+                                    message.error(
+                                      e?.data?.message || e?.message || 'Thất bại',
+                                    );
+                                    return Promise.reject();
+                                  }
+                                },
+                              });
+                            }}
+                          >
+                            Họp trước ngày dự kiến
+                          </Button>
+                        ) : session.earlyMeetingOpened ? (
+                          <Tag color="orange">Đã xác nhận họp trước lịch</Tag>
+                        ) : null
+                      }
+                    >
+                      <Descriptions column={2} size="small">
+                        <Descriptions.Item label="Mã QĐ">
+                          {session.decisionCode || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Ngày họp">
+                          {session.meetingAt
+                            ? dayjs(session.meetingAt).format('HH:mm DD/MM/YYYY')
+                            : '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Địa điểm">
+                          {session.location || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Link họp">
+                          {session.meetingUrl ? (
+                            <a href={session.meetingUrl} target="_blank" rel="noreferrer">
+                              {session.meetingUrl}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="BM.05a" span={2}>
+                          {session.scoreProgress
+                            ? `${session.scoreProgress.submitted}/${session.scoreProgress.total} đã nộp`
+                            : 'Chưa mở (sau khi TC-HC phát hành)'}
+                        </Descriptions.Item>
+                        {session.earlyMeetingOpened ? (
+                          <Descriptions.Item label="Họp trước lịch" span={2}>
+                            Đã mở
+                            {session.earlyMeetingOpenedAt
+                              ? ` lúc ${dayjs(session.earlyMeetingOpenedAt).format(
+                                  'HH:mm DD/MM/YYYY',
+                                )}`
+                              : ''}{' '}
+                            — Thư ký được soạn biên bản.
+                          </Descriptions.Item>
+                        ) : null}
+                      </Descriptions>
+                    </Card>
+
+                    <Card size="small" title="Thuyết minh trong phiên" style={{ marginBottom: 16 }}>
+                      <Table
+                        size="small"
+                        rowKey="id"
+                        pagination={false}
+                        dataSource={
+                          session.outlines || (session.outline ? [session.outline] : [])
+                        }
+                        columns={[
+                          {
+                            title: 'Mã',
+                            dataIndex: 'code',
+                            width: 140,
+                            render: (code: string, r) => (
+                              <a onClick={() => void openOutlineSheet(r.id)}>{code}</a>
+                            ),
+                          },
+                          {
+                            title: 'Tên đề tài',
+                            dataIndex: 'title',
+                            ellipsis: true,
+                            render: (title: string, r) => (
+                              <a onClick={() => void openOutlineSheet(r.id)}>{title}</a>
+                            ),
+                          },
+                          {
+                            title: 'CNĐT',
+                            dataIndex: 'ownerName',
+                            width: 200,
+                            ellipsis: true,
+                          },
+                          {
+                            title: 'Trạng thái',
+                            dataIndex: 'status',
+                            width: 180,
+                          },
+                          {
+                            title: 'Hồ sơ',
+                            width: 180,
+                            render: (_, r) => (
+                              <Button
+                                type="link"
+                                size="small"
+                                icon={<FileTextOutlined />}
+                                onClick={() => void openOutlineSheet(r.id)}
+                                style={{ paddingInline: 0 }}
+                              >
+                                Xem thuyết minh
+                              </Button>
+                            ),
+                          },
+                        ]}
+                      />
+                    </Card>
+
+                    <Card size="small" title="Hội đồng" style={{ marginBottom: 16 }}>
+                      <Table
+                        size="small"
+                        rowKey={(r) => String(r.id || r.memberName)}
+                        pagination={false}
+                        dataSource={memberRows}
+                        columns={[
+                          { title: 'Họ tên', dataIndex: 'memberName' },
+                          {
+                            title: 'Vai trò',
+                            width: 130,
+                            render: (_, r) =>
+                              DEFENSE_ROLE_OPTIONS.find((o) => o.value === r.roleInCouncil)
+                                ?.label || r.roleInCouncil,
+                          },
+                          { title: 'Đơn vị', dataIndex: 'unit', ellipsis: true },
+                          {
+                            title: 'BM.05a',
+                            width: 120,
+                            render: (_, r) =>
+                              r.sheetTotal ? `${r.sheetSubmitted}/${r.sheetTotal}` : '—',
+                          },
+                          {
+                            title: 'Thao tác',
+                            width: 100,
+                            render: (_, r) =>
+                              canPkh &&
+                              st &&
+                              ['PUBLISHED', 'CONFIRMED'].includes(st) &&
+                              r.pending > 0 &&
+                              r.id ? (
+                                <a onClick={() => void handleRemind(r.id!)}>Nhắc</a>
+                              ) : null,
+                          },
+                        ]}
+                      />
+                    </Card>
+
+                    {session.decisionDraftHtml || session.decisionFileUrl ? (
+                      <Card
+                        size="small"
+                        title="Dự thảo QĐ thành lập HĐ"
+                        extra={
+                          session.decisionFileUrl ? (
+                            <a
+                              href={resolvePublicAssetUrl(session.decisionFileUrl)}
+                              target="_blank"
+                              rel="noreferrer"
+                              download
+                            >
+                              <DownloadOutlined /> Tải QĐ (DOCX)
+                            </a>
+                          ) : null
+                        }
+                      >
+                        {session.decisionDraftHtml ? (
+                          <Paragraph>
+                            <div
+                              dangerouslySetInnerHTML={{ __html: session.decisionDraftHtml }}
+                            />
+                          </Paragraph>
+                        ) : (
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="Đã sinh file DOCX dự thảo — tải về để xem nội dung đầy đủ."
+                          />
+                        )}
+                      </Card>
+                    ) : null}
+                  </>
+                ),
+              },
+              {
+                key: 'bienban',
+                label: 'Biên bản thẩm định',
+                children: <BienBanThamDinh sessionId={sessionId} />,
+              },
+            ]}
+          />
+          </div>
+
+          <OutlinePreviewSheet
+            open={tmOpen}
+            onClose={() => setTmOpen(false)}
+            outline={tmOutline}
+            loading={tmLoading}
+          />
+
+          <Bm05aScoreSheet
+            open={phieuOpen}
+            sheetId={phieuSheetId}
+            onClose={() => {
+              setPhieuOpen(false);
+              setPhieuSheetId(null);
+            }}
+            onSaved={() => void load()}
+          />
+
+          {hasActions && tabKey !== 'bienban' ? (
+            <FooterToolbar>
+              <Button
+                icon={<ArrowLeftOutlined />}
+                onClick={() =>
+                  history.push(
+                    canPkh ? '/projects/defenses' : '/projects/defenses/my-tasks',
+                  )
+                }
+              >
+                Quay lại
+              </Button>
+              {mySheets.some((s) => s.status === 'DRAFT') ? (
+                <Button
+                  type="primary"
+                  icon={<FormOutlined />}
+                  onClick={() => {
+                    const first = mySheets.find((s) => s.status === 'DRAFT');
+                    if (first) openPhieuSheet(first.id);
+                  }}
                 >
-                  <Input.TextArea rows={5} showCount maxLength={20000} />
-                </Form.Item>
-                <Form.Item name="finalScore" label="Điểm tổng kết HĐ (tuỳ chọn)">
-                  <InputNumber min={0} max={100} step={0.5} style={{ width: 160 }} />
-                </Form.Item>
-                <Form.Item
-                  name="conclusion"
-                  label="Kết luận"
-                  rules={[{ required: true, message: 'Chọn kết luận' }]}
+                  Nhập phiếu đánh giá
+                </Button>
+              ) : null}
+              {canPkh && st === 'DRAFT' ? (
+                <Button type="primary" onClick={handleSubmitBgh}>
+                  Tạo QĐ & trình BGH
+                </Button>
+              ) : null}
+              {canBgh && st === 'PENDING_BGH' ? (
+                <Button type="primary" onClick={handleBghSign}>
+                  BGH ký số
+                </Button>
+              ) : null}
+              {canTchc && st === 'BGH_SIGNED' ? (
+                <Button type="primary" onClick={handlePublish}>
+                  TC-HC phát hành
+                </Button>
+              ) : null}
+              {canPkh && st && !['FINALIZED', 'CANCELLED'].includes(st) ? (
+                <Button
+                  danger
+                  icon={<CloseCircleOutlined />}
+                  onClick={handleCancel}
                 >
-                  <Select
-                    options={[
-                      { value: 'THONG_QUA', label: 'Thông qua' },
-                      { value: 'THONG_QUA_DIEU_CHINH', label: 'Thông qua có điều chỉnh' },
-                      { value: 'KHONG_THONG_QUA', label: 'Không thông qua' },
-                    ]}
-                    style={{ width: 280 }}
-                  />
-                </Form.Item>
-                <Form.Item
-                  noStyle
-                  shouldUpdate={(prev, cur) => prev.conclusion !== cur.conclusion}
-                >
-                  {() =>
-                    form.getFieldValue('conclusion') === 'THONG_QUA_DIEU_CHINH' ? (
-                      <>
-                        <Form.Item
-                          name="adjustmentRequirements"
-                          label="Yêu cầu chỉnh sửa"
-                          rules={[{ required: true }]}
-                        >
-                          <Input.TextArea rows={3} />
-                        </Form.Item>
-                        <Form.Item
-                          name="adjustmentDeadline"
-                          label="Hạn chỉnh sửa"
-                          rules={[{ required: true }]}
-                        >
-                          <DatePicker style={{ width: 200 }} />
-                        </Form.Item>
-                      </>
-                    ) : null
-                  }
-                </Form.Item>
-              </Form>
-            </Card>
-          )}
+                  Hủy phiên
+                </Button>
+              ) : null}
+            </FooterToolbar>
+          ) : null}
         </>
       )}
     </PageContainer>

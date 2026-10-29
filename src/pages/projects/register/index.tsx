@@ -593,7 +593,7 @@ const ProjectRegisterPage: React.FC = () => {
                       : ''}
                     {a.actorName ? ` — ${a.actorName}` : ''}
                     <div style={{ color: '#888', fontSize: 12 }}>
-                      {a.createdAt ? dayjs(a.createdAt).format('DD/MM/YYYY HH:mm') : ''}
+                      {a.createdAt ? dayjs(a.createdAt).format('HH:mm DD/MM/YYYY') : ''}
                     </div>
                     {a.note && <Paragraph style={{ marginBottom: 0 }}>{a.note}</Paragraph>}
                   </div>

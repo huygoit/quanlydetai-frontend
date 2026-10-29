@@ -271,12 +271,12 @@ const ProjectContractDetailPage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="CNNV xác nhận">
                 {wf?.cnnvConfirmedAt
-                  ? dayjs(wf.cnnvConfirmedAt).format('DD/MM/YYYY HH:mm')
+                  ? dayjs(wf.cnnvConfirmedAt).format('HH:mm DD/MM/YYYY')
                   : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="BGH ký">
                 {wf?.bghSignedAt
-                  ? dayjs(wf.bghSignedAt).format('DD/MM/YYYY HH:mm')
+                  ? dayjs(wf.bghSignedAt).format('HH:mm DD/MM/YYYY')
                   : '—'}
               </Descriptions.Item>
               <Descriptions.Item label="Số phát hành">
@@ -287,7 +287,7 @@ const ProjectContractDetailPage: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="CNNV ký">
                 {wf?.cnnvSignedAt
-                  ? dayjs(wf.cnnvSignedAt).format('DD/MM/YYYY HH:mm')
+                  ? dayjs(wf.cnnvSignedAt).format('HH:mm DD/MM/YYYY')
                   : '—'}
               </Descriptions.Item>
             </Descriptions>

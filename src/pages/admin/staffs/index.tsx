@@ -21,6 +21,7 @@ import {
 } from '@/services/api/staffPositions';
 import { nhanChucVuTuIds } from '@/utils/staffPositionIds';
 import dayjs from 'dayjs';
+import { formatDateTime } from '@/utils/datetime';
 
 const SORT_WHITELIST: StaffSortField[] = [
   'id',
@@ -80,7 +81,6 @@ const StaffsPage: React.FC = () => {
     void loadPos();
   }, []);
 
-  const formatDt = (d?: string | null) => (d ? dayjs(d).format('DD/MM/YYYY HH:mm') : '—');
 
   const columns: ProColumns<StaffSummary>[] = [
     { title: 'STT', valueType: 'indexBorder', width: 58, align: 'center', search: false },
@@ -194,7 +194,7 @@ const StaffsPage: React.FC = () => {
       dataIndex: 'updatedAt',
       width: 150,
       search: false,
-      render: (_, r) => formatDt(r.updatedAt),
+      render: (_, r) => formatDateTime(r.updatedAt),
     },
     {
       title: 'Thao tác',

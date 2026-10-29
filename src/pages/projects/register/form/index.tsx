@@ -473,7 +473,7 @@ const ProposalFormPage: React.FC = () => {
                 {proposal.pkhComment || 'Vui lòng cập nhật hồ sơ và gửi lại PKH.'}
                 {proposal.supplementDueAt && (
                   <div>
-                    Hạn bổ sung: {dayjs(proposal.supplementDueAt).format('DD/MM/YYYY HH:mm')}
+                    Hạn bổ sung: {dayjs(proposal.supplementDueAt).format('HH:mm DD/MM/YYYY')}
                   </div>
                 )}
               </>
@@ -498,12 +498,12 @@ const ProposalFormPage: React.FC = () => {
                 {proposal.adjustmentNotifiedAt && (
                   <div>
                     Ngày thông báo:{' '}
-                    {dayjs(proposal.adjustmentNotifiedAt).format('DD/MM/YYYY HH:mm')}
+                    {dayjs(proposal.adjustmentNotifiedAt).format('HH:mm DD/MM/YYYY')}
                   </div>
                 )}
                 {proposal.adjustmentDueAt && (
                   <div>
-                    Hạn nộp lại: {dayjs(proposal.adjustmentDueAt).format('DD/MM/YYYY HH:mm')}
+                    Hạn nộp lại: {dayjs(proposal.adjustmentDueAt).format('HH:mm DD/MM/YYYY')}
                     {proposal.adjustmentOverdue ? ' (quá hạn)' : ' (còn hạn)'}
                   </div>
                 )}
@@ -873,7 +873,7 @@ const ProposalFormPage: React.FC = () => {
                 </p>
               )}
               {v.createdAt && (
-                <Text type="secondary">{dayjs(v.createdAt).format('DD/MM/YYYY HH:mm')}</Text>
+                <Text type="secondary">{dayjs(v.createdAt).format('HH:mm DD/MM/YYYY')}</Text>
               )}
             </Card>
           ))

@@ -28,6 +28,7 @@ import dayjs from 'dayjs';
 import UserForm from './components/UserForm';
 import AssignRolesModal from './components/AssignRolesModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
+import { formatDateTime } from '@/utils/datetime';
 
 const { Text } = Typography;
 
@@ -109,10 +110,6 @@ const UsersPage: React.FC = () => {
     setSelectedUser(null);
   };
 
-  const formatDateTime = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    return dayjs(dateStr).format('DD/MM/YYYY HH:mm');
-  };
 
   const columns: ProColumns<IAMUserItem>[] = [
     {

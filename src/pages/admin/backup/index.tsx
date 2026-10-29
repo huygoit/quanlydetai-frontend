@@ -92,7 +92,7 @@ const TrangSaoLuu: React.FC = () => {
       title: 'Thời điểm',
       dataIndex: 'createdAt',
       width: 180,
-      render: (v: string) => (v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '—'),
+      render: (v: string) => (v ? dayjs(v).format('HH:mm DD/MM/YYYY') : '—'),
     },
     {
       title: 'Thao tác',

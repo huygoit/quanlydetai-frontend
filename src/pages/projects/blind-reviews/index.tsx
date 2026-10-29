@@ -213,7 +213,7 @@ const BlindReviewAssignPage: React.FC = () => {
       title: 'Nộp lúc',
       dataIndex: 'submittedAt',
       width: 140,
-      render: (_, r) => (r.submittedAt ? dayjs(r.submittedAt).format('DD/MM/YYYY HH:mm') : '—'),
+      render: (_, r) => (r.submittedAt ? dayjs(r.submittedAt).format('HH:mm DD/MM/YYYY') : '—'),
     },
     {
       title: 'Thao tác',

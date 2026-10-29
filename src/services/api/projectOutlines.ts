@@ -12,12 +12,14 @@ export type ProjectOutlineStatus =
   | 'CHINH_SUA_TM'
   | 'CHO_HD_XAC_NHAN_TM'
   | 'CHO_PKH_DUYET_TM'
+  | 'CHO_BGH_DUYET_TM'
+  | 'CHO_HC_PHAT_HANH_QD'
   | 'CHO_XAC_NHAN_KP'
   | 'CHO_TC_THAM_TRA'
   | 'LDPD_PENDING'
   | 'SAN_SANG_THUC_HIEN'
   | 'KHONG_PHE_DUYET'
-  | 'BAOVE_KHONG_DAT';
+  | 'BAOVE_KHONG_DAT'
 
 export type OutlineBudgetGroup = 'NHAN_CONG' | 'VAT_TU' | 'HOI_THAO' | 'KHAC';
 
@@ -28,16 +30,18 @@ export const OUTLINE_STATUS_MAP: Record<
   THUYETMINH_DRAFT: { label: 'Bản nháp', color: 'default' },
   THUYETMINH_PENDING: { label: 'Đã nộp — chờ PKH', color: 'processing' },
   PHANBIEN_KIN: { label: 'Phản biện kín', color: 'purple' },
-  BAOVE_PENDING: { label: 'Chờ / đang bảo vệ', color: 'blue' },
-  CHINH_SUA_TM: { label: 'Chỉnh sửa thuyết minh', color: 'orange' },
-  CHO_HD_XAC_NHAN_TM: { label: 'Chờ hội đồng xác nhận', color: 'blue' },
+  BAOVE_PENDING: { label: 'Chờ / đang thẩm định', color: 'blue' },
+  CHINH_SUA_TM: { label: 'Hoàn thiện theo BM.05b', color: 'orange' },
   CHO_PKH_DUYET_TM: { label: 'Chờ phòng KH duyệt', color: 'purple' },
-  CHO_XAC_NHAN_KP: { label: 'Chờ đề xuất kinh phí', color: 'cyan' },
-  CHO_TC_THAM_TRA: { label: 'Chờ TC thẩm tra KP', color: 'geekblue' },
-  LDPD_PENDING: { label: 'Chờ LĐ phê duyệt', color: 'gold' },
-  SAN_SANG_THUC_HIEN: { label: 'Sẵn sàng thực hiện', color: 'success' },
-  KHONG_PHE_DUYET: { label: 'Không phê duyệt', color: 'error' },
-  BAOVE_KHONG_DAT: { label: 'Không thông qua bảo vệ', color: 'error' },
+  CHO_HD_XAC_NHAN_TM: { label: 'Chờ hội đồng xác nhận', color: 'blue' },
+  CHO_BGH_DUYET_TM: { label: 'Chờ BGH phê duyệt', color: 'gold' },
+  CHO_HC_PHAT_HANH_QD: { label: 'Chờ HC phát hành QĐ', color: 'cyan' },
+  CHO_XAC_NHAN_KP: { label: '(Cũ) Chờ kinh phí', color: 'default' },
+  CHO_TC_THAM_TRA: { label: '(Cũ) TC thẩm tra KP', color: 'default' },
+  LDPD_PENDING: { label: '(Cũ) Chờ LĐ phê duyệt', color: 'default' },
+  SAN_SANG_THUC_HIEN: { label: 'Được duyệt — sẵn sàng TH', color: 'success' },
+  KHONG_PHE_DUYET: { label: 'Từ chối phê duyệt', color: 'error' },
+  BAOVE_KHONG_DAT: { label: 'Không thông qua thẩm định', color: 'error' },
 };
 
 export const BUDGET_GROUP_OPTIONS: {
@@ -87,7 +91,24 @@ export type OutlineBudgetLine = {
   lineOrder?: number;
 };
 
-export type RevisionGateStatus = 'CHO_THU_KY' | 'CHO_CHU_TICH' | 'CHO_PKH';
+export type RevisionGateStatus =
+  | 'CHO_PKH'
+  | 'CHO_THU_KY'
+  | 'CHO_CHU_TICH'
+  | 'CHO_BGH';
+
+export type OutlineVersionMeta = {
+  id: number;
+  versionNo: number;
+  versionType: string;
+  outlineFileUrl?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  uploadedAt?: string | null;
+  lockedAt?: string | null;
+  createdAt?: string | null;
+  explanation?: string | null;
+};
 
 export type OutlineRevisionContext = {
   status: string;
@@ -100,13 +121,21 @@ export type OutlineRevisionContext = {
   revisionExplanation?: string | null;
   adjustmentRequirements?: string | null;
   discussionNotes?: string | null;
+  minutesNote?: string | null;
+  councilConclusion?: string | null;
   conclusion?: string | null;
   minutesFileUrl?: string | null;
   finalScore?: number | null;
+  baselineVersion?: OutlineVersionMeta | null;
+  submittedVersion?: OutlineVersionMeta | null;
   diffLimitNote?: string;
   minExplanationLength: number;
   editable: boolean;
   canSubmit: boolean;
+  /** UserId Thư ký / Chủ tịch HĐ — dùng hiện nút duyệt, không cần gọi API phiên HĐ. */
+  thuKyUserId?: number | null;
+  chuTichUserId?: number | null;
+  flowSteps?: string[];
 };
 
 export type OutlineFieldDiff = {
@@ -170,7 +199,10 @@ export type ProjectOutline = {
   budgetLines: OutlineBudgetLine[];
   totalDetailBudget?: number;
   budgetDifference?: number;
+  /** Trạng thái cho phép sửa form (nháp / đang hoàn thiện) — không gồm quyền user. */
   editable?: boolean;
+  /** Quyền lưu/nộp của user đang đăng nhập (CNĐT / đề xuất / được giao). */
+  canWrite?: boolean;
   projectProposal?: {
     id: number;
     code: string;
@@ -295,14 +327,30 @@ export async function extendOutlineRevisionDeadline(
   return post(`/api/project-outlines/${id}/extend-revision-deadline`, data);
 }
 
+export type OutlineFileDiff = {
+  before: {
+    fileName?: string | null;
+    fileSize?: number | null;
+    uploadedAt?: string | null;
+    url?: string | null;
+  };
+  after: {
+    fileName?: string | null;
+    fileSize?: number | null;
+    uploadedAt?: string | null;
+    url?: string | null;
+  };
+};
+
 export async function getOutlineRevisionDiff(
   id: number,
   params?: { fromVersionId?: number; toVersionId?: number },
 ): Promise<
   ApiResponse<{
     diffs: OutlineFieldDiff[];
-    baseline: unknown;
-    after: unknown;
+    baseline: OutlineVersionMeta | null;
+    after: OutlineVersionMeta | null;
+    fileDiff?: OutlineFileDiff | null;
     diffLimitNote: string;
   }>
 > {

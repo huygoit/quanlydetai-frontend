@@ -15,6 +15,7 @@ import { PlusOutlined, EditOutlined, SwapOutlined } from '@ant-design/icons';
 import { useRef, useState } from 'react';
 import { useAccess } from '@umijs/max';
 import dayjs from 'dayjs';
+import { formatDateTime } from '@/utils/datetime';
 import {
   queryStaffPositions,
   createStaffPosition,
@@ -98,10 +99,6 @@ const StaffPositions: React.FC = () => {
     }
   };
 
-  const formatDateTime = (dateStr?: string | null) => {
-    if (!dateStr) return '-';
-    return dayjs(dateStr).format('DD/MM/YYYY HH:mm');
-  };
 
   const columns: ProColumns<StaffPosition>[] = [
     {

@@ -181,13 +181,12 @@ export const PERM = {
     blind_review_score: 'project.blind_review_score',
     /** US-04-04 — tổ chức bảo vệ */
     defense_manage: 'project.defense_manage',
-    /** US-04-05 — gia hạn chỉnh sửa TM */
+    /** Gia hạn chỉnh sửa TM sau thẩm định */
     outline_revision_extend: 'project.outline_revision_extend',
-    /** US-04-06 — PKH đề xuất KP */
+    /** @deprecated US-04-06 đã bỏ — giữ mã quyền cũ */
     budget_propose: 'project.budget_propose',
-    /** US-04-06 — TC xác nhận KP */
     budget_confirm: 'project.budget_confirm',
-    /** US-04-06 — LĐ phê duyệt TM */
+    /** BGH / LĐ phê duyệt TM */
     outline_approve: 'project.outline_approve',
     /** US-05-01 — quản lý dự thảo hợp đồng */
     contract_manage: 'project.contract_manage',

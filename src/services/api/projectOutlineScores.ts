@@ -25,6 +25,10 @@ export type ReviewScoreSheet = {
   totalScore: number | null;
   generalComment: string | null;
   conclusion: string | null;
+  /** BM-02.09 mục A */
+  precheckEligible?: boolean | null;
+  precheckConflictCleared?: boolean | null;
+  precheckEthicsOk?: boolean | null;
   submittedAt?: string | null;
   reopenedAt?: string | null;
   reopenReason?: string | null;
@@ -79,24 +83,25 @@ export async function getOutlineReviewTask(
   return get(`/api/project-outline-review-tasks/${assignmentId}`);
 }
 
+export type ReviewScorePayload = {
+  generalComment?: string | null;
+  conclusion?: string | null;
+  precheckEligible?: boolean | null;
+  precheckConflictCleared?: boolean | null;
+  precheckEthicsOk?: boolean | null;
+  lines?: ScoreLineInput[];
+};
+
 export async function saveOutlineReviewScoreDraft(
   assignmentId: number,
-  data: {
-    generalComment?: string | null;
-    conclusion?: string | null;
-    lines?: ScoreLineInput[];
-  },
+  data: ReviewScorePayload,
 ): Promise<ApiResponse<ReviewScoreSheet>> {
   return put(`/api/project-outline-review-tasks/${assignmentId}/score-draft`, data);
 }
 
 export async function submitOutlineReviewScore(
   assignmentId: number,
-  data: {
-    generalComment?: string | null;
-    conclusion?: string | null;
-    lines: ScoreLineInput[];
-  },
+  data: ReviewScorePayload & { lines: ScoreLineInput[] },
 ): Promise<ApiResponse<ReviewScoreSheet>> {
   return post(`/api/project-outline-review-tasks/${assignmentId}/score-submit`, data);
 }

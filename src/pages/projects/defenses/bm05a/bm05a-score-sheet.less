@@ -1,0 +1,37 @@
+.bm05a-score-sheet {
+  .ant-drawer-content-wrapper {
+    border-radius: 16px 0 0 16px;
+    overflow: hidden;
+    box-shadow: -12px 0 40px rgba(15, 23, 42, 0.16);
+  }
+
+  .ant-drawer-header {
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .ant-drawer-body {
+    background: linear-gradient(180deg, #f8fafc 0%, #fff 100px);
+    padding-bottom: 16px;
+  }
+
+  .ant-drawer-footer {
+    border-top: 1px solid #e2e8f0;
+    padding: 12px 16px;
+    background: #fff;
+  }
+
+  &__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .bm05a-score-sheet .ant-drawer-content-wrapper {
+    width: 100% !important;
+    border-radius: 0;
+  }
+}

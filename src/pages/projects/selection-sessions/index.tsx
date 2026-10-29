@@ -270,7 +270,7 @@ const SelectionSessionsPage: React.FC = () => {
       title: 'Ngày họp',
       dataIndex: 'meetingAt',
       width: 160,
-      render: (_, r) => dayjs(r.meetingAt).format('DD/MM/YYYY HH:mm'),
+      render: (_, r) => dayjs(r.meetingAt).format('HH:mm DD/MM/YYYY'),
     },
     { title: 'Địa điểm', dataIndex: 'location', ellipsis: true, width: 160 },
     {

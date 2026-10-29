@@ -276,7 +276,7 @@ const SelectionSessionDetailPage: React.FC = () => {
         <Card size="small" title="Thông tin phiên">
           <p>
             <strong>Ngày họp:</strong>{' '}
-            {session ? dayjs(session.meetingAt).format('DD/MM/YYYY HH:mm') : '—'}
+            {session ? dayjs(session.meetingAt).format('HH:mm DD/MM/YYYY') : '—'}
           </p>
           <p>
             <strong>Địa điểm:</strong> {session?.location}

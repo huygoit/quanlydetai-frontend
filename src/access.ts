@@ -70,6 +70,8 @@ export default function access(initialState: AccessInitialState | undefined) {
     hasAnyPermission: (codes: string[]) => hasAny(codes),
 
     canViewAdmin: hasAdminPermission || hasWildcard,
+    /** Tạm: nhóm «Menu rác» dưới Hệ thống (gom menu nghiệp vụ đang ẩn khỏi Đề tài). */
+    canViewMenuRac: hasAdminPermission || hasWildcard,
     /** Menu "Danh mục hệ thống" — hiện khi có bất kỳ quyền xem danh mục con nào. */
     canViewCatalog: hasAny([
       PERM.department.view,
@@ -211,34 +213,32 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.defense_manage) ||
       has(PERM.project.review) ||
       has(PERM.project.selection_manage),
-    /** PKH gia hạn chỉnh sửa TM (US-04-05) */
+    /** PKH gia hạn chỉnh sửa TM sau thẩm định */
     canExtendOutlineRevision:
       has(PERM.project.outline_revision_extend) ||
       has(PERM.project.adjustment_extend) ||
       has(PERM.project.review) ||
       has(PERM.project.selection_manage),
-    /** US-04-06 — PKH đề xuất kinh phí */
-    canProposeOutlineBudget:
-      has(PERM.project.budget_propose) ||
-      has(PERM.project.review) ||
-      has(PERM.project.selection_manage),
-    /** US-04-06 — TC thẩm tra KP */
-    canConfirmOutlineBudget:
-      has(PERM.project.budget_confirm) || has(PERM.project.liquidation),
-    /** US-04-06 — LĐ phê duyệt */
-    canApproveOutlineBudget:
+    /** BGH phê duyệt thuyết minh cuối */
+    canApproveOutlineRevisionBgh:
       has(PERM.project.outline_approve) ||
       has(PERM.project.approve) ||
       has(PERM.project.selection_approve),
-    canViewOutlineBudgetFlow:
-      has(PERM.project.budget_propose) ||
-      has(PERM.project.budget_confirm) ||
+    /** Xem hàng chờ phê duyệt TM (BGH / HC / PKH) */
+    canViewOutlineApprovals:
       has(PERM.project.outline_approve) ||
-      has(PERM.project.review) ||
+      has(PERM.project.approve) ||
+      has(PERM.project.selection_approve) ||
+      has(PERM.project.contract_publish) ||
       has(PERM.project.liquidation) ||
-      has(PERM.project.approve) ||
+      has(PERM.project.review) ||
       has(PERM.project.selection_manage) ||
-      has(PERM.project.selection_approve),
+      has(PERM.project.defense_manage),
+    /** @deprecated US-04-06 đã bỏ */
+    canProposeOutlineBudget: false,
+    canConfirmOutlineBudget: false,
+    canApproveOutlineBudget: false,
+    canViewOutlineBudgetFlow: false,
     /** US-05-01 — xem dự thảo hợp đồng */
     canViewProjectContracts:
       has(PERM.project.contract_manage) ||
@@ -253,7 +253,7 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.budget_propose) ||
       has(PERM.project.review) ||
       has(PERM.project.selection_manage),
-    /** Đúng quyền PKH module 5–6, không gộp quyền review/đề xuất KP */
+    /** Đúng quyền PKH module 5–6 */
     canContractManage: has(PERM.project.contract_manage),
     /** TC-HC phát hành hợp đồng / thanh lý */
     canPublishContract: has(PERM.project.contract_publish),

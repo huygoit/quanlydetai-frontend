@@ -1,5 +1,5 @@
 /**
- * US-04-04 — Danh sách hồ sơ đủ điều kiện bảo vệ + buổi đã lên lịch
+ * Tổ chức thẩm định — nhóm TM → lập HĐ → trình QĐ
  */
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { ProColumns, ActionType } from '@ant-design/pro-components';
@@ -22,11 +22,8 @@ import {
 import { history, useAccess } from '@umijs/max';
 import { useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import {
-  OUTLINE_STATUS_MAP,
-  type ProjectOutline,
-  type ProjectOutlineStatus,
-} from '@/services/api/projectOutlines';
+import type { ProjectOutline } from '@/services/api/projectOutlines';
+import { DATETIME_PICKER_FORMAT } from '@/utils/datetime';
 import {
   listEligibleForDefense,
   listDefenseSessions,
@@ -48,41 +45,44 @@ const DefensesPage: React.FC = () => {
   const [tab, setTab] = useState<TabKey>('eligible');
   const [sessions, setSessions] = useState<DefenseSession[]>([]);
   const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState<ProjectOutline | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [eligibleRows, setEligibleRows] = useState<ProjectOutline[]>([]);
   const [members, setMembers] = useState<DefenseMember[]>([]);
-  const [searchOpts, setSearchOpts] = useState<
-    { value: string; label: string; raw: any }[]
-  >([]);
+  const [searchOpts, setSearchOpts] = useState<{ value: string; label: string; raw: any }[]>([]);
   const [form] = Form.useForm();
   const [extForm] = Form.useForm();
 
   if (!access.canManageOutlineDefense) {
     return (
       <PageContainer>
-        <Alert type="error" message="Chỉ PKH tổ chức bảo vệ thuyết minh." />
+        <Alert type="error" message="Chỉ PKH tổ chức thẩm định thuyết minh." />
       </PageContainer>
     );
   }
 
-  const openSchedule = (row: ProjectOutline) => {
-    setCurrent(row);
+  const openCreate = () => {
+    if (!selectedIds.length) {
+      message.warning('Chọn ít nhất một thuyết minh');
+      return;
+    }
     setMembers([]);
     form.setFieldsValue({
       meetingMode: 'IN_PERSON',
       meetingAt: dayjs().add(7, 'day').hour(9).minute(0),
       shortNoticeOverride: false,
+      title: `Phiên thẩm định ${dayjs().format('DD/MM/YYYY')}`,
     });
     setOpen(true);
   };
 
   const searchMembers = async (keyword: string) => {
-    if (!current || !keyword.trim()) {
+    const firstId = selectedIds[0];
+    if (!firstId || !keyword.trim()) {
       setSearchOpts([]);
       return;
     }
-    // Tái dùng API tìm người từ hồ sơ KH (available reviewers endpoint có profile)
     try {
-      const res = await getAvailableOutlineReviewers(current.id, keyword.trim());
+      const res = await getAvailableOutlineReviewers(firstId, keyword.trim());
       setSearchOpts(
         (res.data || []).map((r) => ({
           value: String(r.scientificProfileId),
@@ -134,33 +134,36 @@ const DefensesPage: React.FC = () => {
     }
   };
 
-  const submitSchedule = async (confirm: boolean) => {
-    if (!current) return;
+  const submitCreate = async () => {
     try {
       const v = await form.validateFields();
-      if (!members.length) {
-        message.warning('Thêm thành phần hội đồng');
+      const need = ['CHU_TICH', 'THU_KY', 'PHAN_BIEN_1', 'PHAN_BIEN_2'] as DefenseCouncilRole[];
+      for (const role of need) {
+        if (members.filter((m) => m.roleInCouncil === role).length !== 1) {
+          message.warning(`Cần đúng 1 ${DEFENSE_ROLE_OPTIONS.find((o) => o.value === role)?.label}`);
+          return;
+        }
+      }
+      if (!members.some((m) => m.roleInCouncil === 'UY_VIEN')) {
+        message.warning('Cần ít nhất 1 Ủy viên');
         return;
       }
       const res = await createDefenseSession({
-        projectOutlineId: current.id,
+        projectOutlineIds: selectedIds,
+        title: v.title || null,
         meetingMode: v.meetingMode as DefenseMeetingMode,
         meetingAt: (v.meetingAt as dayjs.Dayjs).toISOString(),
         location: v.location || null,
         meetingUrl: v.meetingUrl || null,
         shortNoticeOverride: !!v.shortNoticeOverride,
         shortNoticeReason: v.shortNoticeReason || null,
-        confirm,
         members,
       });
-      message.success(res.message || 'Thành công');
+      message.success(res.message || 'Đã tạo phiên nháp');
       setOpen(false);
+      setSelectedIds([]);
       actionRef.current?.reload();
-      if (confirm && res.data?.id) {
-        history.push(`/projects/defenses/${res.data.id}`);
-      } else if (res.data?.id) {
-        history.push(`/projects/defenses/${res.data.id}`);
-      }
+      if (res.data?.id) history.push(`/projects/defenses/${res.data.id}`);
     } catch (e: any) {
       if (e?.data?.code === 'LESS_THAN_5_BUSINESS_DAYS') {
         Modal.confirm({
@@ -169,7 +172,7 @@ const DefensesPage: React.FC = () => {
           okText: 'Đã hiểu',
         });
       }
-      message.error(e?.data?.message || e?.message || 'Lên lịch thất bại');
+      message.error(e?.data?.message || e?.message || 'Tạo phiên thất bại');
     }
   };
 
@@ -177,23 +180,21 @@ const DefensesPage: React.FC = () => {
     { title: 'Mã', dataIndex: 'code', width: 130 },
     { title: 'Tên', dataIndex: 'title', ellipsis: true },
     { title: 'CNĐT', dataIndex: 'ownerName', width: 160 },
-    {
-      title: 'Điểm TB PB',
-      width: 100,
-      render: (_, r) => r.reviewAverageScore ?? '—',
-    },
-    {
-      title: 'Thao tác',
-      width: 140,
-      render: (_, r) => <a onClick={() => openSchedule(r)}>Lên lịch bảo vệ</a>,
-    },
+    { title: 'Đơn vị', dataIndex: 'ownerUnit', width: 160, ellipsis: true },
+    { title: 'Trạng thái', dataIndex: 'status', width: 140 },
   ];
 
   return (
-    <PageContainer title="Tổ chức bảo vệ thuyết minh">
+    <PageContainer title="Tổ chức thẩm định thuyết minh">
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="Flow: nhóm TM → lập HĐ → dự thảo QĐ → BGH ký → TC-HC phát hành → thành viên nhập BM.05a"
+      />
       <Space style={{ marginBottom: 16 }}>
         <Button type={tab === 'eligible' ? 'primary' : 'default'} onClick={() => setTab('eligible')}>
-          Đủ điều kiện bảo vệ
+          TM chờ thẩm định
         </Button>
         <Button
           type={tab === 'sessions' ? 'primary' : 'default'}
@@ -207,8 +208,13 @@ const DefensesPage: React.FC = () => {
             }
           }}
         >
-          Buổi bảo vệ
+          Phiên thẩm định
         </Button>
+        {tab === 'eligible' ? (
+          <Button type="primary" onClick={openCreate} disabled={!selectedIds.length}>
+            Tạo phiên ({selectedIds.length} TM)
+          </Button>
+        ) : null}
       </Space>
 
       {tab === 'eligible' ? (
@@ -217,11 +223,20 @@ const DefensesPage: React.FC = () => {
           rowKey="id"
           search={false}
           columns={columnsEligible}
-          headerTitle="Hồ sơ đã đủ phiếu phản biện"
+          headerTitle="Chọn các TM để nhóm vào một phiên"
+          rowSelection={{
+            selectedRowKeys: selectedIds,
+            onChange: (keys) => setSelectedIds(keys as number[]),
+          }}
+          tableAlertRender={false}
           request={async () => {
             const res = await listEligibleForDefense();
             const rows = res.data || [];
+            setEligibleRows(rows);
             return { data: rows, success: true, total: rows.length };
+          }}
+          locale={{
+            emptyText: 'Chưa có TM chờ tổ chức thẩm định.',
           }}
         />
       ) : (
@@ -231,33 +246,35 @@ const DefensesPage: React.FC = () => {
           pagination={false}
           columns={[
             {
-              title: 'Mã TM',
-              render: (_, r) => r.outline?.code || r.projectOutlineId,
-              width: 130,
+              title: 'Phiên',
+              render: (_, r) => r.title || r.decisionCode || `#${r.id}`,
             },
-            { title: 'Tên', render: (_, r) => r.outline?.title, ellipsis: true },
+            {
+              title: 'Số TM',
+              width: 80,
+              render: (_, r) => r.outlines?.length || 1,
+            },
             {
               title: 'Thời gian',
               width: 150,
               render: (_, r) =>
-                r.meetingAt ? dayjs(r.meetingAt).format('DD/MM/YYYY HH:mm') : '—',
+                r.meetingAt ? dayjs(r.meetingAt).format('HH:mm DD/MM/YYYY') : '—',
             },
             {
               title: 'Trạng thái',
-              width: 140,
+              width: 200,
               render: (_, r) => {
                 const m = DEFENSE_STATUS_MAP[r.status];
                 return <Tag color={m?.color}>{m?.label || r.status}</Tag>;
               },
             },
             {
-              title: 'TM',
-              width: 140,
-              render: (_, r) => {
-                const st = r.outline?.status as ProjectOutlineStatus | undefined;
-                const m = st ? OUTLINE_STATUS_MAP[st] : null;
-                return m ? <Tag color={m.color}>{m.label}</Tag> : r.outline?.status;
-              },
+              title: 'BM.05a',
+              width: 100,
+              render: (_, r) =>
+                r.scoreProgress
+                  ? `${r.scoreProgress.submitted}/${r.scoreProgress.total}`
+                  : '—',
             },
             {
               title: 'Thao tác',
@@ -271,20 +288,29 @@ const DefensesPage: React.FC = () => {
       )}
 
       <Drawer
-        title={current ? `Lên lịch bảo vệ — ${current.code}` : 'Lên lịch'}
-        width={720}
+        title={`Tạo phiên thẩm định — ${selectedIds.length} TM`}
+        width={760}
         open={open}
         onClose={() => setOpen(false)}
         extra={
-          <Space>
-            <Button onClick={() => void submitSchedule(false)}>Lưu nháp</Button>
-            <Button type="primary" onClick={() => void submitSchedule(true)}>
-              Xác nhận lịch
-            </Button>
-          </Space>
+          <Button type="primary" onClick={() => void submitCreate()}>
+            Lưu nháp phiên
+          </Button>
         }
       >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={eligibleRows
+            .filter((r) => selectedIds.includes(r.id))
+            .map((r) => r.code)
+            .join(', ')}
+        />
         <Form form={form} layout="vertical">
+          <Form.Item name="title" label="Tên phiên">
+            <Input />
+          </Form.Item>
           <Form.Item name="meetingMode" label="Hình thức" rules={[{ required: true }]}>
             <Select
               options={[
@@ -294,94 +320,85 @@ const DefensesPage: React.FC = () => {
               ]}
             />
           </Form.Item>
-          <Form.Item name="meetingAt" label="Ngày giờ họp" rules={[{ required: true }]}>
-            <DatePicker showTime style={{ width: '100%' }} format="DD/MM/YYYY HH:mm" />
+          <Form.Item name="meetingAt" label="Ngày họp" rules={[{ required: true }]}>
+            <DatePicker showTime style={{ width: '100%' }} format={DATETIME_PICKER_FORMAT} />
           </Form.Item>
           <Form.Item name="location" label="Địa điểm">
             <Input />
           </Form.Item>
-          <Form.Item name="meetingUrl" label="Link họp (Teams/…)">
+          <Form.Item name="meetingUrl" label="Link họp">
             <Input />
           </Form.Item>
           <Form.Item name="shortNoticeOverride" valuePropName="checked">
-            <Checkbox>Ghi đè khi dưới 5 ngày làm việc</Checkbox>
+            <Checkbox>Ghi đè quy tắc 5 ngày làm việc</Checkbox>
           </Form.Item>
           <Form.Item name="shortNoticeReason" label="Lý do ghi đè">
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
 
-        <div style={{ marginTop: 16 }}>
-          <strong>Thành phần hội đồng</strong>
+        <div style={{ marginBottom: 8, fontWeight: 600 }}>Thành phần hội đồng</div>
+        <Space style={{ marginBottom: 8 }} wrap>
           <AutoComplete
-            style={{ width: '100%', marginTop: 8 }}
+            style={{ width: 320 }}
             options={searchOpts}
-            onSearch={(t) => void searchMembers(t)}
-            onSelect={(_, opt) => addMember((opt as any).raw)}
-            placeholder="Tìm thành viên trong trường..."
+            onSearch={(v) => void searchMembers(v)}
+            onSelect={(_, opt) => addMember((opt as any).raw, 'UY_VIEN')}
+            placeholder="Tìm theo họ tên / email"
           />
-          <Form form={extForm} layout="inline" style={{ marginTop: 12 }}>
-            <Form.Item name="name" rules={[{ required: true }]}>
-              <Input placeholder="Họ tên (ngoài)" />
-            </Form.Item>
-            <Form.Item name="email" rules={[{ type: 'email' }]}>
-              <Input placeholder="Email" style={{ width: 180 }} />
-            </Form.Item>
-            <Form.Item name="source" rules={[{ required: true }]}>
-              <Input placeholder="Nguồn đề xuất" style={{ width: 160 }} />
-            </Form.Item>
-            <Button onClick={() => void addExternal()}>Thêm ngoài trường</Button>
-          </Form>
-          <Table
-            style={{ marginTop: 12 }}
-            size="small"
-            pagination={false}
-            rowKey={(_, i) => String(i)}
-            dataSource={members}
-            columns={[
-              { title: 'Họ tên', dataIndex: 'memberName' },
-              {
-                title: 'Vai trò',
-                width: 140,
-                render: (_, r, idx) => (
-                  <Select
-                    value={r.roleInCouncil}
-                    style={{ width: 120 }}
-                    options={DEFENSE_ROLE_OPTIONS}
-                    onChange={(v) => {
-                      setMembers((prev) =>
-                        prev.map((m, i) => (i === idx ? { ...m, roleInCouncil: v } : m)),
-                      );
-                    }}
-                  />
-                ),
-              },
-              {
-                title: 'Ngoài',
-                width: 70,
-                render: (_, r) => (r.isExternal ? <Tag color="orange">Ngoài</Tag> : null),
-              },
-              {
-                title: '',
-                width: 60,
-                render: (_, __, idx) => (
-                  <a
-                    onClick={() => setMembers((prev) => prev.filter((_, i) => i !== idx))}
-                    style={{ color: '#ff4d4f' }}
-                  >
-                    Xóa
-                  </a>
-                ),
-              },
-            ]}
-          />
-          <Alert
-            style={{ marginTop: 12 }}
-            type="info"
-            showIcon
-            message="Cần 1 Chủ tịch, 1 Thư ký, ≥1 Ủy viên và tối thiểu 1 người ngoài trường (có nguồn đề xuất)."
-          />
-        </div>
+        </Space>
+        <Table
+          size="small"
+          rowKey={(_, i) => String(i)}
+          pagination={false}
+          dataSource={members}
+          columns={[
+            { title: 'Họ tên', dataIndex: 'memberName' },
+            {
+              title: 'Vai trò',
+              width: 150,
+              render: (_, r, idx) => (
+                <Select
+                  style={{ width: 140 }}
+                  value={r.roleInCouncil}
+                  options={DEFENSE_ROLE_OPTIONS}
+                  onChange={(role) => {
+                    setMembers((prev) =>
+                      prev.map((m, i) =>
+                        i === idx ? { ...m, roleInCouncil: role as DefenseCouncilRole } : m,
+                      ),
+                    );
+                  }}
+                />
+              ),
+            },
+            {
+              title: '',
+              width: 70,
+              render: (_, __, idx) => (
+                <a
+                  onClick={() => setMembers((prev) => prev.filter((_, i) => i !== idx))}
+                >
+                  Xóa
+                </a>
+              ),
+            },
+          ]}
+        />
+
+        <div style={{ marginTop: 16, fontWeight: 600 }}>Thành viên ngoài (nếu có)</div>
+        <Form form={extForm} layout="inline" style={{ marginTop: 8 }}>
+          <Form.Item name="name" rules={[{ required: true }]}>
+            <Input placeholder="Họ tên" />
+          </Form.Item>
+          <Form.Item name="email">
+            <Input placeholder="Email" />
+          </Form.Item>
+          <Form.Item name="source" rules={[{ required: true }]}>
+            <Input placeholder="Nguồn đề xuất" />
+          </Form.Item>
+          <Button onClick={() => void addExternal()}>Thêm ngoài</Button>
+        </Form>
       </Drawer>
     </PageContainer>
   );

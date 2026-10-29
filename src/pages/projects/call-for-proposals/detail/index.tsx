@@ -283,7 +283,7 @@ const CfpDetailPage: React.FC = () => {
           <div className="cfp-o">
             <div className="cfp-nhan">Hạn nộp hồ sơ</div>
             <div className="cfp-gia-tri">
-              {data?.deadlineAt ? dayjs(data.deadlineAt).format('DD/MM/YYYY HH:mm') : '—'}
+              {data?.deadlineAt ? dayjs(data.deadlineAt).format('HH:mm DD/MM/YYYY') : '—'}
             </div>
           </div>
           <div className="cfp-o">
@@ -393,7 +393,7 @@ const CfpDetailPage: React.FC = () => {
                 <strong>{ACTION_LABEL[a.action] || a.action}</strong>
                 {a.actorName ? ` — ${a.actorName}` : ''}
                 <div style={{ color: '#888', fontSize: 12 }}>
-                  {a.createdAt ? dayjs(a.createdAt).format('DD/MM/YYYY HH:mm') : ''}
+                  {a.createdAt ? dayjs(a.createdAt).format('HH:mm DD/MM/YYYY') : ''}
                 </div>
                 {a.note ? <div>{a.note}</div> : null}
               </div>

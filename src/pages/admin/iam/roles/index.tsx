@@ -17,6 +17,7 @@ import {
 } from '@/services/api/roles';
 import dayjs from 'dayjs';
 import RoleForm from './components/RoleForm';
+import { formatDateTime } from '@/utils/datetime';
 
 const RolesPage: React.FC = () => {
   const access = useAccess();
@@ -57,10 +58,6 @@ const RolesPage: React.FC = () => {
     actionRef.current?.reload();
   };
 
-  const formatDateTime = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    return dayjs(dateStr).format('DD/MM/YYYY HH:mm');
-  };
 
   const columns: ProColumns<RoleItem>[] = [
     {

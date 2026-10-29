@@ -22,6 +22,7 @@ import {
   type DepartmentStatus,
 } from '@/services/api/departments';
 import dayjs from 'dayjs';
+import { formatDateTime } from '@/utils/datetime';
 
 const { Text } = Typography;
 
@@ -97,10 +98,7 @@ const DepartmentsPage: React.FC = () => {
   };
 
   // Format datetime
-  const formatDateTime = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    return dayjs(dateStr).format('DD/MM/YYYY HH:mm');
-  };
+
 
   // Columns definition
   const columns: ProColumns<Department>[] = [

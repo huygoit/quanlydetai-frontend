@@ -1,7 +1,25 @@
 /**
- * US-04-03 — Phiếu chấm điểm phản biện kín
+ * US-04-03 — Phiếu đánh giá theo mẫu BM-02.09
  */
-import { PageContainer } from '@ant-design/pro-components';
+import OutlinePreviewSheet from '@/components/OutlinePreviewSheet';
+import {
+  extendOutlineReviewDeadline,
+  getOutlineReviewTask,
+  reopenOutlineReviewScore,
+  saveOutlineReviewScoreDraft,
+  submitOutlineReviewScore,
+  type ReviewScoreSheet,
+  type ReviewScoreTaskDetail,
+} from '@/services/api/projectOutlineScores';
+import { formatVnd } from '@/utils/format';
+import {
+  ArrowLeftOutlined,
+  ReadOutlined,
+  SaveOutlined,
+  SendOutlined,
+} from '@ant-design/icons';
+import { FooterToolbar, PageContainer } from '@ant-design/pro-components';
+import { history, useAccess, useParams } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -9,31 +27,16 @@ import {
   Descriptions,
   Form,
   Input,
-  InputNumber,
   Modal,
-  Select,
   Space,
-  Table,
-  Tag,
   Typography,
   message,
 } from 'antd';
-import { history, useAccess, useParams } from '@umijs/max';
-import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { formatVnd } from '@/utils/format';
-import {
-  getOutlineReviewTask,
-  saveOutlineReviewScoreDraft,
-  submitOutlineReviewScore,
-  reopenOutlineReviewScore,
-  extendOutlineReviewDeadline,
-  type ReviewScoreSheet,
-  type ReviewScoreTaskDetail,
-} from '@/services/api/projectOutlineScores';
+import { useEffect, useMemo, useState } from 'react';
+import PhieuDanhGiaBm0209 from './PhieuDanhGiaBm0209';
 
-const { TextArea } = Input;
-const { Paragraph, Text } = Typography;
+const { Text } = Typography;
 
 const OutlineReviewScorePage: React.FC = () => {
   const { assignmentId } = useParams<{ assignmentId: string }>();
@@ -42,15 +45,28 @@ const OutlineReviewScorePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState<ReviewScoreTaskDetail | null>(null);
   const [sheet, setSheet] = useState<ReviewScoreSheet | null>(null);
+  const [tmOpen, setTmOpen] = useState(false);
   const [form] = Form.useForm();
 
   const id = Number(assignmentId);
-  const minComment = sheet?.criteriaSnapshot?.minCommentLength ?? 50;
   const editable =
     !!detail?.isReviewer &&
     sheet?.status === 'DRAFT' &&
     !detail?.pastDeadline &&
     sheet?.editable;
+
+  /** Gom payload phiếu BM-02.09 từ form */
+  const buildPayload = () => {
+    const values = form.getFieldsValue();
+    return {
+      generalComment: values.generalComment,
+      conclusion: values.conclusion,
+      precheckEligible: !!values.precheckEligible,
+      precheckConflictCleared: !!values.precheckConflictCleared,
+      precheckEthicsOk: !!values.precheckEthicsOk,
+      lines: buildLinesPayload(),
+    };
+  };
 
   const load = async () => {
     if (!id) return;
@@ -64,6 +80,9 @@ const OutlineReviewScorePage: React.FC = () => {
         form.setFieldsValue({
           generalComment: d.scoreSheet.generalComment,
           conclusion: d.scoreSheet.conclusion,
+          precheckEligible: !!d.scoreSheet.precheckEligible,
+          precheckConflictCleared: !!d.scoreSheet.precheckConflictCleared,
+          precheckEthicsOk: !!d.scoreSheet.precheckEthicsOk,
           lines: (d.scoreSheet.lines || []).map((l) => ({
             criterionCode: l.criterionCode,
             score: l.score,
@@ -109,12 +128,7 @@ const OutlineReviewScorePage: React.FC = () => {
     if (!id || !editable) return;
     setSaving(true);
     try {
-      const values = form.getFieldsValue();
-      const res = await saveOutlineReviewScoreDraft(id, {
-        generalComment: values.generalComment,
-        conclusion: values.conclusion,
-        lines: buildLinesPayload(),
-      });
+      const res = await saveOutlineReviewScoreDraft(id, buildPayload());
       setSheet(res.data);
       message.success(res.message || 'Đã lưu nháp');
     } catch (e: any) {
@@ -129,23 +143,18 @@ const OutlineReviewScorePage: React.FC = () => {
     try {
       await form.validateFields();
     } catch {
-      message.warning('Vui lòng hoàn thiện điểm và nhận xét bắt buộc');
+      message.warning('Vui lòng hoàn thiện điểm, kết luận và nhận xét');
       return;
     }
     Modal.confirm({
-      title: 'Nộp phiếu chấm?',
+      title: 'Nộp phiếu đánh giá?',
       content: 'Sau khi nộp, phiếu bị khóa. Chỉ PKH mới mở lại được.',
       okText: 'Nộp phiếu',
       cancelText: 'Hủy',
       onOk: async () => {
         setSaving(true);
         try {
-          const values = form.getFieldsValue();
-          const res = await submitOutlineReviewScore(id, {
-            generalComment: values.generalComment,
-            conclusion: values.conclusion,
-            lines: buildLinesPayload(),
-          });
+          const res = await submitOutlineReviewScore(id, buildPayload());
           setSheet(res.data);
           message.success(res.message || 'Đã nộp phiếu');
           await load();
@@ -247,193 +256,134 @@ const OutlineReviewScorePage: React.FC = () => {
   return (
     <PageContainer
       loading={loading}
-      title={o ? `Chấm phản biện — ${o.code}` : 'Phiếu chấm phản biện'}
+      title={o ? `Phiếu đánh giá BM-02.09 — ${o.code}` : 'Phiếu đánh giá BM-02.09'}
       onBack={() => history.push('/projects/blind-reviews/tasks')}
-      extra={
-        <Space>
-          {detail?.isPkh && sheet?.status === 'SUBMITTED' && (
-            <Button onClick={handleReopen}>Mở lại phiếu</Button>
-          )}
-          {detail?.isPkh && (
-            <Button onClick={handleExtend}>Gia hạn hạn nộp</Button>
-          )}
-          {editable && (
-            <>
-              <Button loading={saving} onClick={handleSaveDraft}>
-                Lưu nháp
-              </Button>
-              <Button type="primary" loading={saving} onClick={handleSubmit}>
-                Nộp phiếu chấm
-              </Button>
-            </>
-          )}
-        </Space>
-      }
     >
-      {detail?.pastDeadline && sheet?.status !== 'SUBMITTED' && (
-        <Alert
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="Đã quá deadline — không lưu/nộp được. Liên hệ PKH gia hạn hoặc mở lại."
-        />
-      )}
-      {sheet?.status === 'SUBMITTED' && (
-        <Alert
-          type="success"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={`Phiếu đã nộp${
-            sheet.totalScore != null ? ` — tổng điểm: ${sheet.totalScore}` : ''
-          }${sheet.submittedAt ? ` lúc ${dayjs(sheet.submittedAt).format('DD/MM/YYYY HH:mm')}` : ''}`}
-        />
-      )}
-
-      {o && (
-        <Card size="small" title="Hồ sơ thuyết minh (chỉ đọc)" style={{ marginBottom: 16 }}>
-          <Descriptions column={2} size="small">
-            <Descriptions.Item label="Mã">{o.code}</Descriptions.Item>
-            <Descriptions.Item label="CNĐT">{o.ownerName}</Descriptions.Item>
-            <Descriptions.Item label="Đơn vị">{o.ownerUnit || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Lĩnh vực">{o.field || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Kinh phí">
-              {formatVnd(o.requestedBudget)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Hạn nộp phiếu">
-              {detail?.assignment.deadlineAt
-                ? dayjs(detail.assignment.deadlineAt).format('DD/MM/YYYY')
-                : '—'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Tên đề tài" span={2}>
-              {o.title}
-            </Descriptions.Item>
-          </Descriptions>
-          {o.urgency && (
-            <>
-              <Text strong>Tính cấp thiết</Text>
-              <Paragraph>{o.urgency}</Paragraph>
-            </>
-          )}
-          {o.detailedObjectives && (
-            <>
-              <Text strong>Mục tiêu</Text>
-              <div dangerouslySetInnerHTML={{ __html: o.detailedObjectives }} />
-            </>
-          )}
-          {o.methodology && (
-            <>
-              <Text strong>Phương pháp</Text>
-              <div dangerouslySetInnerHTML={{ __html: o.methodology }} />
-            </>
-          )}
-          {!!o.members?.length && (
-            <Table
-              style={{ marginTop: 12 }}
-              size="small"
-              pagination={false}
-              rowKey={(m) => String(m.id || m.fullName)}
-              dataSource={o.members}
-              columns={[
-                { title: 'Họ tên', dataIndex: 'fullName' },
-                { title: 'Vai trò', dataIndex: 'roleInProject', width: 140 },
-                { title: 'Đơn vị', dataIndex: 'unit', ellipsis: true },
-              ]}
-            />
-          )}
-        </Card>
-      )}
-
-      <Card
-        size="small"
-        title={
-          <Space>
-            <span>Phiếu đánh giá</span>
-            {sheet?.criteriaSnapshot?.setName && (
-              <Tag>{sheet.criteriaSnapshot.setName}</Tag>
-            )}
-            {previewTotal != null && <Tag color="blue">Tổng (xem trước): {previewTotal}</Tag>}
-            {sheet?.totalScore != null && sheet.status === 'SUBMITTED' && (
-              <Tag color="green">Tổng đã nộp: {sheet.totalScore}</Tag>
-            )}
-          </Space>
-        }
-      >
-        {!sheet ? (
-          <Alert type="warning" message="Chưa có phiếu chấm." />
-        ) : (
-          <Form form={form} layout="vertical" disabled={!editable}>
-            <Form.List name="lines">
-              {(fields) => (
-                <>
-                  {fields.map((field, index) => {
-                    const meta = sheet.lines[index];
-                    if (!meta) return null;
-                    return (
-                      <Card
-                        key={field.key}
-                        type="inner"
-                        size="small"
-                        style={{ marginBottom: 12 }}
-                        title={`${index + 1}. ${meta.criterionName} (0–${meta.maxScore})`}
-                      >
-                        <Form.Item name={[field.name, 'criterionCode']} hidden>
-                          <Input />
-                        </Form.Item>
-                        <Form.Item
-                          name={[field.name, 'score']}
-                          label="Điểm"
-                          rules={[
-                            { required: true, message: 'Nhập điểm' },
-                            {
-                              type: 'number',
-                              min: 0,
-                              max: Number(meta.maxScore),
-                              message: `Điểm từ 0 đến ${meta.maxScore}`,
-                            },
-                          ]}
-                        >
-                          <InputNumber min={0} max={Number(meta.maxScore)} step={0.5} style={{ width: 160 }} />
-                        </Form.Item>
-                        <Form.Item
-                          name={[field.name, 'comment']}
-                          label={`Nhận xét${meta.commentRequired ? ` (≥ ${minComment} ký tự)` : ''}`}
-                          rules={
-                            meta.commentRequired
-                              ? [
-                                  { required: true, message: 'Nhập nhận xét' },
-                                  {
-                                    min: minComment,
-                                    message: `Tối thiểu ${minComment} ký tự`,
-                                  },
-                                ]
-                              : []
-                          }
-                        >
-                          <TextArea rows={3} showCount maxLength={4000} />
-                        </Form.Item>
-                      </Card>
-                    );
-                  })}
-                </>
-              )}
-            </Form.List>
-
-            <Form.Item name="generalComment" label="Nhận xét chung">
-              <TextArea rows={3} showCount maxLength={4000} />
-            </Form.Item>
-            <Form.Item name="conclusion" label="Kết luận (tuỳ chọn)">
-              <Select
-                allowClear
-                options={[
-                  { value: 'DAT', label: 'Đạt' },
-                  { value: 'KHONG_DAT', label: 'Không đạt' },
-                ]}
-                style={{ width: 200 }}
-              />
-            </Form.Item>
-          </Form>
+      <div style={{ paddingBottom: 72 }}>
+        {detail?.pastDeadline && sheet?.status !== 'SUBMITTED' && (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Đã quá deadline — không lưu/nộp được. Liên hệ PKH gia hạn hoặc mở lại."
+          />
         )}
-      </Card>
+        {sheet?.status === 'SUBMITTED' && (
+          <Alert
+            type="success"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={`Phiếu đã nộp${
+              sheet.totalScore != null ? ` — tổng điểm: ${sheet.totalScore}` : ''
+            }${
+              sheet.submittedAt
+                ? ` lúc ${dayjs(sheet.submittedAt).format('HH:mm DD/MM/YYYY')}`
+                : ''
+            }`}
+          />
+        )}
+
+        {o && (
+          <Card size="small" style={{ marginBottom: 16 }}>
+            <Space
+              wrap
+              style={{ width: '100%', justifyContent: 'space-between' }}
+            >
+              <Descriptions column={2} size="small" style={{ flex: 1 }}>
+                <Descriptions.Item label="Mã">{o.code}</Descriptions.Item>
+                <Descriptions.Item label="CNĐT">{o.ownerName}</Descriptions.Item>
+                <Descriptions.Item label="Kinh phí">
+                  {formatVnd(o.requestedBudget)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Hạn nộp">
+                  {detail?.assignment.deadlineAt
+                    ? dayjs(detail.assignment.deadlineAt).format('DD/MM/YYYY')
+                    : '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Tên đề tài" span={2}>
+                  <Text strong>{o.title}</Text>
+                </Descriptions.Item>
+              </Descriptions>
+              <Button
+                type="primary"
+                ghost
+                icon={<ReadOutlined />}
+                onClick={() => setTmOpen(true)}
+              >
+                Xem thuyết minh
+              </Button>
+            </Space>
+          </Card>
+        )}
+
+        {!sheet ? (
+          <Alert type="warning" message="Chưa có phiếu đánh giá." />
+        ) : (
+          <PhieuDanhGiaBm0209
+            form={form}
+            lines={sheet.lines || []}
+            editable={!!editable}
+            previewTotal={
+              sheet.status === 'SUBMITTED' && sheet.totalScore != null
+                ? sheet.totalScore
+                : previewTotal
+            }
+            evaluatorName={detail?.assignment?.reviewerName}
+            submittedAtLabel={
+              sheet.submittedAt
+                ? `Đà Nẵng, ${dayjs(sheet.submittedAt).format(
+                    '[ngày] DD [tháng] MM [năm] YYYY',
+                  )}`
+                : null
+            }
+          />
+        )}
+      </div>
+
+      <OutlinePreviewSheet
+        open={tmOpen}
+        onClose={() => setTmOpen(false)}
+        outline={o as any}
+      />
+
+      <FooterToolbar>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => history.push('/projects/blind-reviews/tasks')}
+        >
+          Quay lại
+        </Button>
+        {o ? (
+          <Button icon={<ReadOutlined />} onClick={() => setTmOpen(true)}>
+            Xem thuyết minh
+          </Button>
+        ) : null}
+        {detail?.isPkh && sheet?.status === 'SUBMITTED' ? (
+          <Button onClick={handleReopen}>Mở lại phiếu</Button>
+        ) : null}
+        {detail?.isPkh ? (
+          <Button onClick={handleExtend}>Gia hạn hạn nộp</Button>
+        ) : null}
+        {editable ? (
+          <>
+            <Button
+              icon={<SaveOutlined />}
+              loading={saving}
+              onClick={handleSaveDraft}
+            >
+              Lưu nháp
+            </Button>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              loading={saving}
+              onClick={handleSubmit}
+            >
+              Nộp phiếu
+            </Button>
+          </>
+        ) : null}
+      </FooterToolbar>
     </PageContainer>
   );
 };

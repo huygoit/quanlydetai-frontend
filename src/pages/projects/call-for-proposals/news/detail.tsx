@@ -220,7 +220,7 @@ const CfpNewsDetailPage: React.FC = () => {
               <div className="cfp-o">
                 <div className="cfp-nhan">Hạn nộp hồ sơ</div>
                 <div className="cfp-gia-tri">
-                  {data.deadlineAt ? dayjs(data.deadlineAt).format('DD/MM/YYYY HH:mm') : '—'}
+                  {data.deadlineAt ? dayjs(data.deadlineAt).format('HH:mm DD/MM/YYYY') : '—'}
                 </div>
               </div>
               <div className="cfp-o">

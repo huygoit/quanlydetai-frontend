@@ -13,7 +13,7 @@ import {
 } from '../request';
 
 export type ContractTemplateStatus = 'ACTIVE' | 'INACTIVE';
-export type ContractTemplateType = 'HOP_DONG' | 'THANH_LY' | 'THONG_BAO';
+export type ContractTemplateType = 'HOP_DONG' | 'THANH_LY' | 'THONG_BAO' | 'QUYET_DINH';
 
 export interface DocTemplateTypeDef {
   code: ContractTemplateType;
@@ -30,6 +30,17 @@ export interface ThongBaoMergeConfig {
   so_moi_nhat: number;
 }
 
+export interface QuyetDinhMergeConfig {
+  van_ban_quy_dinh_chuc_nang_nhiem_vu_tham_quyen: string;
+  quy_dinh_quan_ly_nhiem_vu_khcn_dmst: string;
+  van_ban_phe_duyet_danh_muc_hoac_ke_hoach_tham_dinh: string;
+  chuc_danh_nguoi_de_nghi: string;
+  don_vi_dau_moi: string;
+  don_vi_luu_ho_so: string;
+  ho_ten_nguoi_ky: string;
+  so_moi_nhat: number;
+}
+
 export interface ContractTemplate {
   id: number;
   code: string;
@@ -38,7 +49,7 @@ export interface ContractTemplate {
   template_type: ContractTemplateType;
   template_type_label?: string;
   form_code: string;
-  merge_config?: ThongBaoMergeConfig | null;
+  merge_config?: (ThongBaoMergeConfig & Partial<QuyetDinhMergeConfig>) | null;
   file_name: string;
   stored_file_name: string;
   file_url: string;
@@ -75,6 +86,7 @@ export const CONTRACT_TEMPLATE_TYPE_OPTIONS: Array<{
   { value: 'HOP_DONG', label: 'Hợp đồng' },
   { value: 'THANH_LY', label: 'Biên bản thanh lý hợp đồng' },
   { value: 'THONG_BAO', label: 'Thông báo' },
+  { value: 'QUYET_DINH', label: 'Quyết định' },
 ];
 
 export async function getContractTemplateTypes(): Promise<ApiResponse<DocTemplateTypeDef[]>> {

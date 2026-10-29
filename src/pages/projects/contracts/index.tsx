@@ -89,7 +89,7 @@ const ProjectContractsPage: React.FC = () => {
       width: 150,
       hideInSearch: true,
       render: (_, r) =>
-        r.generated_at ? dayjs(r.generated_at).format('DD/MM/YYYY HH:mm') : '—',
+        r.generated_at ? dayjs(r.generated_at).format('HH:mm DD/MM/YYYY') : '—',
     },
     {
       title: '',

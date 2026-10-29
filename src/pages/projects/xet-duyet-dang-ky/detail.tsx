@@ -80,7 +80,12 @@ const SoSanhDangKyPage: React.FC = () => {
   }, [nhiemVuId, tai]);
 
   const don = duLieu?.don || [];
-  const daKhoa = !!duLieu?.daPhanCong || !!duLieu?.nhiemVu.trangThai;
+  // Chỉ khóa thao tác khi đã phân công hoặc đóng đăng ký — không khóa vì trạng thái "Chờ xét"
+  const trangThaiNv = duLieu?.nhiemVu.trangThai;
+  const daKhoa =
+    !!duLieu?.daPhanCong ||
+    trangThaiNv === 'DA_GIAO' ||
+    trangThaiNv === 'DM_DONG_DANG_KY';
   const conChoDonVi = don.some((d) => d.status === 'CHO_DON_VI');
   const daChapThuan = don.some((d) => d.status === 'DKDT_DUOC_CHAP_THUAN');
   const coTuChoi = don.some((d) => d.status === 'DKDT_TU_CHOI');
@@ -107,7 +112,8 @@ const SoSanhDangKyPage: React.FC = () => {
 
   const chapThuan = async () => {
     if (!donChon) return;
-    const conLai = don.some((d) => d.id !== donChon.id && d.status !== 'CHO_DON_VI');
+    // Có đơn khác thì bắt buộc lý do từ chối (kể cả đơn còn chờ đơn vị)
+    const conLai = don.some((d) => d.id !== donChon.id);
     let reason = '';
     if (conLai) {
       try {
@@ -253,7 +259,7 @@ const SoSanhDangKyPage: React.FC = () => {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Còn đơn đang chờ đơn vị xác nhận. Chưa chấp thuận được cho đến khi đơn vị xử lý xong."
+          message="Còn đơn đang chờ đơn vị xác nhận — chỉ chấp thuận được các đơn đã qua đơn vị."
         />
       ) : null}
 
@@ -265,6 +271,9 @@ const SoSanhDangKyPage: React.FC = () => {
               {don.map((d) => {
                 const dat = d.status === 'DKDT_DUOC_CHAP_THUAN';
                 const choDonVi = d.status === 'CHO_DON_VI';
+                const tuChoi = d.status === 'DKDT_TU_CHOI';
+                // Đã chấp thuận 1 đơn → khóa hết nút còn lại; đơn chờ đơn vị / đã từ chối cũng khóa
+                const khoaNut = dat || choDonVi || tuChoi || daChapThuan;
                 return (
                   <th key={d.id} className={dat ? 'cot-dat' : undefined}>
                     <div style={{ marginBottom: 6 }}>{nhanTrangThai(d.status)}</div>
@@ -286,7 +295,14 @@ const SoSanhDangKyPage: React.FC = () => {
                       <Button
                         type="primary"
                         block
-                        disabled={dat || choDonVi || conChoDonVi}
+                        disabled={khoaNut}
+                        title={
+                          choDonVi
+                            ? 'Đơn này chưa được trưởng đơn vị xác nhận'
+                            : daChapThuan && !dat
+                              ? 'Đã chấp thuận đơn khác'
+                              : undefined
+                        }
                         onClick={() => moChapThuan(d)}
                       >
                         {dat ? 'Đã chấp thuận' : 'Chấp thuận'}
@@ -403,7 +419,7 @@ const SoSanhDangKyPage: React.FC = () => {
         <p>
           Đơn của <Text strong>{donChon?.ownerName}</Text> được chấp thuận. Các đơn còn lại của nhiệm vụ này bị từ chối.
         </p>
-        {don.filter((d) => d.id !== donChon?.id && d.status !== 'CHO_DON_VI').length ? (
+        {don.filter((d) => d.id !== donChon?.id).length ? (
           <Form form={formChap} layout="vertical">
             <Form.Item
               name="reason"
