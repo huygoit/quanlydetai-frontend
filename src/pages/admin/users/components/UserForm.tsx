@@ -45,9 +45,12 @@ const UserForm: React.FC<UserFormProps> = ({
         const { password, confirmPassword, ...rest } = values;
         const updateData: Record<string, any> = {
           fullName: rest.fullName,
+          departmentId: rest.departmentId,
           department_id: rest.departmentId,
+          roleIds: rest.roleIds,
           role_ids: rest.roleIds,
           email: rest.email,
+          isActive: rest.status === 'ACTIVE',
           status: rest.status,
         };
         const result = await updateIAMUser(editingRecord.id, updateData);
@@ -63,8 +66,11 @@ const UserForm: React.FC<UserFormProps> = ({
           password: values.password,
           confirmPassword: values.confirmPassword,
           password_confirmation: values.confirmPassword,
+          departmentId: values.departmentId,
           department_id: values.departmentId,
+          roleIds: values.roleIds || [],
           role_ids: values.roleIds || [],
+          isActive: values.status === 'ACTIVE',
           status: values.status,
         };
         if (values.username) createData.username = values.username;

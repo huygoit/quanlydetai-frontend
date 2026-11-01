@@ -53,8 +53,16 @@ import { downloadBlob } from '@/utils/download';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import { formatVnd } from '@/utils/format';
 
-/** Trạng thái thuộc pipeline PKH (không gồm Chờ Khoa / nháp) */
-const PKH_LIST_STATUSES: ProposalStatus[] = ['CHO_PKH', 'HOP_LE', 'YEU_CAU_BS', 'DA_LOAI'];
+/** Pipeline PKH. Chờ Khoa vẫn hiện vì PKH duyệt được ngay, không cần trưởng đơn vị. */
+const PKH_LIST_STATUSES: ProposalStatus[] = [
+  'SUBMITTED',
+  'CHO_PKH',
+  'UNIT_REVIEWED',
+  'HOP_LE',
+  'YEU_CAU_BS',
+  'DA_LOAI',
+];
+const CHO_XU_LY: ProposalStatus[] = ['SUBMITTED', 'CHO_PKH', 'UNIT_REVIEWED'];
 
 const PkhReviewPage: React.FC = () => {
   const access = useAccess();
@@ -62,7 +70,7 @@ const PkhReviewPage: React.FC = () => {
   const [cfpList, setCfpList] = useState<CallForProposal[]>([]);
   const [cfpId, setCfpId] = useState<number | undefined>();
   const [stats, setStats] = useState<PkhProposalStats | null>(null);
-  /** 'ALL' = Tất cả status PKH (không gồm Chờ Khoa) */
+  /** 'ALL' = toàn pipeline PKH, gồm cả hồ sơ đang chờ Khoa */
   const [statusFilter, setStatusFilter] = useState<ProposalStatus | 'ALL'>('CHO_PKH');
   const [loadingStats, setLoadingStats] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -121,7 +129,7 @@ const PkhReviewPage: React.FC = () => {
   };
 
   const coTheXuLyPkh = (p: ProjectProposal | null | undefined) =>
-    p?.status === 'CHO_PKH' || p?.status === 'UNIT_REVIEWED';
+    !!p && CHO_XU_LY.includes(p.status);
 
   const moChiTiet = async (record: ProjectProposal) => {
     try {
@@ -311,7 +319,7 @@ const PkhReviewPage: React.FC = () => {
               }}
               options={[
                 { value: 'ALL', label: 'Tất cả' },
-                { value: 'CHO_PKH', label: 'Chờ PKH' },
+                { value: 'CHO_PKH', label: 'Chờ xử lý' },
                 { value: 'YEU_CAU_BS', label: 'Yêu cầu bổ sung' },
                 { value: 'HOP_LE', label: 'Hợp lệ' },
                 { value: 'DA_LOAI', label: 'Đã loại' },
@@ -355,7 +363,7 @@ const PkhReviewPage: React.FC = () => {
           </Col>
           <Col xs={12} md={5}>
             <Card loading={loadingStats} size="small">
-              <Statistic title="Chờ PKH" value={stats?.choPkh ?? 0} />
+              <Statistic title="Chờ xử lý" value={stats?.choPkh ?? 0} />
             </Card>
           </Col>
           <Col xs={12} md={5}>
@@ -394,10 +402,11 @@ const PkhReviewPage: React.FC = () => {
             if (!cfpId) return { data: [], success: true, total: 0 };
             const res = await queryProposals({
               callForProposalId: cfpId,
-              // Tất cả = pipeline PKH; không gồm Chờ Khoa (SUBMITTED)
               ...(statusFilter === 'ALL'
                 ? { statuses: PKH_LIST_STATUSES.join(',') }
-                : { status: statusFilter }),
+                : statusFilter === 'CHO_PKH'
+                  ? { statuses: CHO_XU_LY.join(',') }
+                  : { status: statusFilter }),
               page: params.current,
               perPage: params.pageSize,
             });
