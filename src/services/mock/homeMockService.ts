@@ -308,7 +308,7 @@ export async function fetchHomeTasks(role: UserRole): Promise<HomeTaskItem[]> {
         dueDate: '2025-12-08T00:00:00Z',
         status: 'PENDING',
         priority: 'HIGH',
-        link: '/projects/council',
+        link: '/projects/register',
       },
       {
         id: 'task3',

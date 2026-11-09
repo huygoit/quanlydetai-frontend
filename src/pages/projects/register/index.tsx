@@ -330,20 +330,6 @@ const ProjectRegisterPage: React.FC = () => {
       }
     }
 
-    if (
-      canPkhReview &&
-      (record.status === 'CHO_PKH' ||
-        record.status === 'UNIT_REVIEWED' ||
-        record.status === 'YEU_CAU_BS' ||
-        record.status === 'HOP_LE')
-    ) {
-      actions.push(
-        <a key="pkh" style={{ color: '#52c41a' }} onClick={() => history.push('/projects/pkh-review')}>
-          <CheckCircleOutlined /> Xử lý tại PKH
-        </a>,
-      );
-    }
-
     return <Space size="small">{actions}</Space>;
   };
 
@@ -472,11 +458,6 @@ const ProjectRegisterPage: React.FC = () => {
             <Badge key="pending" count={pendingUnitCount} offset={[0, 0]}>
               <Tag color="processing">Chờ Khoa xác nhận</Tag>
             </Badge>
-          ) : null,
-          canPkhReview ? (
-            <Button key="pkh" onClick={() => history.push('/projects/pkh-review')}>
-              Màn PKH kiểm tra
-            </Button>
           ) : null,
           canCreate ? (
             <Button

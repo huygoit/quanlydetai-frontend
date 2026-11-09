@@ -2,7 +2,7 @@
  * Layer sheet nhập / xem phiếu BM.05a
  */
 import OutlinePreviewSheet from '@/components/OutlinePreviewSheet';
-import PhieuDanhGiaBm0209 from '@/pages/projects/blind-reviews/tasks/detail/PhieuDanhGiaBm0209';
+import PhieuDanhGiaBm0209 from '@/components/PhieuDanhGiaBm0209';
 import {
   getDefenseScoreSheet,
   saveDefenseScoreSheet,

@@ -245,35 +245,6 @@ export default defineConfig({
           access: 'canReviewRegistration',
           hideInMenu: true,
         },
-        // Tạm ẩn khỏi menu Đề tài — chuyển vào «Menu rác» (Hệ thống). Giữ route để link cũ vẫn mở.
-        {
-          path: '/projects/pkh-review',
-          name: 'Kiểm duyệt và tổng hợp đề xuất',
-          component: '@/pages/projects/pkh-review',
-          access: 'canReviewProjectProposal',
-          hideInMenu: true,
-        },
-        {
-          path: '/projects/blind-reviews',
-          name: 'Phân công phản biện',
-          component: '@/pages/projects/blind-reviews',
-          access: 'canAssignOutlineBlindReview',
-          hideInMenu: true,
-        },
-        {
-          path: '/projects/blind-reviews/tasks',
-          name: 'Công việc phản biện',
-          component: '@/pages/projects/blind-reviews/tasks',
-          access: 'canViewOutlineReviewTasks',
-          hideInMenu: true,
-        },
-        {
-          path: '/projects/blind-reviews/tasks/:assignmentId',
-          name: 'Phiếu chấm phản biện',
-          component: '@/pages/projects/blind-reviews/tasks/detail',
-          access: 'canViewOutlineReviewTasks',
-          hideInMenu: true,
-        },
         {
           path: '/projects/defenses',
           name: 'Tổ chức thẩm định',
@@ -388,28 +359,6 @@ export default defineConfig({
           name: 'Soạn thuyết minh',
           component: '@/pages/projects/outlines/form',
           access: 'canOpenOutlineForm',
-          hideInMenu: true,
-        },
-        // Tạm ẩn — chuyển vào «Menu rác» (Hệ thống)
-        {
-          path: '/projects/council',
-          name: 'Hội đồng xét chọn',
-          redirect: '/projects/selection-sessions',
-          access: 'canViewProjectCouncil',
-          hideInMenu: true,
-        },
-        {
-          path: '/projects/selection-sessions',
-          name: 'Phiên xét chọn đề tài',
-          component: '@/pages/projects/selection-sessions',
-          access: 'canViewProjectCouncil',
-          hideInMenu: true,
-        },
-        {
-          path: '/projects/selection-sessions/:id',
-          name: 'Chi tiết phiên xét chọn',
-          component: '@/pages/projects/selection-sessions/detail',
-          access: 'canViewProjectCouncil',
           hideInMenu: true,
         },
         {
@@ -603,50 +552,6 @@ export default defineConfig({
           icon: 'FileWordOutlined',
           component: '@/pages/admin/config',
           access: 'canViewContractTemplates',
-        },
-        // Tạm: gom menu nghiệp vụ đang không dùng trên sidebar Đề tài
-        {
-          path: '/admin/menu-rac',
-          name: 'Menu rác',
-          icon: 'DeleteOutlined',
-          access: 'canViewMenuRac',
-          routes: [
-            {
-              path: '/admin/menu-rac/pkh-review',
-              name: 'Kiểm duyệt và tổng hợp đề xuất',
-              icon: 'AuditOutlined',
-              component: '@/pages/projects/pkh-review',
-              access: 'canReviewProjectProposal',
-            },
-            {
-              path: '/admin/menu-rac/blind-reviews',
-              name: 'Phân công phản biện',
-              icon: 'AuditOutlined',
-              component: '@/pages/projects/blind-reviews',
-              access: 'canAssignOutlineBlindReview',
-            },
-            {
-              path: '/admin/menu-rac/blind-reviews/tasks',
-              name: 'Công việc phản biện',
-              icon: 'FormOutlined',
-              component: '@/pages/projects/blind-reviews/tasks',
-              access: 'canViewOutlineReviewTasks',
-            },
-            {
-              path: '/admin/menu-rac/council',
-              name: 'Hội đồng xét chọn',
-              icon: 'TeamOutlined',
-              redirect: '/admin/menu-rac/selection-sessions',
-              access: 'canViewProjectCouncil',
-            },
-            {
-              path: '/admin/menu-rac/selection-sessions',
-              name: 'Phiên xét chọn đề tài',
-              icon: 'TeamOutlined',
-              component: '@/pages/projects/selection-sessions',
-              access: 'canViewProjectCouncil',
-            },
-          ],
         },
         // Route ẩn (truy cập qua nút bấm, không hiện trên menu)
         {

@@ -70,8 +70,6 @@ export default function access(initialState: AccessInitialState | undefined) {
     hasAnyPermission: (codes: string[]) => hasAny(codes),
 
     canViewAdmin: hasAdminPermission || hasWildcard,
-    /** Tạm: nhóm «Menu rác» dưới Hệ thống (gom menu nghiệp vụ đang ẩn khỏi Đề tài). */
-    canViewMenuRac: hasAdminPermission || hasWildcard,
     /** Menu "Danh mục hệ thống" — hiện khi có bất kỳ quyền xem danh mục con nào. */
     canViewCatalog: hasAny([
       PERM.department.view,
@@ -195,19 +193,9 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.unit_review) || has(PERM.project.review),
     /** Menu Xét duyệt đăng ký: đơn đơn vị đã xác nhận, chờ PKH */
     canReviewRegistration: has(PERM.project.review),
+    /** Dashboard Phòng KH / xem rộng đề xuất — không còn màn PKH review riêng */
     canReviewProjectProposal:
       has(PERM.project.review) || has(PERM.project.selection_manage),
-    /** PKH phân công phản biện kín (US-04-02) */
-    canAssignOutlineBlindReview:
-      has(PERM.project.blind_review_assign) ||
-      has(PERM.project.review) ||
-      has(PERM.project.selection_manage),
-    /** Xem / chấm nhiệm vụ phản biện được phân công (US-04-03) */
-    canViewOutlineReviewTasks:
-      has(PERM.project.blind_review_score) ||
-      canUsePersonalWorkspace ||
-      has(PERM.project.review) ||
-      has(PERM.project.selection_manage),
     /** PKH tổ chức bảo vệ (US-04-04) */
     canManageOutlineDefense:
       has(PERM.project.defense_manage) ||
@@ -267,8 +255,7 @@ export default function access(initialState: AccessInitialState | undefined) {
     canOpenModule56: !!initialState?.currentUser,
     canApproveProjectProposal:
       has(PERM.project.approve) || has(PERM.project.selection_approve),
-    canManageSelectionSession:
-      has(PERM.project.selection_manage) || has(PERM.project.review),
+    /** BGH / phê duyệt phiên — còn dùng ở thẩm định thuyết minh */
     canApproveSelectionSession:
       has(PERM.project.selection_approve) || has(PERM.project.approve),
     canExtendProposalAdjustment:
@@ -276,12 +263,6 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.review) ||
       has(PERM.project.selection_manage),
     canViewProjectManage: has(PERM.project.view),
-    canViewProjectCouncil:
-      has(PERM.council.view) ||
-      has(PERM.project.review) ||
-      has(PERM.project.approve) ||
-      has(PERM.project.selection_manage) ||
-      has(PERM.project.selection_approve),
     canViewAcceptance: has(PERM.project.acceptance),
     canViewFinance: has(PERM.finance.view),
     canViewReports: hasAny([

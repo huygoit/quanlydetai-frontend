@@ -183,40 +183,9 @@ export async function unitReturnProposal(
   return post<ApiResponse<ProjectProposal>>(`/api/project-proposals/${id}/unit-return`, { reason });
 }
 
-export async function markProposalValid(id: number): Promise<ApiResponse<ProjectProposal>> {
-  return post<ApiResponse<ProjectProposal>>(`/api/project-proposals/${id}/mark-valid`);
-}
-
-export async function requestProposalSupplement(
-  id: number,
-  note: string,
-): Promise<ApiResponse<ProjectProposal>> {
-  return post<ApiResponse<ProjectProposal>>(`/api/project-proposals/${id}/request-supplement`, {
-    note,
-  });
-}
-
+/** GV gửi lại sau yêu cầu bổ sung — form đăng ký còn dùng */
 export async function resubmitProposalToPkh(id: number): Promise<ApiResponse<ProjectProposal>> {
   return post<ApiResponse<ProjectProposal>>(`/api/project-proposals/${id}/resubmit-to-pkh`);
-}
-
-export async function extendProposalSupplement(
-  id: number,
-  data: { dueAt: string; reason?: string },
-): Promise<ApiResponse<ProjectProposal>> {
-  return post<ApiResponse<ProjectProposal>>(
-    `/api/project-proposals/${id}/extend-supplement`,
-    data,
-  );
-}
-
-export async function rejectProposalByPkh(
-  id: number,
-  reason: string,
-): Promise<ApiResponse<ProjectProposal>> {
-  return post<ApiResponse<ProjectProposal>>(`/api/project-proposals/${id}/reject-by-pkh`, {
-    reason,
-  });
 }
 
 /** US-03-05 — GV nộp lại điều chỉnh theo yêu cầu Hội đồng */
@@ -257,53 +226,6 @@ export async function extendProposalAdjustment(
     `/api/project-proposals/${id}/extend-adjustment`,
     data,
   );
-}
-
-export interface PkhProposalStats {
-  totalReceived: number;
-  hopLe: number;
-  choBoSung: number;
-  daLoai: number;
-  choPkh: number;
-}
-
-export async function getPkhProposalStats(
-  callForProposalId: number,
-): Promise<ApiResponse<PkhProposalStats>> {
-  return get<ApiResponse<PkhProposalStats>>('/api/project-proposals/pkh/stats', {
-    callForProposalId,
-  });
-}
-
-/** Tải Excel danh mục HOP_LE */
-export async function exportPkhProposalsExcel(callForProposalId: number): Promise<Blob> {
-  const { getToken, API_BASE_URL } = await import('../request');
-  const token = getToken();
-  const url = `${API_BASE_URL}/api/project-proposals/pkh/export-excel?callForProposalId=${callForProposalId}`;
-  const res = await fetch(url, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) {
-    let msg = 'Xuất Excel thất bại';
-    try {
-      const j = await res.json();
-      msg = j?.message || msg;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg);
-  }
-  return res.blob();
-}
-
-export async function createProposalSelectionSession(data: {
-  callForProposalId: number;
-  meetingAt: string;
-  location: string;
-  forceConfirm?: boolean;
-}): Promise<ApiResponse<Record<string, unknown>>> {
-  const { createSelectionSession } = await import('./proposalSelectionSessions');
-  return createSelectionSession(data);
 }
 
 export async function getPendingUnitProposalCount(): Promise<ApiResponse<{ count: number }>> {
