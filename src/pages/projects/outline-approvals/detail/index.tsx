@@ -1,7 +1,6 @@
 /**
- * Chi tiết hồ sơ phê duyệt TM — BGH / TC-HC
+ * Chi tiết hồ sơ phê duyệt TM — BGH duyệt là mở Module 5
  */
-import ProposalAttachmentUpload from '@/components/ProposalAttachmentUpload';
 import {
   bghApproveOutline,
   bghRejectOutline,
@@ -23,7 +22,6 @@ import {
   FileProtectOutlined,
   HistoryOutlined,
   SafetyCertificateOutlined,
-  SendOutlined,
 } from '@ant-design/icons';
 import { FooterToolbar, PageContainer } from '@ant-design/pro-components';
 import { history, useAccess, useParams } from '@umijs/max';
@@ -66,7 +64,6 @@ const OutlineApprovalDetailPage: React.FC = () => {
   const [data, setData] = useState<OutlineApprovalDossier | null>(null);
   const [approveForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
-  const [publishForm] = Form.useForm();
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
 
@@ -101,10 +98,10 @@ const OutlineApprovalDetailPage: React.FC = () => {
     !!data?.permissions?.canBgh &&
     !!data?.canApprove &&
     !!access.canApproveOutlineRevisionBgh;
-  const canHc =
-    !!data?.permissions?.canHc &&
+  /** Tồn đọng flow cũ: đã ký BGH nhưng còn CHO_HC */
+  const canMoModule5TonDong =
     !!data?.canPublish &&
-    !!access.canPublishContract;
+    (!!data?.permissions?.canBgh || !!data?.permissions?.canHc);
 
   const pheDuyet = async () => {
     try {
@@ -114,7 +111,7 @@ const OutlineApprovalDetailPage: React.FC = () => {
         approvedBudget: Number(v.approvedBudget),
         note: v.note?.trim() || undefined,
       });
-      message.success(res.message || 'Đã ký phê duyệt');
+      message.success(res.message || 'Đã phê duyệt — mở Module 5');
       setApproveOpen(false);
       setData(res.data || null);
       await load();
@@ -142,24 +139,19 @@ const OutlineApprovalDetailPage: React.FC = () => {
     }
   };
 
-  const phatHanh = async () => {
+  const moModule5TonDong = () => {
     Modal.confirm({
-      title: 'Phát hành QĐ giao thực hiện?',
-      content:
-        'Sau khi phát hành, thuyết minh chuyển được duyệt (TM_DUOC_DUYET), mở Module 5 và gửi email CNNV kèm kinh phí.',
-      okText: 'Phát hành',
-      cancelText: 'Hủy',
+      title: 'Mở Module 5 cho hồ sơ tồn đọng?',
+      content: 'Hồ sơ đã được BGH ký (flow cũ). Xác nhận để mở Module 5 và sinh dự thảo hợp đồng.',
+      okText: 'Mở Module 5',
       onOk: async () => {
         setSaving(true);
         try {
-          const url = publishForm.getFieldValue('decisionFileUrl');
-          const res = await hcPublishOutlineDecision(outlineId, {
-            decisionFileUrl: url || null,
-          });
-          message.success(res.message || 'Đã phát hành QĐ');
+          const res = await hcPublishOutlineDecision(outlineId, {});
+          message.success(res.message || 'Đã mở Module 5');
           await load();
         } catch (e: any) {
-          message.error(e?.data?.message || e?.message || 'Phát hành thất bại');
+          message.error(e?.data?.message || e?.message || 'Thất bại');
           throw e;
         } finally {
           setSaving(false);
@@ -240,6 +232,16 @@ const OutlineApprovalDetailPage: React.FC = () => {
               style={{ marginBottom: 16 }}
               message="Đã từ chối phê duyệt (TM_TU_CHOI)"
               description={o.bghRejectReason}
+            />
+          )}
+
+          {o.status === 'CHO_HC_PHAT_HANH_QD' && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="Hồ sơ tồn đọng flow cũ (đã ký BGH, chưa mở Module 5)"
+              description="Bấm «Mở Module 5» ở thanh dưới để chuyển triển khai."
             />
           )}
 
@@ -419,29 +421,6 @@ const OutlineApprovalDetailPage: React.FC = () => {
                 </div>
               )}
 
-              {canHc && (
-                <div className="oa-panel" style={{ marginTop: 16 }}>
-                  <div className="oa-panel__title">
-                    <SendOutlined /> TC-HC phát hành QĐ giao thực hiện
-                  </div>
-                  <Text type="secondary">
-                    Đính kèm file QĐ (tuỳ chọn), rồi bấm phát hành ở thanh dưới.
-                  </Text>
-                  <Form form={publishForm} layout="vertical" style={{ marginTop: 12 }}>
-                    <Form.Item
-                      name="decisionFileUrl"
-                      label="File QĐ giao thực hiện (PDF/DOCX)"
-                      style={{ marginBottom: 0 }}
-                    >
-                      <ProposalAttachmentUpload
-                        folder="projects/assignment-decisions"
-                        maxMb={20}
-                        buttonText="Tải lên QĐ"
-                      />
-                    </Form.Item>
-                  </Form>
-                </div>
-              )}
             </Col>
           </Row>
 
@@ -470,14 +449,14 @@ const OutlineApprovalDetailPage: React.FC = () => {
                 </Button>
               </>
             ) : null}
-            {canHc ? (
+            {canMoModule5TonDong ? (
               <Button
                 type="primary"
-                icon={<SendOutlined />}
+                icon={<CheckCircleOutlined />}
                 loading={saving}
-                onClick={() => void phatHanh()}
+                onClick={moModule5TonDong}
               >
-                Phát hành QĐ → mở Module 5
+                Mở Module 5 (tồn đọng)
               </Button>
             ) : null}
           </FooterToolbar>
@@ -495,7 +474,7 @@ const OutlineApprovalDetailPage: React.FC = () => {
               type="info"
               showIcon
               style={{ marginBottom: 12 }}
-              message="Ký số trên hệ thống (ghi nhận người ký + thời điểm). Sau đó TC-HC phát hành QĐ."
+              message="Ký số trên hệ thống (ghi nhận người ký + thời điểm). Sau duyệt sẽ mở Module 5 và sinh dự thảo hợp đồng."
             />
             <Form form={approveForm} layout="vertical">
               <Form.Item

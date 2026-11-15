@@ -62,6 +62,8 @@ export const PERMISSION_MODULE_MAP: Record<string, string> = {
   finance: 'Tài chính',
   profile: 'Hồ sơ khoa học',
   personal_profile: 'Hồ sơ cán bộ',
+  org_profile: 'Profile trường',
+  contract_template: 'Mẫu biểu mẫu',
   notification: 'Thông báo',
   system: 'Hệ thống',
 };

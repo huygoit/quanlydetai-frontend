@@ -1,5 +1,5 @@
 /**
- * API dự thảo hợp đồng BM.06 (US-05-01 bước 1)
+ * API dự thảo hợp đồng BM.06 / BM-02.14
  */
 import {
   API_BASE_URL,
@@ -62,9 +62,6 @@ export const PROJECT_CONTRACT_STATUS_MAP: Record<
 };
 
 export type ContractWorkflow = {
-  externalContractNo: string | null;
-  externalAgency: string | null;
-  externalFileUrl: string | null;
   returnReason: string | null;
   cnnvConfirmedAt: string | null;
   bghSignedAt: string | null;
@@ -83,19 +80,46 @@ export type ContractFlowRoles = {
   canPublish: boolean;
 };
 
-export type ContractClauseField = {
-  key: string;
+export type ContractMilestoneRow = {
+  content: string;
+  thoiGian: string;
+  sanPham: string;
+};
+
+export type ContractFundingCode =
+  | 'NSNN'
+  | 'KP_TRUONG'
+  | 'DOI_UNG'
+  | 'NGUON_KHAC';
+
+export type ContractFundingRow = {
+  code: ContractFundingCode;
   label: string;
-  group: string;
-  value: string;
-  editable: boolean;
+  amount: number;
+};
+
+export type ContractDraftForm = {
+  tenNhiemVu: string;
+  maSo: string;
+  cnnv: string;
+  donVi: string;
+  thoiGian: string;
+  kinhPhi: string;
+  soThang: string;
+  ngayBatDau: string;
+  ngayKetThuc: string;
+  tongKinhPhi: number;
+  kinhPhiBangChu: string;
+  milestones: ContractMilestoneRow[];
+  funding: ContractFundingRow[];
 };
 
 export type ProjectContractFlow = ProjectContract & {
   workflow: ContractWorkflow;
   executionStatus: string | null;
   roles: ContractFlowRoles;
-  clauseFields?: ContractClauseField[];
+  draftForm?: ContractDraftForm;
+  canEditDraft?: boolean;
 };
 
 export async function queryProjectContracts(params?: {
@@ -166,32 +190,21 @@ export async function getProjectContractFlow(
   return get(`/api/project-contracts/${id}/flow`);
 }
 
-export async function saveContractExternal(
+export async function saveContractDraftForm(
   id: number,
   body: {
-    externalContractNo?: string;
-    externalAgency?: string;
-    externalFileUrl?: string;
+    soThang?: string | number;
+    ngayBatDau?: string;
+    ngayKetThuc?: string;
+    tongKinhPhi?: number;
+    milestones: ContractMilestoneRow[];
+    funding: { code: string; amount: number }[];
   },
-): Promise<ApiResponse<ContractWorkflow>> {
-  return put(`/api/project-contracts/${id}/external`, body);
-}
-
-export async function saveContractClauses(
-  id: number,
-  fields: Record<string, string>,
 ) {
   return put<ApiResponse<ProjectContractFlow>>(
-    `/api/project-contracts/${id}/clauses`,
-    { fields },
+    `/api/project-contracts/${id}/draft-form`,
+    body,
   );
-}
-
-export async function saveContractBudgetLines(
-  id: number,
-  lines: { code: string; amount: number }[],
-): Promise<ApiResponse<unknown>> {
-  return put(`/api/project-contracts/${id}/budget-lines`, { lines });
 }
 
 export async function submitContractCnnv(id: number) {

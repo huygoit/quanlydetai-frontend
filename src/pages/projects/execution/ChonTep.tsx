@@ -30,7 +30,13 @@ export function ChonTep({
         return Upload.LIST_IGNORE;
       }}
     >
-      <Button>{nhan || 'Chọn file'}</Button>
+      {/* htmlType=button: tránh submit Form cha / đóng Drawer khi chọn file */}
+      <Button
+        htmlType="button"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {nhan || 'Chọn file'}
+      </Button>
     </Upload>
   );
 }

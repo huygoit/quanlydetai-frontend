@@ -359,6 +359,16 @@ function GiaiTrinh({
   );
 }
 
+/** Phân tab trên chi tiết hợp đồng — `all` giữ màn triển khai gộp. */
+export type PhanCuoiKy =
+  | 'all'
+  | 'hoso'
+  | 'hoidong'
+  | 'giaitrinh'
+  | 'danhgia'
+  | 'quyettoan'
+  | 'thanhly';
+
 export function TabCuoiKy({
   outlineId,
   vaiTro,
@@ -366,6 +376,7 @@ export function TabCuoiKy({
   ketThuc,
   onXong,
   onDaMoLai,
+  phan = 'all',
 }: {
   outlineId: number;
   vaiTro: VaiTro;
@@ -373,7 +384,10 @@ export function TabCuoiKy({
   ketThuc?: string | null;
   onXong: (t: string) => void;
   onDaMoLai?: () => void;
+  /** Chỉ hiện một bước luồng nghiệm thu / HĐ / giải trình / ĐG / QT / TL */
+  phan?: PhanCuoiKy;
 }) {
+  const chi = (k: PhanCuoiKy) => phan === 'all' || phan === k;
   const { initialState } = useModel('@@initialState');
   const laAdmin = isAdminKeKhaiUser(initialState?.currentUser);
   const [hs, setHs] = useState<HoSoCuoiKy | null>(null);
@@ -485,19 +499,50 @@ export function TabCuoiKy({
     }
   };
 
+  const stHoiDong = [
+    'DGCK_HOP_HD',
+    'DGCK_CHINH_SUA',
+    'DGCK_CHO_QUYET_TOAN',
+    'DGCK_CHO_THANH_LY',
+    'HOAN_THANH',
+    'DGCK_KHONG_DAT',
+    'DGCK_DINH_CHI',
+  ].includes(String(st));
+  const stGiaiTrinh =
+    st === 'DGCK_CHINH_SUA' ||
+    !!hs.explanation.status ||
+    hs.classification === 'CAN_BO_SUNG';
+  const stDanhGia =
+    st === 'DGCK_HOP_HD' ||
+    hs.minutesLocked ||
+    [
+      'DGCK_CHO_QUYET_TOAN',
+      'DGCK_CHO_THANH_LY',
+      'HOAN_THANH',
+      'DGCK_CHINH_SUA',
+      'DGCK_KHONG_DAT',
+    ].includes(String(st));
+  const stQuyetToan = [
+    'DGCK_CHO_QUYET_TOAN',
+    'DGCK_CHO_THANH_LY',
+    'HOAN_THANH',
+  ].includes(String(st));
+  const stThanhLy = ['DGCK_CHO_THANH_LY', 'HOAN_THANH'].includes(String(st));
+
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Alert
         type={hs.overdueExplanation ? 'warning' : 'info'}
-        message={`Vòng đời: ${NHAN_TRIEN_KHAI[st || ''] || st || '—'}`}
+        showIcon
+        message={`Trạng thái: ${NHAN_TRIEN_KHAI[st || ''] || st || 'Đang thực hiện'}`}
         description={
           hs.overdueExplanation ? 'Đã quá hạn giải trình.' : undefined
         }
       />
-      {hs.reviewDeadlineTight && (
-        <Alert type="warning" message="Hạn phản biện đang sát." />
+      {hs.reviewDeadlineTight && chi('hoidong') && (
+        <Alert type="warning" showIcon message="Hạn phản biện đang sát." />
       )}
-      {hs.minutesLocked && laAdmin && (
+      {hs.minutesLocked && laAdmin && chi('danhgia') && (
         <Button
           onClick={() => {
             let reason = '';
@@ -531,10 +576,13 @@ export function TabCuoiKy({
         </Button>
       )}
 
-      {vaiTro.canManage &&
+      {chi('hoso') &&
+        vaiTro.canManage &&
         !hs.dossier.notifiedAt &&
         ['DANG_THUC_HIEN', 'DGCK_DRAFT', 'DGCK_BS', null].includes(st) && (
           <Button
+            type="primary"
+            ghost
             onClick={() =>
               thongBaoCuoiKy(outlineId)
                 .then(() => {
@@ -544,35 +592,52 @@ export function TabCuoiKy({
                 .catch((e) => message.error(bao(e)))
             }
           >
-            PKH gửi thông báo nộp hồ sơ
+            PKH gửi thông báo nộp hồ sơ nghiệm thu
           </Button>
         )}
 
-      <Card size="small" title="Hồ sơ cuối kỳ">
+      {chi('hoso') && (
+      <Card
+        size="small"
+        title="Hồ sơ nghiệm thu (US-06-01 · BM.10 / BM.11)"
+        extra={
+          st ? (
+            <Tag color="processing">{NHAN_TRIEN_KHAI[st] || st}</Tag>
+          ) : null
+        }
+      >
         {!duocNop && (
           <Alert
             style={{ marginBottom: 8 }}
             type="warning"
-            message="Chưa tới hạn nộp chính thức (còn hơn 30 ngày và chưa có thông báo)."
+            showIcon
+            message="Chưa tới hạn nộp chính thức"
+            description="Còn hơn 30 ngày đến hạn kết thúc và PKH chưa gửi thông báo. CNNV vẫn lưu nháp được."
           />
         )}
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
           <div>
-            Báo cáo tổng hợp (≤ 30MB): {summaryFile?.fileName || 'chưa có'}{' '}
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              Báo cáo tổng hợp (BM.10) ≤ 30MB *
+            </div>
+            {summaryFile?.fileName || <span style={{ color: '#999' }}>chưa có</span>}{' '}
             {vaiTro.canCnnv && (
               <ChonTep
                 maxBytes={HAN_FILE.tomTat}
-                nhan="Tải"
+                nhan="Tải lên"
                 onCo={setSummaryFile}
               />
             )}
           </div>
           <div>
-            Báo cáo tóm tắt (≤ 10MB): {briefFile?.fileName || 'chưa có'}{' '}
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              Báo cáo tóm tắt ≤ 10MB (≤ 15 trang) *
+            </div>
+            {briefFile?.fileName || <span style={{ color: '#999' }}>chưa có</span>}{' '}
             {vaiTro.canCnnv && (
               <ChonTep
                 maxBytes={HAN_FILE.tomTatNgan}
-                nhan="Tải"
+                nhan="Tải lên"
                 onCo={setBriefFile}
               />
             )}
@@ -580,58 +645,67 @@ export function TabCuoiKy({
           <Input.TextArea
             rows={3}
             value={resultVi}
-            placeholder="Kết quả tiếng Việt"
+            placeholder="Kết quả nghiên cứu (tiếng Việt) *"
             onChange={(e) => setResultVi(e.target.value)}
           />
           <Input.TextArea
             rows={3}
             value={resultEn}
-            placeholder="Kết quả tiếng Anh"
+            placeholder="Research results (English) *"
             onChange={(e) => setResultEn(e.target.value)}
           />
           <Input.TextArea
             rows={2}
             value={publicationsNote}
-            placeholder="Ghi chú công bố"
+            placeholder="Danh sách ấn phẩm / ghi chú công bố (tuỳ chọn)"
             onChange={(e) => setPublicationsNote(e.target.value)}
           />
           <div>
-            File hội đồng (nếu có): {councilFile?.fileName || 'chưa có'}{' '}
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              File hội đồng BM.11 (tuỳ chọn)
+            </div>
+            {councilFile?.fileName || <span style={{ color: '#999' }}>chưa có</span>}{' '}
             {vaiTro.canCnnv && (
               <ChonTep
                 maxBytes={HAN_FILE.tomTat}
-                nhan="Tải"
+                nhan="Tải lên"
                 onCo={setCouncilFile}
               />
             )}
           </div>
-          {products.map((p, i) => (
-            <Space key={p.name} style={{ display: 'flex' }}>
-              <span style={{ minWidth: 160 }}>{p.name}</span>
-              <Input
-                placeholder="Link"
-                value={p.link}
-                onChange={(e) =>
-                  setProducts((s) =>
-                    s.map((x, j) =>
-                      j === i ? { ...x, link: e.target.value } : x,
-                    ),
-                  )
-                }
-              />
-              <ChonTep
-                maxBytes={HAN_FILE.tomTat}
-                nhan={p.fileUrl ? 'Đổi file' : 'File'}
-                onCo={(t) =>
-                  setProducts((s) =>
-                    s.map((x, j) =>
-                      j === i ? { ...x, fileUrl: t.fileUrl } : x,
-                    ),
-                  )
-                }
-              />
-            </Space>
-          ))}
+          <div style={{ fontWeight: 600 }}>Sản phẩm theo thuyết minh *</div>
+          {products.length === 0 ? (
+            <Alert type="info" showIcon message="Thuyết minh chưa khai báo sản phẩm." />
+          ) : (
+            products.map((p, i) => (
+              <Space key={p.name} style={{ display: 'flex' }} wrap>
+                <span style={{ minWidth: 160, fontWeight: 500 }}>{p.name}</span>
+                <Input
+                  placeholder="Link minh chứng"
+                  value={p.link}
+                  style={{ minWidth: 220 }}
+                  onChange={(e) =>
+                    setProducts((s) =>
+                      s.map((x, j) =>
+                        j === i ? { ...x, link: e.target.value } : x,
+                      ),
+                    )
+                  }
+                />
+                <ChonTep
+                  maxBytes={HAN_FILE.tomTat}
+                  nhan={p.fileUrl ? 'Đổi file' : 'File'}
+                  onCo={(t) =>
+                    setProducts((s) =>
+                      s.map((x, j) =>
+                        j === i ? { ...x, fileUrl: t.fileUrl } : x,
+                      ),
+                    )
+                  }
+                />
+              </Space>
+            ))
+          )}
           {vaiTro.canCnnv &&
             ['DANG_THUC_HIEN', 'DGCK_DRAFT', 'DGCK_BS', null].includes(st) && (
               <Space>
@@ -641,7 +715,7 @@ export function TabCuoiKy({
                   disabled={!duocNop}
                   onClick={() => nopHoSo(true)}
                 >
-                  Nộp chính thức
+                  Nộp hồ sơ nghiệm thu
                 </Button>
               </Space>
             )}
@@ -651,7 +725,7 @@ export function TabCuoiKy({
                 checked={soTrangOk}
                 onChange={(e) => setSoTrangOk(e.target.checked)}
               >
-                Báo cáo tóm tắt không quá 15 trang
+                Xác nhận báo cáo tóm tắt không quá 15 trang
               </Checkbox>
               <Space>
                 <Button
@@ -662,15 +736,19 @@ export function TabCuoiKy({
                       accept: true,
                       briefPagesOk: true,
                     })
-                      .then(tai)
+                      .then(() => {
+                        onXong('Đã chuyển họp hội đồng');
+                        return tai();
+                      })
                       .catch((e) => message.error(bao(e)))
                   }
                 >
-                  Chuyển họp hội đồng
+                  Duyệt → họp hội đồng
                 </Button>
                 <Button
+                  danger
                   onClick={() => {
-                    const note = window.prompt('Lý do trả') || '';
+                    const note = window.prompt('Lý do trả bổ sung') || '';
                     if (!note.trim()) return;
                     duyetHoSoCuoiKy(outlineId, {
                       accept: false,
@@ -688,9 +766,10 @@ export function TabCuoiKy({
           )}
         </Space>
       </Card>
+      )}
 
-      {st === 'DGCK_HOP_HD' && (
-        <Card size="small" title="Hội đồng">
+      {chi('hoidong') && stHoiDong && (
+        <Card size="small" title="Hội đồng đánh giá kết quả">
           {vaiTro.canManage && !hs.minutesLocked && (
             <Space
               direction="vertical"
@@ -815,8 +894,92 @@ export function TabCuoiKy({
               onXong={() => tai()}
             />
           )}
+          {/* Nhận xét đã nộp của thành viên */}
+          {(hs.sheets || []).length > 0 && (
+            <Table
+              size="small"
+              style={{ marginTop: 12 }}
+              pagination={false}
+              rowKey="userId"
+              dataSource={hs.sheets}
+              columns={[
+                {
+                  title: 'Thành viên',
+                  render: (_, r) => {
+                    const m = hs.council.members.find(
+                      (x) => x.userId === r.userId,
+                    );
+                    return (
+                      m?.fullName ||
+                      m?.name ||
+                      `#${r.userId}`
+                    );
+                  },
+                },
+                {
+                  title: 'Vai trò',
+                  render: (_, r) => {
+                    const m = hs.council.members.find(
+                      (x) => x.userId === r.userId,
+                    );
+                    return (
+                      NHAN_VAI_TRO_HD[(m?.role || '') as 'CHU_TICH'] ||
+                      m?.role ||
+                      '—'
+                    );
+                  },
+                },
+                {
+                  title: 'Nhận xét chung',
+                  dataIndex: 'generalComment',
+                  ellipsis: true,
+                },
+                {
+                  title: 'Nộp lúc',
+                  width: 160,
+                  render: (_, r) =>
+                    r.submittedAt
+                      ? dayjs(r.submittedAt).format('DD/MM/YYYY HH:mm')
+                      : '—',
+                },
+              ]}
+            />
+          )}
+          {hs.minutesFileUrl && (
+            <div style={{ marginTop: 8 }}>
+              <a
+                href={resolvePublicAssetUrl(hs.minutesFileUrl)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Tải biên bản đã lưu
+              </a>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {phan === 'hoidong' && !stHoiDong && (
+        <Alert
+          type="info"
+          showIcon
+          message="Hội đồng mở sau khi PKH duyệt hồ sơ nghiệm thu"
+          description="CNNV nộp hồ sơ → PKH chuyển họp hội đồng."
+        />
+      )}
+
+      {chi('danhgia') && stDanhGia && (
+        <Card size="small" title="Đánh giá kết quả (biên bản hội đồng)">
+          {hs.classification && (
+            <Tag color="blue" style={{ marginBottom: 8 }}>
+              Xếp loại:{' '}
+              {NHAN_XEP_LOAI[hs.classification as 'DAT_YEU_CAU'] ||
+                hs.classification}
+            </Tag>
+          )}
           {vaiTro.canManage &&
             !hs.minutesLocked &&
+            st === 'DGCK_HOP_HD' &&
             hs.council.members.length > 0 && (
               <BienBan
                 outlineId={outlineId}
@@ -825,44 +988,77 @@ export function TabCuoiKy({
                 onXong={tai}
               />
             )}
-          {hs.minutesFileUrl && (
-            <a
-              href={resolvePublicAssetUrl(hs.minutesFileUrl)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Tải biên bản
-            </a>
+          {hs.minutesLocked && hs.minutes && (
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div>
+                <TextStrong>Thảo luận:</TextStrong> {hs.minutes.discussion || '—'}
+              </div>
+              <div>
+                <TextStrong>Khối lượng:</TextStrong> {hs.minutes.volume || '—'}
+              </div>
+              <div>
+                <TextStrong>Chất lượng:</TextStrong> {hs.minutes.quality || '—'}
+              </div>
+              <div>
+                <TextStrong>Kiến nghị:</TextStrong>
+                <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+                  {hs.minutes.recommendation || '—'}
+                </pre>
+              </div>
+              {hs.minutesFileUrl && (
+                <a
+                  href={resolvePublicAssetUrl(hs.minutesFileUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Tải biên bản
+                </a>
+              )}
+            </Space>
+          )}
+          {st === 'DGCK_KHONG_DAT' && vaiTro.canManage && (
+            <Space style={{ marginTop: 12 }}>
+              <Button
+                onClick={() =>
+                  quyetDinhKhongDat(outlineId, true)
+                    .then(tai)
+                    .catch((e) => message.error(bao(e)))
+                }
+              >
+                Cho làm lại
+              </Button>
+              <Button
+                danger
+                onClick={() =>
+                  quyetDinhKhongDat(outlineId, false)
+                    .then(tai)
+                    .catch((e) => message.error(bao(e)))
+                }
+              >
+                Đình chỉ
+              </Button>
+            </Space>
           )}
         </Card>
       )}
 
-      {st === 'DGCK_KHONG_DAT' && vaiTro.canManage && (
-        <Space>
-          <Button
-            onClick={() =>
-              quyetDinhKhongDat(outlineId, true)
-                .then(tai)
-                .catch((e) => message.error(bao(e)))
-            }
-          >
-            Cho làm lại
-          </Button>
-          <Button
-            danger
-            onClick={() =>
-              quyetDinhKhongDat(outlineId, false)
-                .then(tai)
-                .catch((e) => message.error(bao(e)))
-            }
-          >
-            Đình chỉ
-          </Button>
-        </Space>
+      {phan === 'danhgia' && !stDanhGia && (
+        <Alert
+          type="info"
+          showIcon
+          message="Đánh giá kết quả mở khi hội đồng họp hoặc sau khi xếp loại"
+          description="Lập biên bản / xếp loại tại bước này. Nếu cần bổ sung → qua tab Giải trình; đạt yêu cầu → Quyết toán."
+        />
       )}
 
-      {st === 'DGCK_CHINH_SUA' && (
-        <Card size="small" title="Giải trình">
+      {chi('giaitrinh') && stGiaiTrinh && (
+        <Card size="small" title="Nộp hồ sơ giải trình">
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="CNNV nộp giải trình → Thư ký xác nhận → Chủ tịch xác nhận → mở Quyết toán / Thanh lý"
+          />
           <GiaiTrinh
             hs={hs}
             vaiTro={vaiTro}
@@ -873,7 +1069,16 @@ export function TabCuoiKy({
         </Card>
       )}
 
-      {st === 'DGCK_CHO_QUYET_TOAN' && (
+      {phan === 'giaitrinh' && !stGiaiTrinh && (
+        <Alert
+          type="info"
+          showIcon
+          message="Tab giải trình mở khi hội đồng xếp loại cần bổ sung"
+          description="Sau khi CNNV nộp lại và Chủ tịch + Thư ký xác nhận, hệ thống mở Quyết toán và Thanh lý."
+        />
+      )}
+
+      {chi('quyettoan') && stQuyetToan && (
         <Card size="small" title="Quyết toán">
           {MUC_CHI.map((m) => (
             <div key={m.code} style={{ marginBottom: 6 }}>
@@ -973,10 +1178,18 @@ export function TabCuoiKy({
         </Card>
       )}
 
-      {st === 'DGCK_CHO_THANH_LY' && (
+      {phan === 'quyettoan' && !stQuyetToan && (
+        <Alert
+          type="info"
+          showIcon
+          message="Quyết toán mở sau khi đánh giá đạt hoặc giải trình được Chủ tịch & Thư ký xác nhận"
+        />
+      )}
+
+      {chi('thanhly') && stThanhLy && (
         <Card
           size="small"
-          title={`Thanh lý · số dư ${formatVnd(hs.liquidation.surplus)}`}
+          title={`Thanh lý hợp đồng · số dư ${formatVnd(hs.liquidation.surplus)}`}
           extra={
             hs.liquidation.fileUrl ? (
               <a href={resolvePublicAssetUrl(hs.liquidation.fileUrl)}>BM.14</a>
@@ -1151,6 +1364,18 @@ export function TabCuoiKy({
           </Space>
         </Card>
       )}
+
+      {phan === 'thanhly' && !stThanhLy && (
+        <Alert
+          type="info"
+          showIcon
+          message="Thanh lý hợp đồng mở sau khi quyết toán hoàn tất"
+        />
+      )}
     </Space>
   );
+}
+
+function TextStrong({ children }: { children: React.ReactNode }) {
+  return <span style={{ fontWeight: 600 }}>{children}</span>;
 }

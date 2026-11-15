@@ -105,6 +105,13 @@ export default function access(initialState: AccessInitialState | undefined) {
     canCreateContractTemplate: has(PERM.contract_template.create),
     canEditContractTemplate: has(PERM.contract_template.update),
     canDeleteContractTemplate: has(PERM.contract_template.delete),
+    /** Profile trường / Bên A — SUPER_ADMIN hoặc gán org_profile.* / contract_template.* */
+    canViewSchoolProfile:
+      has(PERM.org_profile.view) ||
+      has(PERM.org_profile.update) ||
+      has(PERM.contract_template.view),
+    canEditSchoolProfile:
+      has(PERM.org_profile.update) || has(PERM.contract_template.update),
     canViewUsers: has(PERM.user.view),
     canCreateUser: has(PERM.user.create),
     canEditUser: has(PERM.user.update),
@@ -224,9 +231,11 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.defense_manage),
     /** @deprecated US-04-06 đã bỏ */
     canProposeOutlineBudget: false,
-    canConfirmOutlineBudget: false,
+    /** Phòng Tài chính — xác nhận thanh toán tạm ứng / quyết toán */
+    canConfirmOutlineBudget: has(PERM.project.budget_confirm),
     canApproveOutlineBudget: false,
     canViewOutlineBudgetFlow: false,
+    canBudgetConfirm: has(PERM.project.budget_confirm),
     /** US-05-01 — xem dự thảo hợp đồng */
     canViewProjectContracts:
       has(PERM.project.contract_manage) ||
@@ -264,7 +273,13 @@ export default function access(initialState: AccessInitialState | undefined) {
       has(PERM.project.selection_manage),
     canViewProjectManage: has(PERM.project.view),
     canViewAcceptance: has(PERM.project.acceptance),
+    /** TC/thanh lý — tổng quan kinh phí (IAM) */
     canViewFinance: has(PERM.finance.view),
+    /**
+     * Tài chính nhiệm vụ (BM.07) — CNNV thấy theo workspace cá nhân,
+     * không cần IAM: hệ thống biết chủ nhiệm qua owner nhiệm vụ.
+     */
+    canViewTaskFinance: canUsePersonalWorkspace,
     canViewReports: hasAny([
       PERM.report.view,
       PERM.report.view_department,

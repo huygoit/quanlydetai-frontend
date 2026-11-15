@@ -24,7 +24,11 @@ import { TabSoMuc } from './TabSoMuc';
 import { TabTienDo } from './TabTienDo';
 import type { VaiTro } from './types';
 
-function tabMacDinh(path: string) {
+function tabMacDinh(path: string, search = '') {
+  const tab = new URLSearchParams(search).get('tab');
+  if (tab === 'chi' || tab === 'mua' || tab === 'tiendo' || tab === 'dieuchinh' || tab === 'cuoi' || tab === 'so') {
+    return tab;
+  }
   if (path.includes('/final/')) return 'cuoi';
   if (path.includes('/progress/')) return 'tiendo';
   return 'so';
@@ -35,17 +39,17 @@ const ExecutionPage: React.FC = () => {
   const outlineId = Number(raw);
   const idHopLe = Number.isFinite(outlineId) && outlineId > 0;
   const access = useAccess();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const { initialState } = useModel('@@initialState');
   const userId = Number(
     (initialState?.currentUser as { id?: number } | undefined)?.id || 0,
   );
   const [outline, setOutline] = useState<ProjectOutline | null>(null);
-  const [tab, setTab] = useState(tabMacDinh(pathname));
+  const [tab, setTab] = useState(tabMacDinh(pathname, search));
 
   useEffect(() => {
-    setTab(tabMacDinh(pathname));
-  }, [pathname]);
+    setTab(tabMacDinh(pathname, search));
+  }, [pathname, search]);
 
   const taiOutline = () => {
     if (!idHopLe) return;
@@ -91,6 +95,23 @@ const ExecutionPage: React.FC = () => {
   }
 
   const st = outline?.executionStatus;
+
+  // Ưu tiên vào hub hợp đồng (nhiều tab) nếu đã có HĐ gắn nhiệm vụ
+  useEffect(() => {
+    const cid = outline?.activeContractId;
+    if (!cid) return;
+    const tabQ = new URLSearchParams(search).get('tab');
+    const map: Record<string, string> = {
+      chi: 'tamung',
+      tiendo: 'tiendo',
+      dieuchinh: 'dieuchinh',
+      mua: 'muasam',
+    };
+    const tab = tabQ && map[tabQ] ? map[tabQ] : tabQ && ['tamung','tiendo','dieuchinh','muasam'].includes(tabQ) ? tabQ : 'hopdong';
+    history.replace(
+      `/projects/contracts/${cid}${tab !== 'hopdong' ? `?tab=${tab}` : ''}`,
+    );
+  }, [outline?.activeContractId, search]);
 
   return (
     <PageContainer

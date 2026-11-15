@@ -299,6 +299,20 @@ export default defineConfig({
           hideInMenu: true,
         },
         {
+          path: '/projects/payments/:id',
+          name: 'Duyệt hồ sơ tạm ứng',
+          component: '@/pages/projects/payments/detail',
+          access: 'canOpenModule56',
+          hideInMenu: true,
+        },
+        {
+          path: '/projects/adjustments/:id',
+          name: 'Phiếu điều chỉnh',
+          component: '@/pages/projects/adjustments/redirect',
+          access: 'canOpenModule56',
+          hideInMenu: true,
+        },
+        {
           path: '/projects/execution/:outlineId',
           name: 'Triển khai nhiệm vụ',
           component: '@/pages/projects/execution',
@@ -306,8 +320,29 @@ export default defineConfig({
           hideInMenu: true,
         },
         {
-          path: '/projects/progress/:outlineId',
+          path: '/projects/procurements',
+          name: 'Danh sách yêu cầu mua sắm',
+          icon: 'ShoppingCartOutlined',
+          component: '@/pages/projects/procurements',
+          access: 'canHandleProcurement',
+        },
+        {
+          path: '/projects/procurements/:id',
+          name: 'Chi tiết yêu cầu mua sắm',
+          component: '@/pages/projects/procurements/redirect',
+          access: 'canHandleProcurement',
+          hideInMenu: true,
+        },
+        {
+          path: '/projects/progress-reports',
           name: 'Báo cáo tiến độ',
+          icon: 'ScheduleOutlined',
+          component: '@/pages/projects/progress-reports',
+          access: 'canViewTaskFinance',
+        },
+        {
+          path: '/projects/progress/:outlineId',
+          name: 'Chi tiết báo cáo tiến độ',
           component: '@/pages/projects/execution',
           access: 'canOpenModule56',
           hideInMenu: true,
@@ -378,19 +413,19 @@ export default defineConfig({
       ],
     },
 
-    // Tài chính đề tài
+    // Tài chính nhiệm vụ (US-05-02 BM.07) — CNNV theo owner, không gắn IAM
     {
       path: '/finance',
-      name: 'Tài chính',
+      name: 'Tài chính nhiệm vụ',
       icon: 'DollarCircleOutlined',
-      access: 'canViewFinance',
+      access: 'canViewTaskFinance',
       routes: [
         {
           path: '/finance/requests',
           name: 'Tạm ứng & thanh toán',
           icon: 'WalletOutlined',
           component: '@/pages/finance/requests',
-          access: 'canViewFinance',
+          access: 'canViewTaskFinance',
         },
         {
           path: '/finance/overview',
@@ -398,6 +433,7 @@ export default defineConfig({
           icon: 'FundOutlined',
           component: '@/pages/finance/overview',
           access: 'canViewFinance',
+          hideInMenu: true,
         },
       ],
     },
@@ -545,6 +581,13 @@ export default defineConfig({
           icon: 'DatabaseOutlined',
           component: '@/pages/admin/backup',
           access: 'isSuperAdmin',
+        },
+        {
+          path: '/admin/school-profile',
+          name: 'Profile trường',
+          icon: 'BankOutlined',
+          component: '@/pages/admin/school-profile',
+          access: 'canViewSchoolProfile',
         },
         {
           path: '/admin/config',

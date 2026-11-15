@@ -1,5 +1,5 @@
 /**
- * Hàng chờ phê duyệt thuyết minh (BGH / TC-HC)
+ * Hàng chờ phê duyệt thuyết minh (BGH → Module 5)
  */
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -14,34 +14,25 @@ import {
 import { OUTLINE_STATUS_MAP, type ProjectOutlineStatus } from '@/services/api/projectOutlines';
 import './outline-approvals.less';
 
-type Scope = 'bgh' | 'hc' | 'done';
+type Scope = 'bgh' | 'done';
 
 const OutlineApprovalsPage: React.FC = () => {
   const access = useAccess();
   const actionRef = useRef<any>();
-  const defaultScope: Scope = access.canApproveOutlineRevisionBgh
-    ? 'bgh'
-    : access.canPublishContract
-      ? 'hc'
-      : 'bgh';
+  const defaultScope: Scope = 'bgh';
   const [scope, setScope] = useState<Scope>(defaultScope);
 
   const canView =
     access.canApproveOutlineRevisionBgh ||
-    access.canPublishContract ||
     access.canManageOutlineDefense;
 
   const scopes = useMemo(() => {
-    const items: { label: string; value: Scope }[] = [];
-    if (access.canApproveOutlineRevisionBgh || access.canManageOutlineDefense) {
-      items.push({ label: 'Chờ BGH phê duyệt', value: 'bgh' });
-    }
-    if (access.canPublishContract || access.canManageOutlineDefense) {
-      items.push({ label: 'Chờ HC phát hành QĐ', value: 'hc' });
-    }
-    items.push({ label: 'Đã xử lý', value: 'done' });
+    const items: { label: string; value: Scope }[] = [
+      { label: 'Chờ BGH phê duyệt', value: 'bgh' },
+      { label: 'Đã xử lý', value: 'done' },
+    ];
     return items;
-  }, [access]);
+  }, []);
 
   if (!canView) {
     return (
@@ -113,7 +104,7 @@ const OutlineApprovalsPage: React.FC = () => {
   return (
     <PageContainer
       title="Phê duyệt thuyết minh"
-      subTitle="BGH xem hồ sơ → ký duyệt / từ chối → TC-HC phát hành QĐ giao thực hiện"
+      subTitle="BGH xem hồ sơ → ký duyệt / từ chối → mở Module 5 (hợp đồng)"
       className="oa-list-page"
     >
       <div className="oa-list-hero">

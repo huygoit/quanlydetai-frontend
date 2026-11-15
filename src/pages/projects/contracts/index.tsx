@@ -69,7 +69,6 @@ const ProjectContractsPage: React.FC = () => {
         HOP_DONG_DRAFT: { text: 'Dự thảo' },
         HOP_DONG_CHO_CNNV: { text: 'Chờ CNNV xác nhận' },
         HOP_DONG_CHO_KY: { text: 'Chờ BGH ký' },
-        HOP_DONG_CHO_PHAT_HANH: { text: 'Chờ phát hành' },
         HOP_DONG_DA_KY: { text: 'Đã ký' },
       },
       render: (_, r) => {

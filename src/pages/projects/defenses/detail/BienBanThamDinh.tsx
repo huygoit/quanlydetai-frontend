@@ -82,11 +82,14 @@ const BienBanThamDinh: React.FC<Props> = ({ sessionId }) => {
   }, [sessionId]);
 
   const buildPayload = () => {
-    const v = form.getFieldsValue();
-    const attendances = (ctx?.members || []).map((m: any) => ({
-      memberId: m.id,
-      attendance: v.attendances?.[m.id] || 'PENDING',
-    }));
+    const v = form.getFieldsValue(true);
+    const attendances = (ctx?.members || []).map((m: any) => {
+      const raw = v.attendances?.[m.id] ?? v.attendances?.[String(m.id)];
+      return {
+        memberId: Number(m.id),
+        attendance: raw || 'PENDING',
+      };
+    });
     const items = (v.items || []).map((it: any) => ({
       projectOutlineId: it.projectOutlineId,
       councilConclusion: it.councilConclusion as CouncilMinutesConclusion,
@@ -130,6 +133,18 @@ const BienBanThamDinh: React.FC<Props> = ({ sessionId }) => {
       message.warning('Điền đủ kết luận từng nhiệm vụ');
       return;
     }
+    const payload = buildPayload();
+    const byId = new Map((ctx?.members || []).map((m: any) => [Number(m.id), m]));
+    const chuTichOk = payload.attendances.some(
+      (a) => byId.get(a.memberId)?.roleInCouncil === 'CHU_TICH' && a.attendance === 'PRESENT',
+    );
+    const thuKyOk = payload.attendances.some(
+      (a) => byId.get(a.memberId)?.roleInCouncil === 'THU_KY' && a.attendance === 'PRESENT',
+    );
+    if (!chuTichOk || !thuKyOk) {
+      message.warning('Trước khi chốt: chọn «Có mặt» cho Chủ tịch và Thư ký trong bảng điểm danh.');
+      return;
+    }
     Modal.confirm({
       title: 'Chốt biên bản thẩm định?',
       content:
@@ -138,7 +153,7 @@ const BienBanThamDinh: React.FC<Props> = ({ sessionId }) => {
       onOk: async () => {
         setSaving(true);
         try {
-          const res = await finalizeDefenseSession(sessionId, buildPayload());
+          const res = await finalizeDefenseSession(sessionId, payload);
           setCtx({ ...res.data, isThuKy: true });
           message.success(res.message || 'Đã chốt');
         } catch (e: any) {

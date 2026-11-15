@@ -1,0 +1,130 @@
+.school-profile-page {
+  .sp-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #0b3b3a 0%, #0f766e 48%, #134e4a 100%);
+    box-shadow: 0 18px 40px rgba(15, 118, 110, 0.22);
+  }
+
+  .sp-hero__glow {
+    position: absolute;
+    inset: auto -20% -40% auto;
+    width: 55%;
+    height: 140%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 65%);
+    pointer-events: none;
+  }
+
+  .sp-hero__inner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 28px 32px;
+    flex-wrap: wrap;
+  }
+
+  .sp-hero__brand {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    min-width: 0;
+  }
+
+  .sp-hero__logo {
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 36px;
+  }
+
+  .sp-hero__eyebrow {
+    display: block;
+    color: rgba(204, 251, 241, 0.92);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .sp-hero__title {
+    margin: 4px 0 8px !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+  }
+
+  .sp-hero__desc {
+    margin: 0 !important;
+    max-width: 560px;
+    color: rgba(255, 255, 255, 0.82) !important;
+
+    code {
+      background: rgba(255, 255, 255, 0.14);
+      color: #ecfdf5;
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-size: 12px;
+    }
+  }
+
+  .sp-hero__upload {
+    border: none;
+    background: #fff;
+    color: #0f766e;
+    font-weight: 600;
+    height: 40px;
+  }
+
+  .sp-card {
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+
+    .ant-card-head {
+      border-bottom-color: #f1f5f9;
+      min-height: 48px;
+    }
+
+    .ant-card-head-title {
+      font-weight: 700;
+      color: #0f172a;
+    }
+  }
+
+  .sp-card--preview {
+    background: linear-gradient(180deg, #f8fffd 0%, #ffffff 40%);
+  }
+
+  .sp-sticky-save {
+    position: sticky;
+    bottom: 16px;
+    z-index: 10;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding: 12px 16px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  }
+}
+
+@media (max-width: 768px) {
+  .school-profile-page {
+    .sp-hero__inner {
+      padding: 22px 18px;
+    }
+
+    .sp-hero__brand {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+}

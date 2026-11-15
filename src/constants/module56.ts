@@ -1,19 +1,18 @@
 /** Nhãn nghiệp vụ Module 5–6, khớp mã API. */
 
-export const MUC_CHI = [
-  { code: 'MUC_01', label: 'Công lao động trực tiếp' },
-  { code: 'MUC_02', label: 'Vật tư' },
-  { code: 'MUC_03', label: 'TSCĐ' },
-  { code: 'MUC_04', label: 'Hội thảo / công tác phí' },
-  { code: 'MUC_05', label: 'Thuê ngoài' },
-  { code: 'MUC_06', label: 'Điều tra, khảo sát' },
-  { code: 'MUC_07', label: 'Văn phòng phẩm' },
-  { code: 'MUC_08', label: 'Họp hội đồng' },
-  { code: 'MUC_09', label: 'Quản lý chung' },
-  { code: 'MUC_10', label: 'Chi khác' },
-] as const;
+import {
+  KHOAN_CHI,
+  KHOAN_CHI_MUA_SAM,
+  nhanKhoanChi,
+} from '@/constants/khoanChi';
 
-export const MUC_MUA_SAM = ['MUC_02', 'MUC_03', 'MUC_05'];
+/** Alias 14 khoản chi — dùng chung tạm ứng / sổ / mua sắm. */
+export const MUC_CHI = KHOAN_CHI.map((k) => ({
+  code: k.code,
+  label: k.label,
+}));
+
+export const MUC_MUA_SAM = [...KHOAN_CHI_MUA_SAM];
 
 export const HAN_FILE = {
   phieu: 10 * 1024 * 1024,
@@ -41,7 +40,8 @@ export const NHAN_YCKT: Record<string, string> = {
   YCKT_PKH: 'Chờ PKH',
   YCKT_BS: 'Cần bổ sung',
   YCKT_TC: 'Chờ KH-TC',
-  YCKT_DONE: 'Đã ghi sổ',
+  YCKT_DONE: 'Đã thanh toán',
+  YCKT_TU_CHOI: 'Từ chối',
 };
 
 export const NHAN_MS: Record<string, string> = {
@@ -59,15 +59,15 @@ export const NHAN_MS: Record<string, string> = {
 
 export const NHAN_BCTD: Record<string, string> = {
   BCTD_DRAFT: 'Nháp',
-  BCTD_CHO_PKH: 'Chờ PKH',
+  BCTD_CHO_PKH: 'Chờ PKH ghi nhận',
   BCTD_BS: 'Cần bổ sung',
-  BCTD_DONE: 'Đã duyệt',
+  BCTD_DONE: 'Đã ghi nhận',
 };
 
 export const NHAN_DC: Record<string, string> = {
   DC_DRAFT: 'Nháp',
   DC_PENDING_PKH: 'Chờ PKH',
-  DC_BS: 'Cần bổ sung',
+  DC_BS: 'Chờ bổ sung',
   DC_PENDING_BGH: 'Chờ BGH',
   DC_APPROVED: 'Đã duyệt',
   DC_REJECTED: 'Từ chối',
@@ -99,5 +99,5 @@ export const NHAN_XEP_LOAI = {
 };
 
 export function nhanMuc(code: string) {
-  return MUC_CHI.find((m) => m.code === code)?.label || code;
+  return nhanKhoanChi(code);
 }

@@ -35,7 +35,7 @@ export const OUTLINE_STATUS_MAP: Record<
   CHO_PKH_DUYET_TM: { label: 'Chờ phòng KH duyệt', color: 'purple' },
   CHO_HD_XAC_NHAN_TM: { label: 'Chờ hội đồng xác nhận', color: 'blue' },
   CHO_BGH_DUYET_TM: { label: 'Chờ BGH phê duyệt', color: 'gold' },
-  CHO_HC_PHAT_HANH_QD: { label: 'Chờ HC phát hành QĐ', color: 'cyan' },
+  CHO_HC_PHAT_HANH_QD: { label: 'Tồn đọng (flow cũ — chờ mở M5)', color: 'cyan' },
   CHO_XAC_NHAN_KP: { label: '(Cũ) Chờ kinh phí', color: 'default' },
   CHO_TC_THAM_TRA: { label: '(Cũ) TC thẩm tra KP', color: 'default' },
   LDPD_PENDING: { label: '(Cũ) Chờ LĐ phê duyệt', color: 'default' },

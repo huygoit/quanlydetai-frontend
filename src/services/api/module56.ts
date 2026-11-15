@@ -1,7 +1,7 @@
 /**
  * API Module 5–6: sổ mục chi, tạm ứng, mua sắm, tiến độ, điều chỉnh, đánh giá cuối kỳ.
  */
-import { ApiResponse, get, post, put } from '../request';
+import { ApiResponse, del, get, post, put } from '../request';
 
 export type TepModule56 = {
   fileName: string;
@@ -62,6 +62,12 @@ export type PhieuMua = {
   returnReason?: string | null;
   voucherNo?: string | null;
   voucherDate?: string | null;
+  /** Inbox CSVC */
+  outlineCode?: string | null;
+  outlineTitle?: string | null;
+  contractId?: number | null;
+  contractNo?: string | null;
+  redirectTo?: string;
 };
 
 export type BaoCaoTienDo = {
@@ -69,11 +75,12 @@ export type BaoCaoTienDo = {
   periodId: number;
   status: string;
   contentRows: { milestone: string; progress: string; done: string }[];
-  productRows: { name: string; achieved: string }[];
+  productRows: { name: string; planned?: string; achieved: string }[];
   nextPlan?: string | null;
   recommendation?: string | null;
   attachments: TepModule56[];
   pkhNote?: string | null;
+  submittedAt?: string | null;
 };
 
 export type KyTienDo = {
@@ -82,10 +89,41 @@ export type KyTienDo = {
   dueOn: string;
   kind: 'MILESTONE' | 'MIDPOINT';
   overdue: boolean;
+  daysLeft?: number;
   report: BaoCaoTienDo | null;
 };
 
+export type MocHopDong = {
+  content: string;
+  thoiGian?: string;
+  sanPham?: string;
+  endDate?: string | null;
+};
+
 export type ManTienDo = {
+  outline?: {
+    id: number;
+    code: string;
+    title: string;
+    ownerName?: string | null;
+    ownerUnit?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    budget?: number;
+    executionStatus?: string | null;
+  };
+  /** Tiến độ thực hiện trên hợp đồng — chọn để báo cáo */
+  milestones?: MocHopDong[];
+  templates?: {
+    contentRows: {
+      milestone: string;
+      progress: string;
+      done: string;
+      thoiGian?: string;
+      sanPham?: string;
+    }[];
+    productRows: { name: string; planned?: string; achieved: string }[];
+  };
   finance: {
     advanced: number;
     spent: number;
@@ -100,7 +138,7 @@ export type PhieuDieuChinh = {
   projectOutlineId: number;
   status: string;
   reason: string;
-  evidenceUrl?: string | null;
+  evidenceAttachments?: TepModule56[];
   changes: {
     endDate?: string | null;
     principalUserId?: number | null;
@@ -110,12 +148,70 @@ export type PhieuDieuChinh = {
       startDate?: string | null;
       endDate?: string | null;
       expectedResult?: string | null;
+      /** % tiến độ lưu trên phiếu ĐC (nháp / nộp) */
+      progress?: string | null;
     }[];
     budgetLines?: { code: string; amount: number }[];
+    progressUpdates?: {
+      periodId: number;
+      progress?: string | null;
+      done?: string | null;
+      title?: string | null;
+      dueOn?: string | null;
+    }[];
   };
   leadConfirmed: boolean;
   decisionNote?: string | null;
   appendixFileUrl?: string | null;
+  /** Hồ sơ chủ nhiệm mới (khi changes.principalUserId có) */
+  principalProfile?: NguoiDieuChinh | null;
+};
+
+export type NguoiDieuChinh = {
+  userId: number;
+  fullName: string;
+  email?: string | null;
+  degree?: string | null;
+  academicTitle?: string | null;
+  unit?: string | null;
+  nckhHours?: number | null;
+};
+
+export type ManDieuChinh = {
+  outline: {
+    id: number;
+    code: string;
+    title: string;
+    startDate: string | null;
+    endDate: string | null;
+    ownerId: number | null;
+    ownerName?: string | null;
+    ownerUnit?: string | null;
+    researchContent?: string | null;
+    extensionCount: number;
+    activeContractId?: number | null;
+  };
+  ownerProfile: NguoiDieuChinh | null;
+  milestones: {
+    content: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    expectedResult?: string | null;
+    progress?: string;
+    periodId?: number | null;
+    reportStatus?: string | null;
+    sourceIndex?: number;
+  }[];
+  progressRows: {
+    periodId: number;
+    title: string;
+    dueOn: string | null;
+    kind: string;
+    reportStatus: string | null;
+    progress: string;
+    done: string;
+    milestone: string;
+  }[];
 };
 
 export type ThanhVienHoiDong = {
@@ -221,8 +317,37 @@ export function dsPhieuChi(outlineId: number) {
   return get<ApiResponse<PhieuChi[]>>('/api/module56/payments', { outlineId });
 }
 
+/** Chi tiết hồ sơ tạm ứng + báo cáo tiến độ (PKH đối chiếu). */
+export type ChiTietPhieuChi = {
+  payment: PhieuChi;
+  outline: {
+    id: number;
+    code: string;
+    title: string;
+    ownerName?: string | null;
+    ownerUnit?: string | null;
+    activeContractId?: number | null;
+    executionStatus?: string | null;
+  };
+  progress: {
+    id: number;
+    title: string;
+    dueOn: string | null;
+    kind: string;
+    report: BaoCaoTienDo | null;
+  }[];
+};
+
+export function chiTietPhieuChi(id: number) {
+  return get<ApiResponse<ChiTietPhieuChi>>(`/api/module56/payments/${id}`);
+}
+
 export function luuPhieuChi(body: Record<string, unknown>) {
   return post<ApiResponse<PhieuChi>>('/api/module56/payments', body);
+}
+
+export function xoaPhieuChi(id: number) {
+  return del<ApiResponse<{ id: number }>>(`/api/module56/payments/${id}`);
 }
 
 export function pkhPhieuChi(
@@ -248,6 +373,15 @@ export function dsMuaSam(outlineId: number) {
   return get<ApiResponse<PhieuMua[]>>('/api/module56/procurements', {
     outlineId,
   });
+}
+
+/** Inbox CSVC — không truyền outlineId */
+export function dsMuaSamCsvc(params?: { status?: string }) {
+  return get<ApiResponse<PhieuMua[]>>('/api/module56/procurements', params);
+}
+
+export function getMuaSam(id: number) {
+  return get<ApiResponse<PhieuMua>>(`/api/module56/procurements/${id}`);
 }
 
 export function luuMuaSam(body: Record<string, unknown>) {
@@ -295,6 +429,13 @@ export function tcMuaSam(
   );
 }
 
+/** Nhiệm vụ mình là chủ nhiệm (Module 5) — không phụ thuộc quyền soạn TM */
+export function dsNhiemVuChuNhiem() {
+  return get<ApiResponse<import('./projectOutlines').ProjectOutline[]>>(
+    '/api/module56/my-owned-tasks',
+  );
+}
+
 export function manTienDo(outlineId: number) {
   return get<ApiResponse<ManTienDo>>('/api/module56/progress', { outlineId });
 }
@@ -316,14 +457,43 @@ export function pkhTienDo(
   );
 }
 
+export function xoaTienDo(id: number) {
+  return del<ApiResponse<{ id: number }>>(`/api/module56/progress/${id}`);
+}
+
 export function dsDieuChinh(outlineId: number) {
   return get<ApiResponse<PhieuDieuChinh[]>>('/api/module56/adjustments', {
     outlineId,
   });
 }
 
+export function manDieuChinh(outlineId: number) {
+  return get<ApiResponse<ManDieuChinh>>('/api/module56/adjustments/context', {
+    outlineId,
+  });
+}
+
+export function timChuNhiemDieuChinh(outlineId: number, keyword: string) {
+  return get<ApiResponse<NguoiDieuChinh[]>>('/api/module56/adjustments/principals', {
+    outlineId,
+    keyword,
+  });
+}
+
 export function luuDieuChinh(body: Record<string, unknown>) {
   return post<ApiResponse<PhieuDieuChinh>>('/api/module56/adjustments', body);
+}
+
+export function getDieuChinh(id: number) {
+  return get<
+    ApiResponse<
+      PhieuDieuChinh & {
+        redirectTo: string;
+        activeContractId?: number | null;
+        outlineCode?: string;
+      }
+    >
+  >(`/api/module56/adjustments/${id}`);
 }
 
 export function pkhDieuChinh(

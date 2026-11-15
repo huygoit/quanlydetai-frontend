@@ -1,5 +1,5 @@
 /**
- * Phê duyệt cuối thuyết minh — BGH ký → TC-HC phát hành QĐ
+ * Phê duyệt cuối thuyết minh — BGH ký duyệt → mở Module 5
  */
 import { ApiResponse, get, post } from '../request';
 

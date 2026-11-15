@@ -98,6 +98,11 @@ export const PERM = {
     update: 'contract_template.update',
     delete: 'contract_template.delete',
   },
+  /** Profile trường / Bên A */
+  org_profile: {
+    view: 'org_profile.view',
+    update: 'org_profile.update',
+  },
   user: {
     view: 'user.view',
     create: 'user.create',

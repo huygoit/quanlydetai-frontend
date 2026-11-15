@@ -73,7 +73,7 @@ function nhanBuoc(
     return 'Chờ BGH phê duyệt (xem BM.04 / BM.05a / BM.05b)';
   }
   if (status === 'CHO_HC_PHAT_HANH_QD') {
-    return 'BGH đã ký — chờ TC-HC phát hành QĐ giao thực hiện';
+    return 'Tồn đọng flow cũ — cần BGH duyệt lại để mở Module 5';
   }
   if (status === 'SAN_SANG_THUC_HIEN') {
     return 'Đã phê duyệt — Module 5 đã mở';
