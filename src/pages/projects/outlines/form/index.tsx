@@ -7,14 +7,17 @@ import RichTextHtmlField, {
   cleanRichHtml,
 } from '@/components/RichTextHtmlField';
 import {
+  getAuthorPrincipalInfo,
+  lookupAuthorProfiles,
   normalizePublicationAuthor,
+  type AuthorProfileLookupItem,
   type PublicationAuthor,
 } from '@/services/api/profilePublications';
 import {
-  BUDGET_GROUP_OPTIONS,
   OUTLINE_STATUS_MAP,
   confirmOutlineRevisionCouncil,
   confirmOutlineRevisionPkh,
+  exportOutlineDocx,
   extendOutlineRevisionDeadline,
   getOutline,
   getOutlineRevisionDiff,
@@ -23,12 +26,22 @@ import {
   submitOutline,
   submitOutlineRevision,
   withdrawOutline,
-  type OutlineBudgetLine,
   type OutlineFieldDiff,
   type OutlineFileDiff,
   type OutlineMilestone,
+  EMPTY_EXPECTED_RESULTS,
+  EMPTY_FUNDING_BREAKDOWN,
+  EMPTY_OTHER_CONTENTS,
+  fundingExternalTotal,
+  fundingTotalByEntity,
+  fundingTotalByNature,
+  normalizeFundingBreakdown,
+  type OutlineExpectedResults,
+  type OutlineFundingBreakdown,
+  type OutlineHostOrganization,
+  type OutlineOtherContents,
   type OutlinePartnerUnit,
-  type OutlineProduct,
+  type OutlinePrincipalInfo,
   type OutlineRevisionContext,
   type ProjectOutline,
 } from '@/services/api/projectOutlines';
@@ -36,19 +49,28 @@ import {
   getProjectProcessTypeOptions,
   type ProjectProcessTypeOption,
 } from '@/services/api/projectProcessTypes';
+import { formatDate } from '@/utils/datetime';
 import { formatVnd, vndInputNumberProps } from '@/utils/format';
 import {
+  loadFieldSelectOptions,
+  type SelectOption,
+} from '@/utils/researchCatalogOptions';
+import {
   ArrowLeftOutlined,
+  BankOutlined,
+  DollarOutlined,
+  DownloadOutlined,
   PlusOutlined,
   SaveOutlined,
   SendOutlined,
+  TeamOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import {
   FooterToolbar,
   PageContainer,
   ProForm,
   ProFormDatePicker,
-  ProFormDigit,
   ProFormSelect,
   ProFormText,
   type ProFormInstance,
@@ -59,6 +81,7 @@ import {
   Button,
   Card,
   Col,
+  Collapse,
   DatePicker,
   Drawer,
   Form,
@@ -66,20 +89,50 @@ import {
   InputNumber,
   Modal,
   Progress,
+  Radio,
   Row,
   Select,
   Space,
+  Spin,
   Table,
+  Tabs,
   Tag,
   Typography,
   message,
 } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import BudgetMatrixTable, {
+  EMPTY_BUDGET_MATRIX,
+} from './BudgetMatrixTable';
+import ExpectedResultsPanels from './ExpectedResultsPanels';
+import OtherContentsPanels from './OtherContentsPanels';
 import RevisionWorkbench from './RevisionWorkbench';
+import {
+  addExpenseRows,
+  calcRowTotal,
+  normalizeBudgetMatrix,
+  type OutlineBudgetMatrix,
+} from '@/constants/outlineBudgetMatrix';
 
 const { Text } = Typography;
 const { TextArea } = Input;
+
+/** Hiển thị giá trị hồ sơ; thiếu thì "Chưa có" */
+function hienThiHoSo(v?: string | null): string {
+  const s = String(v || '').trim();
+  return s || 'Chưa có';
+}
+
+function chuanHoaGioiTinh(g?: string | null): 'MALE' | 'FEMALE' | null {
+  const s = String(g || '')
+    .trim()
+    .toUpperCase();
+  if (!s) return null;
+  if (s === 'MALE' || s === 'NAM' || s === 'M') return 'MALE';
+  if (s === 'FEMALE' || s === 'NỮ' || s === 'NU' || s === 'F') return 'FEMALE';
+  return null;
+}
 
 const OutlineFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -96,6 +149,7 @@ const OutlineFormPage: React.FC = () => {
   const formRef = useRef<ProFormInstance>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [outline, setOutline] = useState<ProjectOutline | null>(null);
   const [revisionCtx, setRevisionCtx] = useState<OutlineRevisionContext | null>(
     null,
@@ -110,12 +164,33 @@ const OutlineFormPage: React.FC = () => {
   const [processTypes, setProcessTypes] = useState<ProjectProcessTypeOption[]>(
     [],
   );
+  const [fieldOptions, setFieldOptions] = useState<SelectOption[]>([]);
   const [members, setMembers] = useState<PublicationAuthor[]>([]);
-  const [budgetLines, setBudgetLines] = useState<OutlineBudgetLine[]>([]);
+  const [budgetMatrix, setBudgetMatrix] = useState<OutlineBudgetMatrix>({
+    ...EMPTY_BUDGET_MATRIX,
+  });
   const [milestones, setMilestones] = useState<OutlineMilestone[]>([]);
-  const [products, setProducts] = useState<OutlineProduct[]>([]);
+  const [expectedResults, setExpectedResults] =
+    useState<OutlineExpectedResults>({ ...EMPTY_EXPECTED_RESULTS });
+  const [otherContents, setOtherContents] = useState<OutlineOtherContents>({
+    ...EMPTY_OTHER_CONTENTS,
+  });
   const [partners, setPartners] = useState<OutlinePartnerUnit[]>([]);
+  const [funding, setFunding] = useState<OutlineFundingBreakdown>({
+    ...EMPTY_FUNDING_BREAKDOWN,
+  });
+  const [principal, setPrincipal] = useState<OutlinePrincipalInfo | null>(null);
+  const [principalSearch, setPrincipalSearch] = useState('');
+  const [principalOptions, setPrincipalOptions] = useState<
+    AuthorProfileLookupItem[]
+  >([]);
+  const [principalSearching, setPrincipalSearching] = useState(false);
+  const [principalLoading, setPrincipalLoading] = useState(false);
+  const principalSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [duocSoan, setDuocSoan] = useState(false);
+  const [tabMuc, setTabMuc] = useState('A');
 
   const isRevision = outline?.status === 'CHINH_SUA_TM';
   const dangChoDuyetTm =
@@ -155,17 +230,146 @@ const OutlineFormPage: React.FC = () => {
     !!access.canApproveOutlineRevisionBgh;
   const stMeta = outline ? OUTLINE_STATUS_MAP[outline.status] : null;
 
-  const totalDetail = useMemo(
-    () => budgetLines.reduce((s, l) => s + Number(l.amount || 0), 0),
-    [budgetLines],
+  const totalDetail = useMemo(() => {
+    const m = normalizeBudgetMatrix(budgetMatrix);
+    return calcRowTotal(
+      addExpenseRows(
+        addExpenseRows(m.STATE_LUMP, m.STATE_NON_LUMP),
+        m.NON_STATE,
+      ),
+    ).tong;
+  }, [budgetMatrix]);
+  const externalTong = useMemo(() => fundingExternalTotal(funding), [funding]);
+  const tongTheoChuThe = useMemo(
+    () => fundingTotalByEntity(funding),
+    [funding],
   );
+  const tongTheoTinhChat = useMemo(
+    () => fundingTotalByNature(funding),
+    [funding],
+  );
+  const fundingNatureMismatch = useMemo(
+    () => Math.abs(tongTheoChuThe - tongTheoTinhChat) > 0,
+    [tongTheoChuThe, tongTheoTinhChat],
+  );
+
+  /** Cập nhật số tiền nguồn kinh phí / khoán chi */
+  const doiFunding = (
+    key:
+      | 'schoolFund'
+      | 'externalFund'
+      | 'stateBudget'
+      | 'nonStateBudget'
+      | 'lumpSumAmount'
+      | 'nonLumpSumAmount',
+    value: number | null,
+  ) => {
+    setFunding((prev) => ({
+      ...prev,
+      [key]: Math.max(0, Math.round(Number(value || 0))),
+    }));
+  };
+
+  /** Chọn phương thức khoán chi (§5) */
+  const doiPhuongThucKhoan = (mode: 'FULL' | 'PARTIAL') => {
+    setFunding((prev) => {
+      if (mode === 'FULL') {
+        return {
+          ...prev,
+          lumpSumMode: 'FULL',
+          lumpSumAmount: 0,
+          nonLumpSumAmount: 0,
+        };
+      }
+      return { ...prev, lumpSumMode: 'PARTIAL' };
+    });
+  };
+
+  /** Tìm NCV cho ô chọn chủ nhiệm */
+  const timChuNhiem = (q: string) => {
+    setPrincipalSearch(q);
+    if (principalSearchTimer.current) clearTimeout(principalSearchTimer.current);
+    if (q.trim().length < 2) {
+      setPrincipalOptions([]);
+      return;
+    }
+    principalSearchTimer.current = setTimeout(async () => {
+      setPrincipalSearching(true);
+      try {
+        const rows = await lookupAuthorProfiles(q, 20);
+        setPrincipalOptions(rows);
+      } catch {
+        setPrincipalOptions([]);
+      } finally {
+        setPrincipalSearching(false);
+      }
+    }, 300);
+  };
+
+  /** Chọn hồ sơ → nạp chi tiết chủ nhiệm + đồng bộ thành viên PRINCIPAL */
+  const chonChuNhiem = async (profileId: number) => {
+    if (!profileId) return;
+    setPrincipalLoading(true);
+    try {
+      const info = await getAuthorPrincipalInfo(profileId);
+      if (!info) {
+        message.warning('Không tải được thông tin hồ sơ');
+        return;
+      }
+      const snap: OutlinePrincipalInfo = {
+        profileId: info.profileId,
+        fullName: info.fullName || null,
+        identityNumber: info.identityNumber || null,
+        dateOfBirth: info.dateOfBirth || null,
+        gender: info.gender || null,
+        academicTitleDegree: info.academicTitleDegree || null,
+        professionalTitle: info.professionalTitle || null,
+        position: info.position || null,
+        phone: info.phone || null,
+        email: info.email || null,
+        organization: info.organization || null,
+        workAddress: info.workAddress || null,
+      };
+      setPrincipal(snap);
+      setPrincipalSearch(info.fullName || '');
+      setMembers((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex(
+          (m) => m.proposalMemberRole === 'PRINCIPAL',
+        );
+        const row = normalizePublicationAuthor({
+          ...(idx >= 0 ? next[idx] : {}),
+          profileId: info.profileId,
+          studentId: null,
+          fullName: info.fullName || '',
+          gender: chuanHoaGioiTinh(info.gender),
+          proposalMemberRole: 'PRINCIPAL',
+          authorOrder: 1,
+          isTopAuthor: true,
+          isCorresponding: false,
+          affiliationUnits: info.organization ? [info.organization] : [],
+          affiliationType: 'UDN',
+          isMultiAffiliationOutsideUdn: false,
+        } as PublicationAuthor);
+        if (idx >= 0) next[idx] = row;
+        else next.unshift(row);
+        return next.map((m, i) => ({ ...m, authorOrder: i + 1 }));
+      });
+    } catch (e: any) {
+      message.error(e?.message || 'Không tải được thông tin chủ nhiệm');
+    } finally {
+      setPrincipalLoading(false);
+    }
+  };
+
   const load = async () => {
     if (!Number.isFinite(outlineId)) return;
     setLoading(true);
     try {
-      const [res, opts] = await Promise.all([
+      const [res, opts, fields] = await Promise.all([
         getOutline(outlineId),
         getProjectProcessTypeOptions(),
+        loadFieldSelectOptions(),
       ]);
       const d = res.data;
       if (!d) throw new Error('Không tải được thuyết minh');
@@ -191,25 +395,133 @@ const OutlineFormPage: React.FC = () => {
         d.revisionContext?.revisionExplanation || d.revisionExplanation || '',
       );
       setProcessTypes(opts.data || []);
+      // Giữ giá trị cũ nếu chưa có trong danh mục (dữ liệu lịch sử nhập tay)
+      const fieldCu = String(d.field || '').trim();
+      setFieldOptions(
+        fieldCu && !fields.some((f) => f.value === fieldCu)
+          ? [{ label: fieldCu, value: fieldCu }, ...fields]
+          : fields,
+      );
       setMembers(
         (d.members?.length ? d.members : []).map((m) =>
           normalizePublicationAuthor(m as PublicationAuthor),
         ),
       );
-      setBudgetLines(d.budgetLines?.length ? d.budgetLines : []);
+      setBudgetMatrix(
+        d.budgetMatrix
+          ? normalizeBudgetMatrix(d.budgetMatrix)
+          : { ...EMPTY_BUDGET_MATRIX },
+      );
       setMilestones(
         d.milestones?.length
           ? d.milestones.map((m) => ({
               ...m,
               content: cleanRichHtml(m.content),
+              expectedResult: cleanRichHtml(m.expectedResult),
             }))
           : [{ content: '' }],
       );
-      setProducts(
-        d.expectedProducts?.length ? d.expectedProducts : [{ name: '' }],
+      setExpectedResults(
+        d.expectedResults
+          ? {
+              publications: d.expectedResults.publications || [],
+              appliedProducts: d.expectedResults.appliedProducts || [],
+              tangibleProducts: d.expectedResults.tangibleProducts || [],
+              ipProducts: d.expectedResults.ipProducts || [],
+              postgraduateTraining:
+                d.expectedResults.postgraduateTraining || [],
+            }
+          : { ...EMPTY_EXPECTED_RESULTS },
+      );
+      setOtherContents(
+        d.otherContents
+          ? {
+              ...EMPTY_OTHER_CONTENTS,
+              ...d.otherContents,
+              applicationTransferHtml: cleanRichHtml(
+                d.otherContents.applicationTransferHtml,
+              ),
+              outputEffectivenessHtml: cleanRichHtml(
+                d.otherContents.outputEffectivenessHtml,
+              ),
+              impactAssessmentHtml: cleanRichHtml(
+                d.otherContents.impactAssessmentHtml,
+              ),
+              riskManagementHtml: cleanRichHtml(
+                d.otherContents.riskManagementHtml,
+              ),
+              ethicsDataApprovalHtml: cleanRichHtml(
+                d.otherContents.ethicsDataApprovalHtml,
+              ),
+              dataManagementPlanHtml: cleanRichHtml(
+                d.otherContents.dataManagementPlanHtml,
+              ),
+              ipProtectionHtml: cleanRichHtml(
+                d.otherContents.ipProtectionHtml,
+              ),
+              aiUsageHtml: cleanRichHtml(d.otherContents.aiUsageHtml),
+            }
+          : { ...EMPTY_OTHER_CONTENTS },
       );
       setPartners(d.partnerUnits?.length ? d.partnerUnits : []);
+      // Nguồn kinh phí: ưu tiên JSON; nếu trống thì đổ tổng cũ vào phần Trường
+      const fb = d.fundingBreakdown;
+      if (fb && typeof fb === 'object') {
+        setFunding(normalizeFundingBreakdown(fb));
+      } else {
+        setFunding(
+          normalizeFundingBreakdown({
+            ...EMPTY_FUNDING_BREAKDOWN,
+            schoolFund: Number(d.requestedBudget || 0),
+          }),
+        );
+      }
+      // Chủ nhiệm: snapshot đã lưu hoặc nạp lại từ profileId thành viên PRINCIPAL
+      if (d.principalInfo?.fullName || d.principalInfo?.profileId) {
+        setPrincipal(d.principalInfo);
+        setPrincipalSearch(d.principalInfo.fullName || '');
+      } else {
+        const cn = (d.members || []).find(
+          (m) =>
+            (m as { role?: string }).role === 'PRINCIPAL' ||
+            (m as { proposalMemberRole?: string }).proposalMemberRole ===
+              'PRINCIPAL',
+        );
+        const pid = Number((cn as { profileId?: number } | undefined)?.profileId || 0);
+        if (pid > 0) {
+          void getAuthorPrincipalInfo(pid).then((info) => {
+            if (!info) return;
+            setPrincipal({
+              profileId: info.profileId,
+              fullName: info.fullName || null,
+              identityNumber: info.identityNumber || null,
+              dateOfBirth: info.dateOfBirth || null,
+              gender: info.gender || null,
+              academicTitleDegree: info.academicTitleDegree || null,
+              professionalTitle: info.professionalTitle || null,
+              position: info.position || null,
+              phone: info.phone || null,
+              email: info.email || null,
+              organization: info.organization || null,
+              workAddress: info.workAddress || null,
+            });
+            setPrincipalSearch(info.fullName || '');
+          });
+        } else {
+          setPrincipal(null);
+          setPrincipalSearch('');
+        }
+      }
       // Gán initialValues + remount form để chắc chắn đổ data từ đề xuất
+      const hostOrg: OutlineHostOrganization = {
+        name: d.hostOrganization?.name || d.hostUnit || '',
+        orgCode: d.hostOrganization?.orgCode || '',
+        phone: d.hostOrganization?.phone || '',
+        address: d.hostOrganization?.address || '',
+        leaderName: d.hostOrganization?.leaderName || '',
+        experienceHtml: cleanRichHtml(d.hostOrganization?.experienceHtml),
+        teamCapacityHtml: cleanRichHtml(d.hostOrganization?.teamCapacityHtml),
+      };
       setFormInitial({
         title: d.title,
         projectProcessTypeId: d.projectProcessTypeId,
@@ -217,8 +529,8 @@ const OutlineFormPage: React.FC = () => {
         startDate: d.startDate ? dayjs(d.startDate) : undefined,
         endDate: d.endDate ? dayjs(d.endDate) : undefined,
         requestedBudget: d.requestedBudget,
-        hostUnit: d.hostUnit,
-        applicationScope: cleanRichHtml(d.applicationScope),
+        hostUnit: hostOrg.name || d.hostUnit,
+        hostOrganization: hostOrg,
         urgency: cleanRichHtml(d.urgency),
         detailedObjectives: cleanRichHtml(d.detailedObjectives),
         researchContent: cleanRichHtml(d.researchContent),
@@ -242,16 +554,36 @@ const OutlineFormPage: React.FC = () => {
 
   const buildPayload = () => {
     const v = formRef.current?.getFieldsValue() || {};
+    const ho = (v.hostOrganization || {}) as OutlineHostOrganization;
+    const hostName = String(ho.name || v.hostUnit || '').trim();
+    const hostOrganization: OutlineHostOrganization = {
+      name: hostName,
+      orgCode: String(ho.orgCode || '').trim() || null,
+      phone: String(ho.phone || '').trim() || null,
+      address: String(ho.address || '').trim() || null,
+      leaderName: String(ho.leaderName || '').trim() || null,
+      experienceHtml: ho.experienceHtml ?? null,
+      teamCapacityHtml: ho.teamCapacityHtml ?? null,
+    };
     return {
       title: v.title,
       projectProcessTypeId: v.projectProcessTypeId ?? null,
       field: v.field ?? null,
       startDate: v.startDate ? dayjs(v.startDate).toISOString() : null,
       endDate: v.endDate ? dayjs(v.endDate).toISOString() : null,
-      requestedBudget: Number(v.requestedBudget || 0),
-      hostUnit: v.hostUnit ?? null,
-      partnerUnits: partners.filter((p) => p.name?.trim()),
-      applicationScope: v.applicationScope ?? null,
+      fundingBreakdown: normalizeFundingBreakdown(funding),
+      requestedBudget: fundingTotalByEntity(funding),
+      principalInfo: principal,
+      hostUnit: hostName || null,
+      hostOrganization,
+      partnerUnits: partners
+        .filter((p) => p.name?.trim())
+        .map((p) => ({
+          name: String(p.name || '').trim(),
+          orgCode: String(p.orgCode || '').trim() || null,
+          phone: String(p.phone || '').trim() || null,
+          address: String(p.address || '').trim() || null,
+        })),
       urgency: v.urgency ?? null,
       detailedObjectives: v.detailedObjectives ?? null,
       researchContent: v.researchContent ?? null,
@@ -266,7 +598,8 @@ const OutlineFormPage: React.FC = () => {
           m.endDate ||
           m.expectedResult,
       ),
-      expectedProducts: products.filter((p) => p.name?.trim()),
+      expectedResults,
+      otherContents,
       summary: v.summary ?? null,
       outlineFileUrl: v.outlineFileUrl ?? null,
       appendixFileUrl: v.appendixFileUrl ?? null,
@@ -286,20 +619,16 @@ const OutlineFormPage: React.FC = () => {
         gender: m.gender ?? null,
         isMultiAffiliationOutsideUdn: !!m.isMultiAffiliationOutsideUdn,
       })),
-      budgetLines: budgetLines.map((l, i) => ({
-        ...l,
-        lineOrder: i + 1,
-        amount: Number(l.amount || 0),
-      })),
+      budgetMatrix: normalizeBudgetMatrix(budgetMatrix),
     };
   };
 
-  const luuNhap = async () => {
-    if (!outline || !editable) return;
+  const luuNhap = async (opts?: { silent?: boolean }) => {
+    if (!outline || !editable) return false;
     setSaving(true);
     try {
       const res = await saveOutlineDraft(outline.id, buildPayload());
-      message.success('Đã lưu nháp');
+      if (!opts?.silent) message.success('Đã lưu nháp');
       // Chỉ cập nhật meta/progress — không remount form (tránh mất ngày/nội dung đang nhập)
       if (res.data) {
         setOutline(res.data);
@@ -309,19 +638,58 @@ const OutlineFormPage: React.FC = () => {
             normalizePublicationAuthor(m as PublicationAuthor),
           ),
         );
-        setBudgetLines(res.data.budgetLines || []);
+        if (res.data.budgetMatrix) {
+          setBudgetMatrix(normalizeBudgetMatrix(res.data.budgetMatrix));
+        }
         if (res.data.milestones?.length) setMilestones(res.data.milestones);
-        if (res.data.expectedProducts?.length)
-          setProducts(res.data.expectedProducts);
+        if (res.data.expectedResults) {
+          setExpectedResults({
+            publications: res.data.expectedResults.publications || [],
+            appliedProducts: res.data.expectedResults.appliedProducts || [],
+            tangibleProducts: res.data.expectedResults.tangibleProducts || [],
+            ipProducts: res.data.expectedResults.ipProducts || [],
+            postgraduateTraining:
+              res.data.expectedResults.postgraduateTraining || [],
+          });
+        }
+        if (res.data.otherContents) {
+          setOtherContents({
+            ...EMPTY_OTHER_CONTENTS,
+            ...res.data.otherContents,
+          });
+        }
         if (res.data.partnerUnits?.length) setPartners(res.data.partnerUnits);
         formRef.current?.setFieldsValue({
           completionPercent: res.data.completionPercent,
         });
       }
+      return true;
     } catch (e: any) {
       message.error(e?.data?.message || e?.message || 'Lưu thất bại');
+      return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  /** Xuất Word BM-02.02; nếu đang sửa thì lưu nháp trước */
+  const xuatThuyetMinh = async () => {
+    if (!outline?.id) return;
+    setExporting(true);
+    try {
+      if (editable) {
+        const ok = await luuNhap({ silent: true });
+        if (!ok) return;
+      }
+      await exportOutlineDocx(
+        outline.id,
+        `BM-02.02_${outline.code || outline.id}.docx`,
+      );
+      message.success('Đã xuất file thuyết minh');
+    } catch (e: any) {
+      message.error(e?.message || 'Xuất thuyết minh thất bại');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -510,12 +878,7 @@ const OutlineFormPage: React.FC = () => {
     });
   };
 
-  const requestedBudget = Number(
-    formRef.current?.getFieldValue('requestedBudget') ||
-      outline?.requestedBudget ||
-      0,
-  );
-  const budgetDiff = Math.abs(totalDetail - requestedBudget);
+  const budgetDiff = Math.abs(totalDetail - tongTheoChuThe);
 
   return (
     <PageContainer
@@ -636,12 +999,12 @@ const OutlineFormPage: React.FC = () => {
         )}
 
         {!hienBangHoanThien && (
-          <Card size="small" title="Tiến độ hoàn thành">
-            <Progress
-              percent={outline?.completionPercent || 0}
-              status={editable ? 'active' : 'success'}
-            />
-          </Card>
+          <Progress
+            percent={outline?.completionPercent || 0}
+            status={editable ? 'active' : 'success'}
+            size="small"
+            style={{ marginBottom: 4 }}
+          />
         )}
 
         {outline && (
@@ -653,14 +1016,22 @@ const OutlineFormPage: React.FC = () => {
             layout="vertical"
             initialValues={formInitial}
           >
-            <Card
-              title="A. Thông tin chung"
-              size="small"
-              style={{ marginBottom: 16 }}
-            >
+            <Tabs
+              type="card"
+              activeKey={tabMuc}
+              onChange={setTabMuc}
+              destroyInactiveTabPane={false}
+              style={{ marginBottom: 8 }}
+              items={[
+                {
+                  key: 'A',
+                  label: 'A. Thông tin chung',
+                  forceRender: true,
+                  children: (
+                    <div style={{ paddingTop: 8 }}>
               <ProFormText
                 name="title"
-                label="Tên đề tài"
+                label="Tên nhiệm vụ"
                 rules={[{ required: true }]}
               />
               <Row gutter={16}>
@@ -676,127 +1047,1014 @@ const OutlineFormPage: React.FC = () => {
                   />
                 </Col>
                 <Col span={12}>
-                  <ProFormText name="field" label="Lĩnh vực" />
+                  <ProFormSelect
+                    name="field"
+                    label="Lĩnh vực"
+                    placeholder="Chọn lĩnh vực"
+                    options={fieldOptions}
+                    rules={[{ required: true, message: 'Vui lòng chọn lĩnh vực' }]}
+                    fieldProps={{
+                      showSearch: true,
+                      optionFilterProp: 'label',
+                      disabled: !editable,
+                    }}
+                  />
                 </Col>
               </Row>
               <Row gutter={16}>
-                <Col span={8}>
+                <Col span={12}>
                   <ProFormDatePicker
                     name="startDate"
                     label="Ngày bắt đầu"
                     rules={[{ required: true }]}
                   />
                 </Col>
-                <Col span={8}>
+                <Col span={12}>
                   <ProFormDatePicker
                     name="endDate"
                     label="Ngày kết thúc"
                     rules={[{ required: true }]}
                   />
                 </Col>
-                <Col span={8}>
-                  <ProFormDigit
-                    name="requestedBudget"
-                    label="Kinh phí đề nghị (VNĐ)"
-                    min={0}
-                    fieldProps={{
-                      precision: 0,
-                      style: { width: '100%' },
-                      ...vndInputNumberProps,
-                      addonAfter: 'đ',
-                    }}
-                    rules={[{ required: true }]}
-                  />
-                </Col>
               </Row>
-              <ProFormText
-                name="hostUnit"
-                label="Đơn vị chủ trì"
-                rules={[{ required: true }]}
-              />
-              <Form.Item label="Đơn vị phối hợp">
-                <Table
-                  size="small"
-                  pagination={false}
-                  rowKey={(_, i) => `p-${i}`}
-                  dataSource={partners}
-                  columns={[
-                    {
-                      title: 'Tên đơn vị',
-                      render: (_, __, i) => (
-                        <Input
-                          disabled={!editable}
-                          value={partners[i]?.name}
-                          onChange={(e) => {
-                            const next = [...partners];
-                            next[i] = { ...next[i], name: e.target.value };
-                            setPartners(next);
-                          }}
-                        />
-                      ),
-                    },
-                    {
-                      title: 'Vai trò',
-                      width: 200,
-                      render: (_, __, i) => (
-                        <Input
-                          disabled={!editable}
-                          value={partners[i]?.role || ''}
-                          onChange={(e) => {
-                            const next = [...partners];
-                            next[i] = { ...next[i], role: e.target.value };
-                            setPartners(next);
-                          }}
-                        />
-                      ),
-                    },
-                    {
-                      title: '',
-                      width: 70,
-                      render: (_, __, i) =>
-                        editable ? (
-                          <Button
-                            type="link"
-                            danger
-                            onClick={() =>
-                              setPartners(
-                                partners.filter((_, idx) => idx !== i),
-                              )
-                            }
-                          >
-                            Xóa
-                          </Button>
-                        ) : null,
-                    },
-                  ]}
-                />
-                {editable && (
-                  <Button
-                    type="dashed"
-                    icon={<PlusOutlined />}
-                    style={{ marginTop: 8 }}
-                    onClick={() =>
-                      setPartners([...partners, { name: '', role: '' }])
-                    }
-                  >
-                    Thêm đơn vị phối hợp
-                  </Button>
-                )}
-              </Form.Item>
-              <Form.Item
-                name="applicationScope"
-                label="Phạm vi ứng dụng"
-                rules={[{ required: true, message: 'Bắt buộc khi nộp' }]}
-              >
-                <RichTextHtmlField disabled={!editable} minHeight={120} />
-              </Form.Item>
-            </Card>
 
-            <Card
-              title="B. Thuyết minh khoa học"
-              size="small"
-              style={{ marginBottom: 16 }}
-            >
+              <Collapse
+                defaultActiveKey={['principal']}
+                bordered={false}
+                style={{ background: 'transparent', marginBottom: 12 }}
+                items={[
+                  {
+                    key: 'principal',
+                    label: (
+                      <Space>
+                        <UserOutlined style={{ color: '#1677ff' }} />
+                        <Typography.Text strong>
+                          Chủ nhiệm nhiệm vụ
+                        </Typography.Text>
+                        {principal?.fullName ? (
+                          <Tag color="blue">{principal.fullName}</Tag>
+                        ) : null}
+                      </Space>
+                    ),
+                    style: {
+                      background:
+                        'linear-gradient(180deg, #f9f0ff 0%, #ffffff 52px)',
+                      borderRadius: 10,
+                      border: '1px solid #d3adf7',
+                      overflow: 'hidden',
+                    },
+                    children: (
+                      <Spin spinning={principalLoading}>
+                        <Space
+                          direction="vertical"
+                          size={14}
+                          style={{ width: '100%', paddingTop: 4 }}
+                        >
+                          <Form.Item
+                            label="Chọn chủ nhiệm"
+                            style={{ marginBottom: 0 }}
+                            extra="Gõ ít nhất 2 ký tự để tìm theo họ tên / email / đơn vị"
+                          >
+                            <Select
+                              showSearch
+                              allowClear
+                              disabled={!editable}
+                              filterOption={false}
+                              placeholder="Tìm và chọn chủ nhiệm nhiệm vụ…"
+                              value={
+                                principal?.profileId
+                                  ? principal.profileId
+                                  : undefined
+                              }
+                              searchValue={principalSearch}
+                              onSearch={timChuNhiem}
+                              loading={principalSearching}
+                              options={[
+                                ...(principal?.profileId &&
+                                !principalOptions.some(
+                                  (o) => o.id === principal.profileId,
+                                )
+                                  ? [
+                                      {
+                                        value: principal.profileId,
+                                        label: principal.fullName || `#${principal.profileId}`,
+                                      },
+                                    ]
+                                  : []),
+                                ...principalOptions.map((o) => ({
+                                  value: o.id,
+                                  label: `${o.fullName}${
+                                    o.organization
+                                      ? ` — ${o.organization}`
+                                      : ''
+                                  }`,
+                                })),
+                              ]}
+                              onChange={(id) => {
+                                if (!id) {
+                                  setPrincipal(null);
+                                  setPrincipalSearch('');
+                                  return;
+                                }
+                                void chonChuNhiem(Number(id));
+                              }}
+                              style={{ width: '100%' }}
+                              notFoundContent={
+                                principalSearching
+                                  ? 'Đang tìm…'
+                                  : principalSearch.trim().length < 2
+                                    ? 'Nhập ít nhất 2 ký tự'
+                                    : 'Không có kết quả'
+                              }
+                            />
+                          </Form.Item>
+
+                          {principal ? (
+                            <Card
+                              size="small"
+                              title={
+                                <Typography.Text strong>
+                                  Thông tin chủ nhiệm
+                                </Typography.Text>
+                              }
+                              headStyle={{ minHeight: 40 }}
+                              bodyStyle={{ paddingTop: 12 }}
+                            >
+                              <Row gutter={[16, 8]}>
+                                <Col xs={24} md={14}>
+                                  <Form.Item
+                                    label="Họ và tên"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(principal.fullName)}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24} md={10}>
+                                  <Form.Item
+                                    label="Số định danh cá nhân"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(
+                                        principal.identityNumber,
+                                      )}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24} md={10}>
+                                  <Form.Item
+                                    label="Ngày, tháng, năm sinh"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={
+                                        principal.dateOfBirth
+                                          ? formatDate(principal.dateOfBirth)
+                                          : 'Chưa có'
+                                      }
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24} md={14}>
+                                  <Form.Item
+                                    label="Giới tính"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Radio.Group
+                                      disabled
+                                      value={chuanHoaGioiTinh(principal.gender)}
+                                    >
+                                      <Radio value="MALE">Nam</Radio>
+                                      <Radio value="FEMALE">Nữ</Radio>
+                                    </Radio.Group>
+                                    {!chuanHoaGioiTinh(principal.gender) && (
+                                      <Text
+                                        type="secondary"
+                                        style={{ marginLeft: 8 }}
+                                      >
+                                        Chưa có
+                                      </Text>
+                                    )}
+                                  </Form.Item>
+                                </Col>
+                                <Col span={24}>
+                                  <Form.Item
+                                    label="Học hàm, học vị / Trình độ chuyên môn"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(
+                                        principal.academicTitleDegree,
+                                      )}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                  <Form.Item
+                                    label="Chức danh nghề nghiệp"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(
+                                        principal.professionalTitle,
+                                      )}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                  <Form.Item
+                                    label="Chức vụ"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(principal.position)}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                  <Form.Item
+                                    label="Điện thoại"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(principal.phone)}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                  <Form.Item
+                                    label="E-mail"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(principal.email)}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col span={24}>
+                                  <Form.Item
+                                    label="Tên tổ chức đang công tác"
+                                    style={{ marginBottom: 8 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(
+                                        principal.organization,
+                                      )}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                                <Col span={24}>
+                                  <Form.Item
+                                    label="Địa chỉ công tác"
+                                    style={{ marginBottom: 0 }}
+                                  >
+                                    <Input
+                                      disabled
+                                      value={hienThiHoSo(
+                                        principal.workAddress,
+                                      )}
+                                    />
+                                  </Form.Item>
+                                </Col>
+                              </Row>
+                            </Card>
+                          ) : (
+                            <Typography.Text type="secondary">
+                              Chưa chọn chủ nhiệm. Dùng ô tìm kiếm phía trên để
+                              chọn từ danh mục hồ sơ.
+                            </Typography.Text>
+                          )}
+                        </Space>
+                      </Spin>
+                    ),
+                  },
+                ]}
+              />
+
+              <Collapse
+                defaultActiveKey={['members']}
+                bordered={false}
+                style={{ background: 'transparent', marginBottom: 12 }}
+                items={[
+                  {
+                    key: 'members',
+                    label: (
+                      <Space>
+                        <TeamOutlined style={{ color: '#1677ff' }} />
+                        <Typography.Text strong>
+                          Thành viên tham gia
+                        </Typography.Text>
+                        {members.filter((m) => m.fullName?.trim()).length >
+                          0 && (
+                          <Tag>
+                            {
+                              members.filter((m) => m.fullName?.trim())
+                                .length
+                            }
+                          </Tag>
+                        )}
+                      </Space>
+                    ),
+                    style: {
+                      background:
+                        'linear-gradient(180deg, #fff7e6 0%, #ffffff 48px)',
+                      borderRadius: 10,
+                      border: '1px solid #ffd591',
+                      overflow: 'hidden',
+                    },
+                    children: (
+                      <div style={{ paddingTop: 4 }}>
+                        <AuthorsEditor
+                          value={members}
+                          onChange={setMembers}
+                          disabled={!editable}
+                          hideRoleColumns
+                          showContribution
+                        />
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+
+              <Collapse
+                defaultActiveKey={['funding']}
+                bordered={false}
+                style={{ background: 'transparent', marginBottom: 16 }}
+                items={[
+                  {
+                    key: 'funding',
+                    label: (
+                      <Space>
+                        <DollarOutlined style={{ color: '#1677ff' }} />
+                        <Typography.Text strong>
+                          Tổng kinh phí và nguồn kinh phí
+                        </Typography.Text>
+                        <Tag color="blue">{formatVnd(tongTheoChuThe)}</Tag>
+                      </Space>
+                    ),
+                    style: {
+                      background:
+                        'linear-gradient(180deg, #e6f4ff 0%, #ffffff 52px)',
+                      borderRadius: 10,
+                      border: '1px solid #91caff',
+                      overflow: 'hidden',
+                    },
+                    children: (
+                      <Space
+                        direction="vertical"
+                        size={14}
+                        style={{ width: '100%', paddingTop: 4 }}
+                      >
+                        {/* Tổng — tự cộng từ a) */}
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            flexWrap: 'wrap',
+                            padding: '12px 16px',
+                            borderRadius: 8,
+                            background: '#f0f5ff',
+                            border: '1px solid #adc6ff',
+                          }}
+                        >
+                          <div>
+                            <Typography.Text type="secondary">
+                              Tổng kinh phí
+                            </Typography.Text>
+                            <div>
+                              <Typography.Text
+                                strong
+                                style={{ fontSize: 22, color: '#1677ff' }}
+                              >
+                                {formatVnd(tongTheoChuThe)}
+                              </Typography.Text>
+                              <Typography.Text type="secondary">
+                                {' '}
+                                đồng
+                              </Typography.Text>
+                            </div>
+                          </div>
+                          <Typography.Text
+                            type="secondary"
+                            style={{ maxWidth: 360 }}
+                          >
+                            Tự cộng từ phần a) theo chủ thể bố trí kinh phí.
+                          </Typography.Text>
+                        </div>
+
+                        {/* a) Theo chủ thể */}
+                        <Card
+                          size="small"
+                          title={
+                            <Typography.Text strong>
+                              a) Theo chủ thể bố trí kinh phí
+                            </Typography.Text>
+                          }
+                          headStyle={{ minHeight: 40 }}
+                        >
+                          <Row gutter={[16, 8]}>
+                            <Col xs={24} md={12}>
+                              <Form.Item
+                                label="Kinh phí từ Trường"
+                                style={{ marginBottom: 8 }}
+                              >
+                                <InputNumber
+                                  disabled={!editable}
+                                  min={0}
+                                  precision={0}
+                                  value={funding.schoolFund}
+                                  onChange={(v) => doiFunding('schoolFund', v)}
+                                  style={{ width: '100%' }}
+                                  {...vndInputNumberProps}
+                                  addonAfter="đồng"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                              <Form.Item
+                                label="Kinh phí ngoài Trường"
+                                style={{ marginBottom: 8 }}
+                              >
+                                <InputNumber
+                                  disabled={!editable}
+                                  min={0}
+                                  precision={0}
+                                  value={externalTong}
+                                  onChange={(v) =>
+                                    doiFunding('externalFund', v)
+                                  }
+                                  style={{ width: '100%' }}
+                                  {...vndInputNumberProps}
+                                  addonAfter="đồng"
+                                />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                        </Card>
+
+                        {/* b) Theo tính chất — nhập độc lập */}
+                        <Card
+                          size="small"
+                          title={
+                            <Space>
+                              <Typography.Text strong>
+                                b) Theo tính chất nguồn kinh phí
+                              </Typography.Text>
+                              <Tag>Tổng: {formatVnd(tongTheoTinhChat)}</Tag>
+                            </Space>
+                          }
+                          headStyle={{ minHeight: 40 }}
+                        >
+                          <Row gutter={[16, 0]}>
+                            <Col xs={24} md={12}>
+                              <Form.Item
+                                label="Ngân sách nhà nước"
+                                style={{ marginBottom: 8 }}
+                              >
+                                <InputNumber
+                                  disabled={!editable}
+                                  min={0}
+                                  precision={0}
+                                  value={funding.stateBudget}
+                                  onChange={(v) =>
+                                    doiFunding('stateBudget', v)
+                                  }
+                                  style={{ width: '100%' }}
+                                  {...vndInputNumberProps}
+                                  addonAfter="đồng"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                              <Form.Item
+                                label="Ngoài ngân sách nhà nước (từ nguồn Quỹ KHCN của Trường Đại học Sư phạm - ĐHĐN)"
+                                style={{ marginBottom: 8 }}
+                              >
+                                <InputNumber
+                                  disabled={!editable}
+                                  min={0}
+                                  precision={0}
+                                  value={funding.nonStateBudget}
+                                  onChange={(v) =>
+                                    doiFunding('nonStateBudget', v)
+                                  }
+                                  style={{ width: '100%' }}
+                                  {...vndInputNumberProps}
+                                  addonAfter="đồng"
+                                />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                          {fundingNatureMismatch ? (
+                            <Typography.Text type="warning">
+                              Tổng a) ({formatVnd(tongTheoChuThe)}) khác tổng
+                              b) ({formatVnd(tongTheoTinhChat)}). Nên bằng nhau
+                              theo BM-02.02.
+                            </Typography.Text>
+                          ) : null}
+                        </Card>
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
+
+              <Collapse
+                defaultActiveKey={['lump-sum']}
+                bordered={false}
+                style={{ background: 'transparent', marginBottom: 16 }}
+                items={[
+                  {
+                    key: 'lump-sum',
+                    label: (
+                      <Space>
+                        <DollarOutlined style={{ color: '#fa8c16' }} />
+                        <Typography.Text strong>
+                          Phương thức khoán chi
+                        </Typography.Text>
+                        {funding.lumpSumMode === 'FULL' ? (
+                          <Tag color="orange">Khoán đến sản phẩm cuối</Tag>
+                        ) : funding.lumpSumMode === 'PARTIAL' ? (
+                          <Tag color="orange">Khoán từng phần</Tag>
+                        ) : (
+                          <Tag>Chưa chọn</Tag>
+                        )}
+                      </Space>
+                    ),
+                    style: {
+                      background:
+                        'linear-gradient(180deg, #fff7e6 0%, #ffffff 52px)',
+                      borderRadius: 10,
+                      border: '1px solid #ffd591',
+                      overflow: 'hidden',
+                    },
+                    children: (
+                      <Space
+                        direction="vertical"
+                        size={12}
+                        style={{ width: '100%', paddingTop: 4 }}
+                      >
+                        <Radio.Group
+                          disabled={!editable}
+                          value={funding.lumpSumMode || undefined}
+                          onChange={(e) =>
+                            doiPhuongThucKhoan(e.target.value)
+                          }
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10,
+                          }}
+                        >
+                          <Radio value="FULL">
+                            Khoán chi đến sản phẩm cuối cùng
+                          </Radio>
+                          <Radio value="PARTIAL">
+                            Khoán chi từng phần, trong đó:
+                          </Radio>
+                        </Radio.Group>
+
+                        {funding.lumpSumMode === 'PARTIAL' ? (
+                          <Row gutter={[16, 8]} style={{ paddingLeft: 24 }}>
+                            <Col xs={24} md={12}>
+                              <Form.Item
+                                label="Kinh phí khoán"
+                                style={{ marginBottom: 8 }}
+                              >
+                                <InputNumber
+                                  disabled={!editable}
+                                  min={0}
+                                  precision={0}
+                                  value={funding.lumpSumAmount}
+                                  onChange={(v) =>
+                                    doiFunding('lumpSumAmount', v)
+                                  }
+                                  style={{ width: '100%' }}
+                                  {...vndInputNumberProps}
+                                  addonAfter="đồng"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col xs={24} md={12}>
+                              <Form.Item
+                                label="Kinh phí không khoán"
+                                style={{ marginBottom: 8 }}
+                              >
+                                <InputNumber
+                                  disabled={!editable}
+                                  min={0}
+                                  precision={0}
+                                  value={funding.nonLumpSumAmount}
+                                  onChange={(v) =>
+                                    doiFunding('nonLumpSumAmount', v)
+                                  }
+                                  style={{ width: '100%' }}
+                                  {...vndInputNumberProps}
+                                  addonAfter="đồng"
+                                />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                        ) : null}
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
+
+                    </div>
+                  ),
+                },
+                {
+                  key: 'ORG',
+                  label: 'Tổ chức chủ trì & đơn vị phối hợp',
+                  forceRender: true,
+                  children: (
+                    <div style={{ paddingTop: 8 }}>
+                      <Collapse
+                        defaultActiveKey={['host-org']}
+                        bordered={false}
+                        style={{
+                          background: 'transparent',
+                          marginBottom: 16,
+                        }}
+                        items={[
+                          {
+                            key: 'host-org',
+                            label: (
+                              <Space>
+                                <BankOutlined style={{ color: '#1677ff' }} />
+                                <Typography.Text strong>
+                                  Tổ chức chủ trì nhiệm vụ
+                                </Typography.Text>
+                              </Space>
+                            ),
+                            style: {
+                              marginBottom: 0,
+                              background:
+                                'linear-gradient(180deg, #f0f5ff 0%, #ffffff 48px)',
+                              borderRadius: 10,
+                              border: '1px solid #d6e4ff',
+                              overflow: 'hidden',
+                            },
+                            children: (
+                              <Space
+                                direction="vertical"
+                                size={16}
+                                style={{ width: '100%', paddingTop: 4 }}
+                              >
+                                {/* 7.1 Thông tin tổ chức */}
+                                <Card
+                                  size="small"
+                                  title={
+                                    <Typography.Text strong>
+                                      Thông tin tổ chức
+                                    </Typography.Text>
+                                  }
+                                  headStyle={{
+                                    borderBottom: '1px solid #f0f0f0',
+                                    minHeight: 40,
+                                  }}
+                                  bodyStyle={{ paddingTop: 16 }}
+                                >
+                                  <Row gutter={[16, 0]}>
+                                    <Col xs={24} md={16}>
+                                      <ProFormText
+                                        name={[
+                                          'hostOrganization',
+                                          'name',
+                                        ]}
+                                        label="Tên tổ chức chủ trì nhiệm vụ"
+                                        placeholder="Ví dụ: Trường Đại học Sư phạm – Đại học Đà Nẵng"
+                                        rules={[
+                                          {
+                                            required: true,
+                                            message: 'Bắt buộc nhập tên tổ chức',
+                                          },
+                                        ]}
+                                        fieldProps={{ disabled: !editable }}
+                                      />
+                                    </Col>
+                                    <Col xs={24} md={8}>
+                                      <ProFormText
+                                        name={[
+                                          'hostOrganization',
+                                          'orgCode',
+                                        ]}
+                                        label="Mã số tổ chức"
+                                        placeholder="Mã số / mã đơn vị"
+                                        fieldProps={{ disabled: !editable }}
+                                      />
+                                    </Col>
+                                    <Col xs={24} md={8}>
+                                      <ProFormText
+                                        name={[
+                                          'hostOrganization',
+                                          'phone',
+                                        ]}
+                                        label="Điện thoại"
+                                        placeholder="Số điện thoại liên hệ"
+                                        // Khóa không cho nhập — chờ nguồn dữ liệu hệ thống
+                                        fieldProps={{ disabled: true }}
+                                      />
+                                    </Col>
+                                    <Col xs={24} md={16}>
+                                      <ProFormText
+                                        name={[
+                                          'hostOrganization',
+                                          'address',
+                                        ]}
+                                        label="Địa chỉ"
+                                        placeholder="Địa chỉ trụ sở tổ chức chủ trì"
+                                        fieldProps={{ disabled: !editable }}
+                                      />
+                                    </Col>
+                                    <Col span={24}>
+                                      <ProFormText
+                                        name={[
+                                          'hostOrganization',
+                                          'leaderName',
+                                        ]}
+                                        label="Họ và tên thủ trưởng tổ chức"
+                                        placeholder="Họ tên thủ trưởng / hiệu trưởng"
+                                        fieldProps={{ disabled: !editable }}
+                                      />
+                                    </Col>
+                                  </Row>
+                                </Card>
+
+                                {/* 7.2 Năng lực, kinh nghiệm */}
+                                <Card
+                                  size="small"
+                                  title={
+                                    <Space>
+                                      <TeamOutlined
+                                        style={{ color: '#1677ff' }}
+                                      />
+                                      <Typography.Text strong>
+                                        Năng lực, kinh nghiệm của tổ chức chủ trì
+                                      </Typography.Text>
+                                    </Space>
+                                  }
+                                  headStyle={{
+                                    borderBottom: '1px solid #f0f0f0',
+                                    minHeight: 40,
+                                  }}
+                                  bodyStyle={{ paddingTop: 16 }}
+                                >
+                                  <Form.Item
+                                    name={[
+                                      'hostOrganization',
+                                      'experienceHtml',
+                                    ]}
+                                    label="Kinh nghiệm, năng lực, cơ sở vật chất, công nghệ"
+                                    extra={
+                                      <Typography.Text type="secondary">
+                                        Nêu tóm tắt các công trình, dự án đã thực
+                                        hiện liên quan đến vấn đề nghiên cứu
+                                        (không quá ½ trang A4).
+                                      </Typography.Text>
+                                    }
+                                    style={{ marginBottom: 20 }}
+                                  >
+                                    <RichTextHtmlField
+                                      disabled={!editable}
+                                      minHeight={160}
+                                      placeholder="Mô tả năng lực, CSVC, công nghệ và các dự án liên quan…"
+                                    />
+                                  </Form.Item>
+                                  <Form.Item
+                                    name={[
+                                      'hostOrganization',
+                                      'teamCapacityHtml',
+                                    ]}
+                                    label="Đội ngũ nhân lực thực hiện nhiệm vụ"
+                                    extra={
+                                      <Typography.Text type="secondary">
+                                        Trình bày năng lực, kinh nghiệm của đội
+                                        ngũ chính (không quá 01 trang A4).
+                                      </Typography.Text>
+                                    }
+                                    style={{ marginBottom: 0 }}
+                                  >
+                                    <RichTextHtmlField
+                                      disabled={!editable}
+                                      minHeight={200}
+                                      placeholder="Mô tả năng lực, kinh nghiệm đội ngũ chính thực hiện nhiệm vụ…"
+                                    />
+                                  </Form.Item>
+                                </Card>
+                              </Space>
+                            ),
+                          },
+                        ]}
+                      />
+
+                      <Collapse
+                        defaultActiveKey={['partners']}
+                        bordered={false}
+                        style={{ background: 'transparent' }}
+                        items={[
+                          {
+                            key: 'partners',
+                            label: (
+                              <Space>
+                                <TeamOutlined style={{ color: '#1677ff' }} />
+                                <Typography.Text strong>
+                                  Đơn vị phối hợp
+                                </Typography.Text>
+                                {partners.filter((p) => p.name?.trim())
+                                  .length > 0 && (
+                                  <Tag>
+                                    {
+                                      partners.filter((p) => p.name?.trim())
+                                        .length
+                                    }
+                                  </Tag>
+                                )}
+                              </Space>
+                            ),
+                            style: {
+                              background:
+                                'linear-gradient(180deg, #f6ffed 0%, #ffffff 48px)',
+                              borderRadius: 10,
+                              border: '1px solid #d9f7be',
+                              overflow: 'hidden',
+                            },
+                            children: (
+                              <Space
+                                direction="vertical"
+                                size={12}
+                                style={{ width: '100%', paddingTop: 4 }}
+                              >
+                                {partners.length === 0 && (
+                                  <Typography.Text type="secondary">
+                                    Chưa có đơn vị phối hợp. Thêm nếu nhiệm vụ
+                                    có tổ chức phối hợp thực hiện.
+                                  </Typography.Text>
+                                )}
+                                {partners.map((p, i) => (
+                                  <Card
+                                    key={`partner-${i}`}
+                                    size="small"
+                                    title={
+                                      <Typography.Text strong>
+                                        Tên tổ chức {i + 1}
+                                      </Typography.Text>
+                                    }
+                                    extra={
+                                      editable ? (
+                                        <Button
+                                          type="link"
+                                          danger
+                                          size="small"
+                                          onClick={() =>
+                                            setPartners(
+                                              partners.filter(
+                                                (_, idx) => idx !== i,
+                                              ),
+                                            )
+                                          }
+                                        >
+                                          Xóa
+                                        </Button>
+                                      ) : null
+                                    }
+                                    headStyle={{
+                                      borderBottom: '1px solid #f0f0f0',
+                                      minHeight: 40,
+                                    }}
+                                    bodyStyle={{ paddingTop: 12 }}
+                                  >
+                                    <Row gutter={[16, 0]}>
+                                      <Col xs={24} md={16}>
+                                        <Form.Item
+                                          label="Tên tổ chức"
+                                          style={{ marginBottom: 12 }}
+                                        >
+                                          <Input
+                                            disabled={!editable}
+                                            value={p.name || ''}
+                                            placeholder="Tên tổ chức phối hợp"
+                                            style={{ width: '100%' }}
+                                            onChange={(e) => {
+                                              const next = [...partners];
+                                              next[i] = {
+                                                ...next[i],
+                                                name: e.target.value,
+                                              };
+                                              setPartners(next);
+                                            }}
+                                          />
+                                        </Form.Item>
+                                      </Col>
+                                      <Col xs={24} md={8}>
+                                        <Form.Item
+                                          label="Mã số tổ chức"
+                                          style={{ marginBottom: 12 }}
+                                        >
+                                          <Input
+                                            disabled={!editable}
+                                            value={p.orgCode || ''}
+                                            placeholder="Mã số / mã đơn vị"
+                                            style={{ width: '100%' }}
+                                            onChange={(e) => {
+                                              const next = [...partners];
+                                              next[i] = {
+                                                ...next[i],
+                                                orgCode: e.target.value,
+                                              };
+                                              setPartners(next);
+                                            }}
+                                          />
+                                        </Form.Item>
+                                      </Col>
+                                      <Col xs={24} md={8}>
+                                        <Form.Item
+                                          label="Điện thoại"
+                                          style={{ marginBottom: 0 }}
+                                        >
+                                          {/* Khóa không cho nhập — chờ nguồn dữ liệu hệ thống */}
+                                          <Input
+                                            disabled
+                                            value={p.phone || ''}
+                                            placeholder="Số điện thoại liên hệ"
+                                            style={{ width: '100%' }}
+                                          />
+                                        </Form.Item>
+                                      </Col>
+                                      <Col xs={24} md={16}>
+                                        <Form.Item
+                                          label="Địa chỉ"
+                                          style={{ marginBottom: 0 }}
+                                        >
+                                          <Input
+                                            disabled={!editable}
+                                            value={p.address || ''}
+                                            placeholder="Địa chỉ tổ chức phối hợp"
+                                            style={{ width: '100%' }}
+                                            onChange={(e) => {
+                                              const next = [...partners];
+                                              next[i] = {
+                                                ...next[i],
+                                                address: e.target.value,
+                                              };
+                                              setPartners(next);
+                                            }}
+                                          />
+                                        </Form.Item>
+                                      </Col>
+                                    </Row>
+                                  </Card>
+                                ))}
+                                {editable && (
+                                  <Button
+                                    type="dashed"
+                                    icon={<PlusOutlined />}
+                                    block
+                                    onClick={() =>
+                                      setPartners([
+                                        ...partners,
+                                        {
+                                          name: '',
+                                          orgCode: '',
+                                          phone: '',
+                                          address: '',
+                                        },
+                                      ])
+                                    }
+                                  >
+                                    Thêm tổ chức phối hợp
+                                  </Button>
+                                )}
+                              </Space>
+                            ),
+                          },
+                        ]}
+                      />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'B',
+                  label: 'B. Thuyết minh khoa học',
+                  forceRender: true,
+                  children: (
+                    <div style={{ paddingTop: 8 }}>
               <Form.Item
                 name="urgency"
                 label="Tính cấp thiết"
@@ -806,25 +2064,24 @@ const OutlineFormPage: React.FC = () => {
               </Form.Item>
               <Form.Item
                 name="detailedObjectives"
-                label="Mục tiêu chi tiết"
+                label="Mục tiêu"
                 rules={[{ required: true }]}
               >
                 <RichTextHtmlField disabled={!editable} minHeight={140} />
               </Form.Item>
               <Form.Item
                 name="researchContent"
-                label="Nội dung nghiên cứu"
+                label="Nội dung và phương pháp thực hiện"
                 rules={[{ required: true }]}
               >
                 <RichTextHtmlField disabled={!editable} minHeight={180} />
               </Form.Item>
-              <Form.Item
-                name="methodology"
-                label="Phương pháp nghiên cứu"
-                rules={[{ required: true }]}
-              >
+              {/* Tạm ẩn phương pháp nghiên cứu */}
+              {/*
+              <Form.Item name="methodology" label="Phương pháp nghiên cứu">
                 <RichTextHtmlField disabled={!editable} minHeight={140} />
               </Form.Item>
+              */}
 
               <Form.Item label="Tiến độ thực hiện">
                 <Table
@@ -889,16 +2146,19 @@ const OutlineFormPage: React.FC = () => {
                       ),
                     },
                     {
-                      title: 'Kết quả dự kiến',
+                      title: 'Sản phẩm/Kết quả',
                       render: (_, __, i) => (
-                        <Input
+                        <RichTextHtmlField
                           disabled={!editable}
+                          minHeight={80}
                           value={milestones[i]?.expectedResult || ''}
-                          onChange={(e) => {
-                            const v = e.target.value;
+                          onChange={(html) => {
                             setMilestones((prev) => {
                               const next = [...prev];
-                              next[i] = { ...next[i], expectedResult: v };
+                              next[i] = {
+                                ...next[i],
+                                expectedResult: html,
+                              };
                               return next;
                             });
                           }}
@@ -939,266 +2199,89 @@ const OutlineFormPage: React.FC = () => {
                 )}
               </Form.Item>
 
-              <Form.Item label="Sản phẩm dự kiến">
-                <Table
-                  size="small"
-                  pagination={false}
-                  rowKey={(_, i) => `pr-${i}`}
-                  dataSource={products}
-                  columns={[
-                    {
-                      title: 'Tên sản phẩm',
-                      render: (_, __, i) => (
-                        <Input
-                          disabled={!editable}
-                          value={products[i]?.name}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setProducts((prev) => {
-                              const next = [...prev];
-                              next[i] = { ...next[i], name: v };
-                              return next;
-                            });
-                          }}
-                        />
-                      ),
-                    },
-                    {
-                      title: 'Số lượng',
-                      width: 120,
-                      render: (_, __, i) => (
-                        <Input
-                          disabled={!editable}
-                          value={products[i]?.quantity || ''}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setProducts((prev) => {
-                              const next = [...prev];
-                              next[i] = { ...next[i], quantity: v };
-                              return next;
-                            });
-                          }}
-                        />
-                      ),
-                    },
-                    {
-                      title: 'Yêu cầu chất lượng',
-                      render: (_, __, i) => (
-                        <Input
-                          disabled={!editable}
-                          value={products[i]?.quality || ''}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setProducts((prev) => {
-                              const next = [...prev];
-                              next[i] = { ...next[i], quality: v };
-                              return next;
-                            });
-                          }}
-                        />
-                      ),
-                    },
-                    {
-                      title: '',
-                      width: 70,
-                      render: (_, __, i) =>
-                        editable ? (
-                          <Button
-                            type="link"
-                            danger
-                            onClick={() =>
-                              setProducts((prev) =>
-                                prev.filter((_, idx) => idx !== i),
-                              )
-                            }
-                          >
-                            Xóa
-                          </Button>
-                        ) : null,
-                    },
-                  ]}
-                />
-                {editable && (
-                  <Button
-                    type="dashed"
-                    icon={<PlusOutlined />}
-                    style={{ marginTop: 8 }}
-                    onClick={() =>
-                      setProducts((prev) => [...prev, { name: '' }])
-                    }
-                  >
-                    Thêm sản phẩm
-                  </Button>
-                )}
-              </Form.Item>
-            </Card>
-
-            <Card
-              title="C. Thành viên tham gia đề tài"
-              size="small"
-              style={{ marginBottom: 16 }}
-            >
-              <AuthorsEditor
-                value={members}
-                onChange={setMembers}
-                disabled={!editable}
-                hideRoleColumns
-                showContribution
-              />
-            </Card>
-
-            <Card
-              title="D. Kinh phí chi tiết"
-              size="small"
-              style={{ marginBottom: 16 }}
-            >
-              <Table
-                size="small"
-                pagination={false}
-                rowKey={(_, i) => `b-${i}`}
-                dataSource={budgetLines}
-                columns={[
-                  {
-                    title: 'Nhóm chi',
-                    width: 150,
-                    render: (_, __, i) => (
-                      <Select
-                        style={{ width: '100%' }}
-                        disabled={!editable}
-                        options={BUDGET_GROUP_OPTIONS}
-                        value={budgetLines[i]?.groupCode}
-                        onChange={(v) => {
-                          setBudgetLines((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], groupCode: v };
-                            return next;
-                          });
-                        }}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'RESULTS',
+                  label: 'Kết quả dự kiến',
+                  forceRender: true,
+                  children: (
+                    <div style={{ paddingTop: 8 }}>
+                      <Typography.Paragraph type="secondary">
+                        Kết quả/sản phẩm chính dự kiến đạt được của nhiệm vụ và yêu
+                        cầu về số lượng, chất lượng khoa học cần đạt. Điền các mục
+                        phù hợp; mục không áp dụng có thể để trống.
+                      </Typography.Paragraph>
+                      <ExpectedResultsPanels
+                        value={expectedResults}
+                        onChange={setExpectedResults}
+                        editable={editable}
                       />
-                    ),
-                  },
-                  {
-                    title: 'Nội dung chi',
-                    render: (_, __, i) => (
-                      <Input
-                        disabled={!editable}
-                        value={budgetLines[i]?.content}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setBudgetLines((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], content: v };
-                            return next;
-                          });
+                    </div>
+                  ),
+                },
+                {
+                  key: 'D',
+                  label: 'Kinh phí thực hiện',
+                  forceRender: true,
+                  children: (
+                    <div style={{ paddingTop: 8 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 12,
+                          marginBottom: 12,
+                          alignItems: 'center',
                         }}
+                      >
+                        <Tag color="blue">
+                          Tổng ma trận: {formatVnd(totalDetail)}
+                        </Tag>
+                        <Tag>Đề xuất: {formatVnd(tongTheoChuThe)}</Tag>
+                        <Text type={budgetDiff > 1000 ? 'danger' : 'secondary'}>
+                          Chênh lệch: {formatVnd(budgetDiff)} (cho phép ≤{' '}
+                          {formatVnd(1000)})
+                        </Text>
+                      </div>
+                      <BudgetMatrixTable
+                        value={budgetMatrix}
+                        onChange={setBudgetMatrix}
+                        editable={editable}
+                        stateBudgetHint={funding.stateBudget}
+                        nonStateBudgetHint={funding.nonStateBudget}
                       />
-                    ),
-                  },
-                  {
-                    title: 'Số tiền',
-                    width: 150,
-                    render: (_, __, i) => (
-                      <InputNumber
-                        style={{ width: '100%' }}
-                        min={0}
-                        disabled={!editable}
-                        value={budgetLines[i]?.amount}
-                        {...vndInputNumberProps}
-                        addonAfter="đ"
-                        onChange={(v) => {
-                          setBudgetLines((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], amount: Number(v || 0) };
-                            return next;
-                          });
-                        }}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'OTHER',
+                  label: 'Nội dung khác',
+                  forceRender: true,
+                  children: (
+                    <div style={{ paddingTop: 8 }}>
+                      <Typography.Paragraph type="secondary">
+                        Các mục mô tả bổ sung: ứng dụng &amp; chuyển giao, hiệu
+                        quả/tác động, quản lý rủi ro, đạo đức–dữ liệu–SHTT–AI.
+                        Dùng trình soạn thảo giống Tính cấp thiết / Mục tiêu.
+                      </Typography.Paragraph>
+                      <OtherContentsPanels
+                        value={otherContents}
+                        onChange={setOtherContents}
+                        editable={editable}
                       />
-                    ),
-                  },
-                  {
-                    title: 'Ghi chú',
-                    render: (_, __, i) => (
-                      <Input
-                        disabled={!editable}
-                        value={budgetLines[i]?.note || ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setBudgetLines((prev) => {
-                            const next = [...prev];
-                            next[i] = { ...next[i], note: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    title: '',
-                    width: 70,
-                    render: (_, __, i) =>
-                      editable ? (
-                        <Button
-                          type="link"
-                          danger
-                          onClick={() =>
-                            setBudgetLines((prev) =>
-                              prev.filter((_, idx) => idx !== i),
-                            )
-                          }
-                        >
-                          Xóa
-                        </Button>
-                      ) : null,
-                  },
-                ]}
-                summary={() => (
-                  <Table.Summary.Row>
-                    <Table.Summary.Cell index={0} colSpan={2}>
-                      <strong>Tổng chi tiết</strong>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={2}>
-                      <strong>{formatVnd(totalDetail)}</strong>
-                    </Table.Summary.Cell>
-                    <Table.Summary.Cell index={3} colSpan={2}>
-                      <Text type={budgetDiff > 1000 ? 'danger' : 'secondary'}>
-                        Chênh lệch: {formatVnd(budgetDiff)} (≤ {formatVnd(1000)}
-                        )
-                      </Text>
-                    </Table.Summary.Cell>
-                  </Table.Summary.Row>
-                )}
-              />
-              {editable && (
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  style={{ marginTop: 8 }}
-                  onClick={() =>
-                    setBudgetLines((prev) => [
-                      ...prev,
-                      {
-                        groupCode: 'NHAN_CONG',
-                        content: '',
-                        amount: 0,
-                        note: '',
-                      },
-                    ])
-                  }
-                >
-                  Thêm dòng kinh phí
-                </Button>
-              )}
-            </Card>
-
-            <Card
-              title={
-                isRevision
-                  ? 'E. File thuyết minh BM.04 mới'
-                  : 'E. Tài liệu đính kèm'
-              }
-              size="small"
-              style={{ marginBottom: 16 }}
-            >
+                    </div>
+                  ),
+                },
+                {
+                  key: 'E',
+                  label: isRevision
+                    ? 'E. File BM.04 mới'
+                    : 'E. Tài liệu đính kèm',
+                  forceRender: true,
+                  children: (
+                    <div style={{ paddingTop: 8 }}>
               <Form.Item
                 name="outlineFileUrl"
                 label={
@@ -1232,34 +2315,48 @@ const OutlineFormPage: React.FC = () => {
                   disabled={!editable}
                 />
               </Form.Item>
-            </Card>
-
-            {isRevision && (
-              <Card
-                title="F. Giải trình chỉnh sửa theo BM.05b"
-                size="small"
-                style={{
-                  borderColor: '#fde68a',
-                  background:
-                    'linear-gradient(180deg, #fffbeb 0%, #ffffff 70%)',
-                }}
-              >
-                <Text type="secondary">
-                  Bắt buộc khi nộp (≥ {revisionCtx?.minExplanationLength || 100}{' '}
-                  ký tự). Mô tả rõ đã chỉnh những mục nào theo biên bản.
-                </Text>
-                <TextArea
-                  style={{ marginTop: 8 }}
-                  rows={5}
-                  disabled={!editable}
-                  value={explanation}
-                  showCount
-                  maxLength={20000}
-                  onChange={(e) => setExplanation(e.target.value)}
-                  placeholder="Ví dụ: Đã bổ sung mục tiêu chi tiết theo mục 3 biên bản; cập nhật kinh phí nhân công; đính kèm BM.04 phiên bản mới..."
-                />
-              </Card>
-            )}
+                    </div>
+                  ),
+                },
+                ...(isRevision
+                  ? [
+                      {
+                        key: 'F',
+                        label: 'F. Giải trình BM.05b',
+                        forceRender: true,
+                        children: (
+                          <div
+                            style={{
+                              paddingTop: 8,
+                              borderColor: '#fde68a',
+                              background:
+                                'linear-gradient(180deg, #fffbeb 0%, #ffffff 70%)',
+                              borderRadius: 8,
+                              padding: 12,
+                            }}
+                          >
+                            <Text type="secondary">
+                              Bắt buộc khi nộp (≥{' '}
+                              {revisionCtx?.minExplanationLength || 100} ký tự).
+                              Mô tả rõ đã chỉnh những mục nào theo biên bản.
+                            </Text>
+                            <TextArea
+                              style={{ marginTop: 8 }}
+                              rows={5}
+                              disabled={!editable}
+                              value={explanation}
+                              showCount
+                              maxLength={20000}
+                              onChange={(e) => setExplanation(e.target.value)}
+                              placeholder="Ví dụ: Đã bổ sung mục tiêu chi tiết theo mục 3 biên bản; cập nhật kinh phí nhân công; đính kèm BM.04 phiên bản mới..."
+                            />
+                          </div>
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </ProForm>
         )}
       </Space>
@@ -1364,6 +2461,15 @@ const OutlineFormPage: React.FC = () => {
         >
           Quay lại
         </Button>
+        {outline?.id ? (
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exporting}
+            onClick={() => void xuatThuyetMinh()}
+          >
+            Xuất thuyết minh
+          </Button>
+        ) : null}
         {editable && (
           <>
             <Button

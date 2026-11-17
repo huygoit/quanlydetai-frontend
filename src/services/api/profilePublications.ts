@@ -450,6 +450,33 @@ export interface AuthorProfileLookupItem {
 /**
  * Lookup hồ sơ NCV dùng chung — GET /api/lookup/author-profiles (chỉ cần đăng nhập).
  */
+/** Chi tiết chủ nhiệm từ hồ sơ (lookup đã đăng nhập). */
+export type AuthorPrincipalInfo = {
+  profileId: number;
+  fullName?: string | null;
+  identityNumber?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  academicTitleDegree?: string | null;
+  professionalTitle?: string | null;
+  position?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  organization?: string | null;
+  workAddress?: string | null;
+};
+
+export async function getAuthorPrincipalInfo(
+  profileId: number,
+): Promise<AuthorPrincipalInfo | null> {
+  if (!profileId) return null;
+  const res = await get<ApiResponse<AuthorPrincipalInfo>>(
+    `/api/lookup/author-profiles/${profileId}`,
+  );
+  if (!res.success || !res.data) return null;
+  return res.data;
+}
+
 export async function lookupAuthorProfiles(
   q: string,
   limit = 20

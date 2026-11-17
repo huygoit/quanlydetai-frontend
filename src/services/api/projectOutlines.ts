@@ -1,7 +1,7 @@
 /**
  * API thuyết minh chi tiết (US-04-01) — bảng project_outlines
  */
-import { ApiResponse, get, post, put } from '../request';
+import { API_BASE_URL, ApiResponse, get, getToken, post, put } from '../request';
 import type { PublicationAuthor } from './profilePublications';
 
 export type ProjectOutlineStatus =
@@ -73,10 +73,223 @@ export type OutlineProduct = {
   quality?: string | null;
 };
 
+export type OutlineExpectedPublication = {
+  id: string;
+  category: 'DOMESTIC' | 'INTERNATIONAL' | string;
+  content: string;
+  quantity?: string | null;
+  scienceRequirement?: string | null;
+  note?: string | null;
+};
+
+export type OutlineExpectedAppliedProduct = {
+  id: string;
+  name: string;
+  scienceRequirement?: string | null;
+  note?: string | null;
+};
+
+export type OutlineExpectedTangibleProduct = {
+  id: string;
+  name: string;
+  unit?: string | null;
+  qualityRequired?: string | null;
+  qualitySampleDomestic?: string | null;
+  qualitySampleWorld?: string | null;
+  quantityScale?: string | null;
+};
+
+export type OutlineExpectedIpProduct = {
+  id: string;
+  name: string;
+  scienceRequirement?: string | null;
+  note?: string | null;
+};
+
+export type OutlineExpectedTraining = {
+  id: string;
+  level: string;
+  quantity?: string | null;
+  major?: string | null;
+  note?: string | null;
+};
+
+export type OutlineExpectedResults = {
+  publications: OutlineExpectedPublication[];
+  appliedProducts: OutlineExpectedAppliedProduct[];
+  tangibleProducts: OutlineExpectedTangibleProduct[];
+  ipProducts: OutlineExpectedIpProduct[];
+  postgraduateTraining: OutlineExpectedTraining[];
+};
+
+export const EMPTY_EXPECTED_RESULTS: OutlineExpectedResults = {
+  publications: [],
+  appliedProducts: [],
+  tangibleProducts: [],
+  ipProducts: [],
+  postgraduateTraining: [],
+};
+
+/** Nội dung khác — các mục mô tả (HTML) */
+export type OutlineOtherContents = {
+  applicationTransferHtml?: string | null;
+  outputEffectivenessHtml?: string | null;
+  impactAssessmentHtml?: string | null;
+  riskManagementHtml?: string | null;
+  ethicsDataApprovalHtml?: string | null;
+  dataManagementPlanHtml?: string | null;
+  ipProtectionHtml?: string | null;
+  aiUsageHtml?: string | null;
+};
+
+export const EMPTY_OTHER_CONTENTS: OutlineOtherContents = {
+  applicationTransferHtml: '',
+  outputEffectivenessHtml: '',
+  impactAssessmentHtml: '',
+  riskManagementHtml: '',
+  ethicsDataApprovalHtml: '',
+  dataManagementPlanHtml: '',
+  ipProtectionHtml: '',
+  aiUsageHtml: '',
+};
+
 export type OutlinePartnerUnit = {
   name: string;
+  orgCode?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  /** Giữ tương thích dữ liệu cũ */
   role?: string | null;
 };
+
+/** Tổ chức chủ trì nhiệm vụ */
+export type OutlineHostOrganization = {
+  name: string;
+  orgCode?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  leaderName?: string | null;
+  experienceHtml?: string | null;
+  teamCapacityHtml?: string | null;
+};
+
+/** Snapshot chủ nhiệm nhiệm vụ */
+export type OutlinePrincipalInfo = {
+  profileId?: number | null;
+  fullName?: string | null;
+  identityNumber?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  academicTitleDegree?: string | null;
+  professionalTitle?: string | null;
+  position?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  organization?: string | null;
+  workAddress?: string | null;
+};
+
+/** Phương thức khoán chi (BM-02.02 §5) */
+export type OutlineLumpSumMode = 'FULL' | 'PARTIAL';
+
+/**
+ * Phân bổ nguồn kinh phí đề xuất (BM-02.02 §4–5).
+ * a) theo chủ thể: schoolFund + externalFund
+ * b) theo tính chất: stateBudget + nonStateBudget
+ * §5 khoán chi: lumpSumMode + lumpSumAmount + nonLumpSumAmount
+ * Trường legacy (externalStateLocal…) chỉ dùng khi đọc dữ liệu cũ.
+ */
+export type OutlineFundingBreakdown = {
+  schoolFund: number;
+  /** Kinh phí ngoài Trường */
+  externalFund: number;
+  stateBudget: number;
+  nonStateBudget: number;
+  /** FULL = khoán đến SP cuối; PARTIAL = khoán từng phần */
+  lumpSumMode: OutlineLumpSumMode | null;
+  /** Kinh phí khoán */
+  lumpSumAmount: number;
+  /** Kinh phí không khoán */
+  nonLumpSumAmount: number;
+  /** @deprecated dữ liệu cũ — gộp vào externalFund khi đọc */
+  externalStateLocal?: number;
+  /** @deprecated */
+  externalEnterprise?: number;
+  /** @deprecated */
+  externalSponsor?: number;
+  /** @deprecated */
+  externalOther?: number;
+};
+
+export const EMPTY_FUNDING_BREAKDOWN: OutlineFundingBreakdown = {
+  schoolFund: 0,
+  externalFund: 0,
+  stateBudget: 0,
+  nonStateBudget: 0,
+  lumpSumMode: null,
+  lumpSumAmount: 0,
+  nonLumpSumAmount: 0,
+};
+
+function money0(v: unknown): number {
+  const n = Math.round(Number(v || 0));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Gộp nguồn ngoài Trường (ưu tiên externalFund; fallback tổng các mục cũ). */
+export function fundingExternalTotal(f: OutlineFundingBreakdown): number {
+  const direct = money0(f.externalFund);
+  if (direct > 0) return direct;
+  return (
+    money0(f.externalStateLocal) +
+    money0(f.externalEnterprise) +
+    money0(f.externalSponsor) +
+    money0(f.externalOther)
+  );
+}
+
+export function fundingTotalByEntity(f: OutlineFundingBreakdown): number {
+  return money0(f.schoolFund) + fundingExternalTotal(f);
+}
+
+export function fundingTotalByNature(f: OutlineFundingBreakdown): number {
+  return money0(f.stateBudget) + money0(f.nonStateBudget);
+}
+
+/** Chuẩn hóa JSON funding — tương thích bản ghi cũ. */
+export function normalizeFundingBreakdown(
+  raw?: Partial<OutlineFundingBreakdown> | null,
+): OutlineFundingBreakdown {
+  const schoolFund = money0(raw?.schoolFund);
+  const legacyExternal =
+    money0(raw?.externalStateLocal) +
+    money0(raw?.externalEnterprise) +
+    money0(raw?.externalSponsor) +
+    money0(raw?.externalOther);
+  const externalFund = money0(raw?.externalFund) || legacyExternal;
+  let stateBudget = money0(raw?.stateBudget);
+  let nonStateBudget = money0(raw?.nonStateBudget);
+  // Chỉ suy tính chất từ chi tiết cũ khi bản ghi chưa có b) và còn breakdown ngoài Trường cũ
+  if (!stateBudget && !nonStateBudget && legacyExternal > 0 && !money0(raw?.externalFund)) {
+    stateBudget = schoolFund + money0(raw?.externalStateLocal);
+    nonStateBudget =
+      money0(raw?.externalEnterprise) +
+      money0(raw?.externalSponsor) +
+      money0(raw?.externalOther);
+  }
+  const modeRaw = String(raw?.lumpSumMode || '').toUpperCase();
+  const lumpSumMode: OutlineLumpSumMode | null =
+    modeRaw === 'FULL' || modeRaw === 'PARTIAL' ? modeRaw : null;
+  return {
+    schoolFund,
+    externalFund,
+    stateBudget,
+    nonStateBudget,
+    lumpSumMode,
+    lumpSumAmount: money0(raw?.lumpSumAmount),
+    nonLumpSumAmount: money0(raw?.nonLumpSumAmount),
+  };
+}
 
 export type OutlineMember = PublicationAuthor & {
   participationHours?: number | null;
@@ -90,6 +303,8 @@ export type OutlineBudgetLine = {
   note?: string | null;
   lineOrder?: number;
 };
+
+export type { OutlineBudgetMatrix } from '@/constants/outlineBudgetMatrix';
 
 export type RevisionGateStatus =
   | 'CHO_PKH'
@@ -158,15 +373,19 @@ export type ProjectOutline = {
   startDate?: string | null;
   endDate?: string | null;
   requestedBudget: number;
+  fundingBreakdown?: OutlineFundingBreakdown | null;
+  principalInfo?: OutlinePrincipalInfo | null;
   hostUnit?: string | null;
+  hostOrganization?: OutlineHostOrganization | null;
   partnerUnits: OutlinePartnerUnit[];
-  applicationScope?: string | null;
   urgency?: string | null;
   detailedObjectives?: string | null;
   researchContent?: string | null;
   methodology?: string | null;
   milestones: OutlineMilestone[];
   expectedProducts: OutlineProduct[];
+  expectedResults?: OutlineExpectedResults | null;
+  otherContents?: OutlineOtherContents | null;
   summary?: string | null;
   councilFeedback?: string | null;
   outlineFileUrl?: string | null;
@@ -197,6 +416,7 @@ export type ProjectOutline = {
   extensionCount?: number;
   members: OutlineMember[];
   budgetLines: OutlineBudgetLine[];
+  budgetMatrix?: import('@/constants/outlineBudgetMatrix').OutlineBudgetMatrix | null;
   totalDetailBudget?: number;
   budgetDifference?: number;
   /** Trạng thái cho phép sửa form (nháp / đang hoàn thiện) — không gồm quyền user. */
@@ -233,21 +453,26 @@ export type OutlineDraftPayload = Partial<{
   startDate: string | null;
   endDate: string | null;
   requestedBudget: number;
+  fundingBreakdown: OutlineFundingBreakdown | null;
+  principalInfo: OutlinePrincipalInfo | null;
   hostUnit: string | null;
+  hostOrganization: OutlineHostOrganization | null;
   partnerUnits: OutlinePartnerUnit[];
-  applicationScope: string | null;
   urgency: string | null;
   detailedObjectives: string | null;
   researchContent: string | null;
   methodology: string | null;
   milestones: OutlineMilestone[];
   expectedProducts: OutlineProduct[];
+  expectedResults: OutlineExpectedResults | null;
+  otherContents: OutlineOtherContents | null;
   summary: string | null;
   outlineFileUrl: string | null;
   appendixFileUrl: string | null;
   revisionExplanation?: string | null;
   members: OutlineMember[];
   budgetLines: OutlineBudgetLine[];
+  budgetMatrix: import('@/constants/outlineBudgetMatrix').OutlineBudgetMatrix | null;
 }>;
 
 export async function listEligibleProposalsForOutline(): Promise<
@@ -272,6 +497,30 @@ export async function getOutline(
   id: number,
 ): Promise<ApiResponse<ProjectOutline>> {
   return get(`/api/project-outlines/${id}`);
+}
+
+/** Tải file Word thuyết minh (BM-02.02) đã đổ biến từ mẫu mặc định */
+export async function exportOutlineDocx(
+  id: number,
+  fileName?: string,
+): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/api/project-outlines/${id}/export-docx`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => null);
+    throw new Error(json?.message || 'Xuất thuyết minh thất bại');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName || `BM-02.02_TM-${id}.docx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export async function saveOutlineDraft(

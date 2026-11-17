@@ -11,11 +11,13 @@ import {
   csvcMuaSam,
   dsMuaSamCsvc,
   type PhieuMua,
+  type TepModule56,
 } from '@/services/api/module56';
 import { formatVnd } from '@/utils/format';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
 import {
   CheckOutlined,
+  DeleteOutlined,
   EyeOutlined,
   PaperClipOutlined,
   ShoppingCartOutlined,
@@ -26,8 +28,10 @@ import { history, useAccess, useLocation } from '@umijs/max';
 import {
   Alert,
   Button,
+  DatePicker,
   Descriptions,
   Drawer,
+  Form,
   Modal,
   Select,
   Space,
@@ -36,7 +40,9 @@ import {
   Typography,
   message,
 } from 'antd';
+import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
+import { ChonTep } from '@/pages/projects/execution/ChonTep';
 
 const { Text } = Typography;
 
@@ -54,6 +60,8 @@ const ProcurementsCsvcPage: React.FC = () => {
   const [method, setMethod] = useState<'MUA_TRUC_TIEP' | 'DAU_THAU'>(
     'MUA_TRUC_TIEP',
   );
+  const [ngayNhan, setNgayNhan] = useState<Dayjs | null>(dayjs());
+  const [tepChungTu, setTepChungTu] = useState<TepModule56[]>([]);
   const [cungUngOpen, setCungUngOpen] = useState(false);
   const [cungUngPhieu, setCungUngPhieu] = useState<PhieuMua | null>(null);
   const daMoTuUrl = useRef(false);
@@ -109,18 +117,30 @@ const ProcurementsCsvcPage: React.FC = () => {
   const moCungUng = (r: PhieuMua) => {
     setCungUngPhieu(r);
     setMethod('MUA_TRUC_TIEP');
+    setNgayNhan(dayjs());
+    setTepChungTu([]);
     setCungUngOpen(true);
   };
 
   const xacNhanCungUng = async () => {
     if (!cungUngPhieu) return;
+    if (method === 'MUA_TRUC_TIEP' && !ngayNhan) {
+      message.warning('Nhập ngày nhận hàng');
+      return;
+    }
     setActing(true);
     try {
       await csvcMuaSam(cungUngPhieu.id, {
         action: 'supply',
         method,
+        receivedAt: ngayNhan ? ngayNhan.format('YYYY-MM-DD') : undefined,
+        attachments: tepChungTu.length ? tepChungTu : undefined,
       });
-      message.success('Đã xác nhận cung ứng — chờ CNNV nhận hàng');
+      message.success(
+        method === 'MUA_TRUC_TIEP'
+          ? 'Đã cung ứng — chuyển Phòng Kế hoạch - Tài chính'
+          : 'Đã cung ứng — chờ CNNV xác nhận nhận hàng',
+      );
       setCungUngOpen(false);
       setCungUngPhieu(null);
       setXem(null);
@@ -158,9 +178,18 @@ const ProcurementsCsvcPage: React.FC = () => {
     },
     {
       title: 'Thành tiền',
-      width: 130,
+      width: 180,
       align: 'right',
-      render: (_, r) => formatVnd(r.totalAmount),
+      render: (_, r) => (
+        <Space size={6} wrap>
+          <Text strong>{formatVnd(r.totalAmount)}</Text>
+          {r.overBudget ? (
+            <Tag color="error" style={{ marginInlineEnd: 0 }}>
+              Vượt dư
+            </Tag>
+          ) : null}
+        </Space>
+      ),
     },
     {
       title: 'Lý do',
@@ -331,18 +360,75 @@ const ProcurementsCsvcPage: React.FC = () => {
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="Chủ nhiệm nhiệm vụ sẽ nhận thông báo để xác nhận nhận hàng."
+          message={
+            method === 'MUA_TRUC_TIEP'
+              ? 'Mua trực tiếp: nhập ngày nhận hàng + chứng từ → chuyển Phòng Kế hoạch - Tài chính.'
+              : 'Đấu thầu: sau cung ứng, chủ nhiệm xác nhận nhận hàng rồi mới sang KH-TC.'
+          }
         />
-        <div style={{ marginBottom: 8 }}>Hình thức cung ứng</div>
-        <Select
-          style={{ width: '100%' }}
-          value={method}
-          onChange={(v) => setMethod(v)}
-          options={[
-            { value: 'MUA_TRUC_TIEP', label: 'Mua trực tiếp' },
-            { value: 'DAU_THAU', label: 'Đấu thầu' },
-          ]}
-        />
+        <Form layout="vertical">
+          <Form.Item label="Hình thức cung ứng" required>
+            <Select
+              style={{ width: '100%' }}
+              value={method}
+              onChange={(v) => setMethod(v)}
+              options={[
+                { value: 'MUA_TRUC_TIEP', label: 'Đặt hàng / mua sắm trực tiếp' },
+                { value: 'DAU_THAU', label: 'Đấu thầu' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Ngày nhận hàng"
+            required={method === 'MUA_TRUC_TIEP'}
+          >
+            <DatePicker
+              style={{ width: '100%' }}
+              format="DD/MM/YYYY"
+              value={ngayNhan}
+              onChange={(v) => setNgayNhan(v)}
+              placeholder="dd/mm/yyyy"
+            />
+          </Form.Item>
+          <Form.Item label="Chứng từ (hóa đơn / biên bản)">
+            <ChonTep
+              maxBytes={20 * 1024 * 1024}
+              nhan="Tải chứng từ"
+              onCo={(t) => setTepChungTu((prev) => [...prev, t])}
+            />
+            {tepChungTu.length > 0 && (
+              <Space
+                direction="vertical"
+                size={4}
+                style={{ marginTop: 8, width: '100%' }}
+              >
+                {tepChungTu.map((t, i) => (
+                  <Space key={`${t.fileUrl}-${i}`}>
+                    <PaperClipOutlined />
+                    <a
+                      href={resolvePublicAssetUrl(t.fileUrl)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t.fileName || `File ${i + 1}`}
+                    </a>
+                    <Button
+                      type="link"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={() =>
+                        setTepChungTu((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        )
+                      }
+                    />
+                  </Space>
+                ))}
+              </Space>
+            )}
+          </Form.Item>
+        </Form>
       </Modal>
     </PageContainer>
   );

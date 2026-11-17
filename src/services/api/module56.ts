@@ -400,7 +400,14 @@ export function pkhMuaSam(
 
 export function csvcMuaSam(
   id: number,
-  body: { action: string; method?: string; reason?: string },
+  body: {
+    action: string;
+    method?: string;
+    reason?: string;
+    /** Ngày nhận hàng YYYY-MM-DD */
+    receivedAt?: string;
+    attachments?: TepModule56[];
+  },
 ) {
   return post<ApiResponse<PhieuMua>>(
     `/api/module56/procurements/${id}/csvc`,

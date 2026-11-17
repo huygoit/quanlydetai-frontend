@@ -96,6 +96,7 @@ export function TabMuaSam({
   const [rows, setRows] = useState<PhieuMua[]>([]);
   const [loi, setLoi] = useState('');
   const [mo, setMo] = useState(false);
+  const [chiXem, setChiXem] = useState(false);
   const [dang, setDang] = useState<PhieuMua | null>(null);
   const [items, setItems] = useState<DongHang[]>([dongTrong()]);
   const [editableKeys, setEditableKeys] = useState<React.Key[]>([]);
@@ -128,7 +129,8 @@ export function TabMuaSam({
     [items],
   );
 
-  const moForm = (row?: PhieuMua) => {
+  const moForm = (row?: PhieuMua, xem = false) => {
+    setChiXem(xem);
     setDang(row || null);
     const list: DongHang[] = row?.items?.length
       ? row.items.map((it, i) => ({
@@ -142,7 +144,8 @@ export function TabMuaSam({
         }))
       : [dongTrong()];
     setItems(list);
-    setEditableKeys(list.map((x) => x.id));
+    // Chỉ cho sửa dòng khi đang nhập / chỉnh nháp
+    setEditableKeys(xem ? [] : list.map((x) => x.id));
     setTep(row?.attachments || []);
     form.setFieldsValue({
       kind: row?.kind || 'VAT_TU',
@@ -373,28 +376,33 @@ export function TabMuaSam({
           {
             title: 'Thành tiền',
             dataIndex: 'totalAmount',
-            width: 130,
-            render: (v) => formatVnd(v),
+            width: 180,
+            render: (v, r) => (
+              <Space size={6} wrap>
+                <Text strong>{formatVnd(v)}</Text>
+                {r.overBudget ? (
+                  <Tag color="error" style={{ marginInlineEnd: 0 }}>
+                    Vượt dư
+                  </Tag>
+                ) : null}
+              </Space>
+            ),
           },
           {
             title: 'Trạng thái',
             dataIndex: 'status',
-            width: 150,
-            render: (v, r) => (
-              <Space>
-                <Tag>{NHAN_MS[v] || v}</Tag>
-                {r.overBudget && <Tag color="red">Vượt dư</Tag>}
-              </Space>
-            ),
+            width: 140,
+            render: (v) => <Tag>{NHAN_MS[v] || v}</Tag>,
           },
           {
             title: 'Thao tác',
             width: 280,
             render: (_, r) => (
               <Space wrap>
+                <a onClick={() => moForm(r, true)}>Xem</a>
                 {coQuyenLap &&
                   (r.status === 'MS_DRAFT' || r.status === 'MS_BS') && (
-                    <a onClick={() => moForm(r)}>Sửa</a>
+                    <a onClick={() => moForm(r, false)}>Sửa</a>
                   )}
                 {vaiTro.canManage && r.status === 'MS_CHO_PKH' && (
                   <>
@@ -534,8 +542,15 @@ export function TabMuaSam({
           <Space>
             <ShoppingCartOutlined style={{ color: '#1677ff' }} />
             <span>
-              {dang ? 'Sửa đề nghị mua sắm' : 'Đề nghị mua sắm'}
+              {chiXem
+                ? 'Chi tiết yêu cầu mua sắm'
+                : dang
+                  ? 'Sửa đề nghị mua sắm'
+                  : 'Đề nghị mua sắm'}
             </span>
+            {dang ? (
+              <Tag>{NHAN_MS[dang.status] || dang.status}</Tag>
+            ) : null}
           </Space>
         }
         placement="right"
@@ -572,23 +587,36 @@ export function TabMuaSam({
               </Text>
             </Text>
             <Space wrap>
-              <Button onClick={() => setMo(false)}>Hủy</Button>
-              <Button loading={saving} onClick={() => void luu(false)}>
-                Lưu nháp
-              </Button>
-              <Button
-                type="primary"
-                loading={saving}
-                icon={<ShoppingCartOutlined />}
-                onClick={() => void luu(true)}
-              >
-                Nộp đề nghị mua sắm
-              </Button>
+              {chiXem ? (
+                <Button type="primary" onClick={() => setMo(false)}>
+                  Đóng
+                </Button>
+              ) : (
+                <>
+                  <Button onClick={() => setMo(false)}>Hủy</Button>
+                  <Button loading={saving} onClick={() => void luu(false)}>
+                    Lưu nháp
+                  </Button>
+                  <Button
+                    type="primary"
+                    loading={saving}
+                    icon={<ShoppingCartOutlined />}
+                    onClick={() => void luu(true)}
+                  >
+                    Nộp đề nghị mua sắm
+                  </Button>
+                </>
+              )}
             </Space>
           </div>
         }
       >
-        <Form form={form} layout="vertical" requiredMark="optional">
+        <Form
+          form={form}
+          layout="vertical"
+          requiredMark="optional"
+          disabled={chiXem}
+        >
           <Title level={5} style={{ marginTop: 0 }}>
             1. Thông tin đề nghị
           </Title>
@@ -662,30 +690,37 @@ export function TabMuaSam({
             value={items}
             onChange={(list) => setItems([...(list || [])])}
             editableFormRef={bangHangRef}
-            recordCreatorProps={{
-              newRecordType: 'dataSource',
-              record: () => dongTrong(),
-              creatorButtonText: 'Thêm mặt hàng',
-              icon: <PlusOutlined />,
-            }}
+            recordCreatorProps={
+              chiXem
+                ? false
+                : {
+                    newRecordType: 'dataSource',
+                    record: () => dongTrong(),
+                    creatorButtonText: 'Thêm mặt hàng',
+                    icon: <PlusOutlined />,
+                  }
+            }
             columns={cotHang}
             editable={{
               type: 'multiple',
-              editableKeys,
+              editableKeys: chiXem ? [] : editableKeys,
               onChange: setEditableKeys,
               onValuesChange: (_record, list) => {
                 setItems([...(list || [])]);
               },
-              actionRender: (row) => [
-                <Button
-                  key="xoa"
-                  type="link"
-                  danger
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  onClick={() => xoaDong(String(row.id))}
-                />,
-              ],
+              actionRender: (row) =>
+                chiXem
+                  ? []
+                  : [
+                      <Button
+                        key="xoa"
+                        type="link"
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={() => xoaDong(String(row.id))}
+                      />,
+                    ],
             }}
             pagination={false}
             style={{ marginBottom: 8 }}

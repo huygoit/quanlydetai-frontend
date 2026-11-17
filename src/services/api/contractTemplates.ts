@@ -13,7 +13,7 @@ import {
 } from '../request';
 
 export type ContractTemplateStatus = 'ACTIVE' | 'INACTIVE';
-export type ContractTemplateType = 'HOP_DONG' | 'THANH_LY' | 'THONG_BAO' | 'QUYET_DINH';
+export type ContractTemplateType = 'HOP_DONG' | 'THANH_LY' | 'THONG_BAO' | 'QUYET_DINH' | 'THUYET_MINH';
 
 export interface DocTemplateTypeDef {
   code: ContractTemplateType;
@@ -83,6 +83,7 @@ export const CONTRACT_TEMPLATE_TYPE_OPTIONS: Array<{
   value: ContractTemplateType;
   label: string;
 }> = [
+  { value: 'THUYET_MINH', label: 'Thuyết minh nhiệm vụ' },
   { value: 'HOP_DONG', label: 'Hợp đồng' },
   { value: 'THANH_LY', label: 'Biên bản thanh lý hợp đồng' },
   { value: 'THONG_BAO', label: 'Thông báo' },

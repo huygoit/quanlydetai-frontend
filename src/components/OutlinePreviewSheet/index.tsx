@@ -167,7 +167,7 @@ const OutlinePreviewSheet: React.FC<Props> = ({
           ) : null}
           {o?.researchContent ? (
             <section className="ops-block">
-              <Title level={5}>Nội dung nghiên cứu</Title>
+              <Title level={5}>Nội dung và phương pháp thực hiện</Title>
               <div dangerouslySetInnerHTML={{ __html: o.researchContent }} />
             </section>
           ) : null}
