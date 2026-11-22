@@ -373,7 +373,8 @@ export function TabCuoiKy({
   outlineId,
   vaiTro,
   sanPham,
-  ketThuc,
+  // Giữ prop tương thích; không còn khóa nộp theo hạn 30 ngày.
+  ketThuc: _ketThuc,
   onXong,
   onDaMoLai,
   phan = 'all',
@@ -472,8 +473,6 @@ export function TabCuoiKy({
   if (!hs) return <Alert type="info" message="Đang tải hồ sơ đánh giá..." />;
 
   const st = hs.executionStatus;
-  const con30 = ketThuc ? dayjs(ketThuc).diff(dayjs(), 'day') <= 30 : false;
-  const duocNop = !!hs.dossier.notifiedAt || con30;
   const toi = hs.council.members.find((m) => m.userId === vaiTro.userId);
   const chenh = MUC_CHI.some((m) => {
     const spent = hs.finance.lines.find((l) => l.code === m.code)?.spent || 0;
@@ -606,15 +605,13 @@ export function TabCuoiKy({
           ) : null
         }
       >
-        {!duocNop && (
-          <Alert
-            style={{ marginBottom: 8 }}
-            type="warning"
-            showIcon
-            message="Chưa tới hạn nộp chính thức"
-            description="Còn hơn 30 ngày đến hạn kết thúc và PKH chưa gửi thông báo. CNNV vẫn lưu nháp được."
-          />
-        )}
+        <Alert
+          style={{ marginBottom: 8 }}
+          type="info"
+          showIcon
+          message="Có thể nộp hồ sơ bất cứ lúc nào"
+          description="Chủ nhiệm được chuẩn bị và nộp hồ sơ nghiệm thu trước hạn kết thúc nhiệm vụ."
+        />
         <Space direction="vertical" style={{ width: '100%' }} size={12}>
           <div>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>
@@ -710,11 +707,7 @@ export function TabCuoiKy({
             ['DANG_THUC_HIEN', 'DGCK_DRAFT', 'DGCK_BS', null].includes(st) && (
               <Space>
                 <Button onClick={() => nopHoSo(false)}>Lưu nháp</Button>
-                <Button
-                  type="primary"
-                  disabled={!duocNop}
-                  onClick={() => nopHoSo(true)}
-                >
+                <Button type="primary" onClick={() => nopHoSo(true)}>
                   Nộp hồ sơ nghiệm thu
                 </Button>
               </Space>
@@ -887,11 +880,13 @@ export function TabCuoiKy({
               </Button>
             </Space>
           )}
-          {toi?.role === 'PHAN_BIEN' && !hs.minutesLocked && (
-            <PhieuCham
-              outlineId={outlineId}
-              ten={products.map((p) => p.name)}
-              onXong={() => tai()}
+          {toi && !hs.minutesLocked && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="Phiếu đánh giá KQCK"
+              description="Vào menu «Phiếu đánh giá KQCK của tôi» → Nhập phiếu đánh giá để mở form độc lập."
             />
           )}
           {/* Nhận xét đã nộp của thành viên */}

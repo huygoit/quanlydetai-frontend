@@ -29,6 +29,7 @@ import {
   BankOutlined,
   FileDoneOutlined,
   FileProtectOutlined,
+  FileSearchOutlined,
   FileTextOutlined,
   FormOutlined,
   ScheduleOutlined,
@@ -37,11 +38,11 @@ import {
   TeamOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
-import { Alert, Card, Space, Spin, Steps, Tabs, Tag, Tooltip, Typography, message } from 'antd';
+import { Alert, Space, Spin, Tabs, Tag, Tooltip, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
+import { ModalThanhLapHoiDongDgck } from './ModalThanhLapHoiDongDgck';
 import { TabHopDong } from './TabHopDong';
-
-const { Text } = Typography;
+import { TabHoSoDeNghiKQNV } from './TabHoSoDeNghiKQNV';
 
 function nhanTab(icon: React.ReactNode, text: string, khoa?: string) {
   const noi = (
@@ -68,9 +69,10 @@ const TAB_KEYS = [
   'tiendo',
   'dieuchinh',
   'muasam',
+  'denghi', // Hồ sơ đề nghị đánh giá KQNV (BM-05.01)
   'nghiemthu', // US-06-01
   'hoidong', // US-06-02
-  'danhgia', // US-06-03
+  'danhgia', // US-06-03 biên bản
   'giaitrinh', // US-06-04
   'quyettoan', // US-06-05
   'thanhly', // US-06-06
@@ -105,32 +107,6 @@ function TabKhoa({
       style={{ marginTop: 8 }}
     />
   );
-}
-
-/** Bước Module 6 trên Steps — map executionStatus */
-function buocModule6(st?: string | null): number {
-  switch (st) {
-    case 'DGCK_DRAFT':
-    case 'DGCK_BS':
-    case 'DGCK_CHO_PKH':
-      return 0;
-    case 'DGCK_HOP_HD':
-      return 1;
-    case 'DGCK_CHINH_SUA':
-    case 'DGCK_KHONG_DAT':
-      return 3;
-    case 'DGCK_CHO_QUYET_TOAN':
-      return 4;
-    case 'DGCK_CHO_THANH_LY':
-      return 5;
-    case 'HOAN_THANH':
-      return 6;
-    case 'DGCK_DINH_CHI':
-      return 3;
-    default:
-      // DANG_THUC_HIEN / null → vẫn mở được nộp hồ sơ khi tới hạn
-      return 0;
-  }
 }
 
 function moHoiDong(st?: string | null) {
@@ -178,6 +154,9 @@ const ProjectContractDetailPage: React.FC = () => {
   const [flow, setFlow] = useState<ProjectContractFlow | null>(null);
   const [outline, setOutline] = useState<ProjectOutline | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
+  const [moModalHd, setMoModalHd] = useState(false);
+  /** Sau PKH duyệt đủ, ép modal nhận DGCK_HOP_HD trước khi outline refresh xong */
+  const [epTrangThaiHd, setEpTrangThaiHd] = useState(false);
 
   useEffect(() => {
     setTab(tabTuUrl(search));
@@ -322,40 +301,6 @@ const ProjectContractDetailPage: React.FC = () => {
         </div>
       ) : (
         <>
-          {daMoTrienKhai && (
-            <Card
-              size="small"
-              bordered={false}
-              style={{
-                marginBottom: 16,
-                borderRadius: 12,
-                background:
-                  'linear-gradient(135deg, #f8fbff 0%, #f3f7fc 55%, #ffffff 100%)',
-              }}
-              bodyStyle={{ padding: '16px 20px 8px' }}
-            >
-              <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                <Text strong>Luồng nghiệm thu — quyết toán — thanh lý</Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  US-06-01 → 06-06 · từng tab mở đúng bước, làm lần lượt cho rõ ràng.
-                </Text>
-                <Steps
-                  size="small"
-                  current={buocModule6(stTrienKhai)}
-                  style={{ marginTop: 12 }}
-                  items={[
-                    { title: 'Hồ sơ', description: 'US-06-01' },
-                    { title: 'Hội đồng', description: 'US-06-02' },
-                    { title: 'Đánh giá', description: 'US-06-03' },
-                    { title: 'Giải trình', description: 'US-06-04' },
-                    { title: 'Quyết toán', description: 'US-06-05' },
-                    { title: 'Thanh lý', description: 'US-06-06' },
-                  ]}
-                />
-              </Space>
-            </Card>
-          )}
-
           <Tabs
             destroyInactiveTabPane
             activeKey={tabHien}
@@ -370,6 +315,13 @@ const ProjectContractDetailPage: React.FC = () => {
                     onChanged={(d) => {
                       setFlow(d);
                       void taiOutline(d.project_outline_id);
+                    }}
+                    hienThanhLapHoiDong={
+                      daMoTrienKhai && !!vaiTro.canManage
+                    }
+                    onThanhLapHoiDong={() => {
+                      setEpTrangThaiHd(false);
+                      setMoModalHd(true);
                     }}
                   />
                 ),
@@ -455,13 +407,43 @@ const ProjectContractDetailPage: React.FC = () => {
                 ),
               },
               {
+                key: 'denghi',
+                label: nhanTab(
+                  <FileSearchOutlined />,
+                  'Hồ sơ đề nghị đánh giá KQNV',
+                ),
+                children: (
+                  <TabKhoa
+                    mo={daMoTrienKhai}
+                    tieuDe="Mở sau khi hợp đồng đã ký"
+                    moTa="CNNV chuẩn bị đơn BM-05.01, báo cáo BM-05.02 và minh chứng kết quả dự kiến bất cứ lúc nào."
+                  >
+                    {outlineId > 0 ? (
+                      <TabHoSoDeNghiKQNV
+                        outlineId={outlineId}
+                        outline={outline}
+                        vaiTro={vaiTro}
+                        onXong={(t) => {
+                          if (t) message.success(t);
+                          void taiOutline(outlineId);
+                        }}
+                        onThanhLapHoiDong={() => {
+                          setEpTrangThaiHd(true);
+                          setMoModalHd(true);
+                        }}
+                      />
+                    ) : null}
+                  </TabKhoa>
+                ),
+              },
+              {
                 key: 'nghiemthu',
                 label: nhanTab(<SolutionOutlined />, 'Hồ sơ nghiệm thu'),
                 children: (
                   <TabKhoa
                     mo={daMoTrienKhai}
                     tieuDe="Mở sau khi hợp đồng đã ký"
-                    moTa="US-06-01: CNNV nộp BM.10/BM.11 (báo cáo, sản phẩm, kết quả)."
+                    moTa="US-06-01: CNNV chuẩn bị / nộp BM.10/BM.11 bất cứ lúc nào (có thể trước hạn kết thúc)."
                   >
                     {panelCuoi('hoso')}
                   </TabKhoa>
@@ -482,7 +464,7 @@ const ProjectContractDetailPage: React.FC = () => {
               },
               {
                 key: 'danhgia',
-                label: nhanTab(<AuditOutlined />, 'Đánh giá kết quả'),
+                label: nhanTab(<AuditOutlined />, 'Biên bản đánh giá'),
                 children: (
                   <TabKhoa
                     mo={daMoTrienKhai && moDanhGia(stTrienKhai)}
@@ -534,6 +516,25 @@ const ProjectContractDetailPage: React.FC = () => {
               },
             ]}
           />
+
+          {outlineId > 0 && (
+            <ModalThanhLapHoiDongDgck
+              open={moModalHd}
+              outlineId={outlineId}
+              executionStatus={
+                epTrangThaiHd ? 'DGCK_HOP_HD' : stTrienKhai
+              }
+              onClose={() => {
+                setMoModalHd(false);
+                setEpTrangThaiHd(false);
+              }}
+              onDone={() => {
+                setEpTrangThaiHd(false);
+                void taiOutline(outlineId);
+                doiTab('hoidong');
+              }}
+            />
+          )}
         </>
       )}
     </PageContainer>

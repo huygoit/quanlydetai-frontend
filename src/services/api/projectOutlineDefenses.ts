@@ -159,6 +159,30 @@ export async function getDefenseAvailableMembers(
   return get(`/api/project-outline-defenses/${sessionId}/available-members`, { keyword });
 }
 
+/** Tìm ứng viên HĐ khi tạo phiên (họ tên / email đăng nhập / work email) */
+export async function searchDefenseCouncilCandidates(
+  keyword: string,
+  outlineIds: number[] = [],
+): Promise<
+  ApiResponse<
+    Array<{
+      scientificProfileId: number;
+      userId: number | null;
+      memberName: string;
+      memberEmail?: string | null;
+      unit?: string | null;
+      isExternal: boolean;
+      conflict?: boolean;
+      conflictReason?: string | null;
+    }>
+  >
+> {
+  return get('/api/project-outline-defenses/council-candidates', {
+    keyword,
+    outlineIds: outlineIds.join(','),
+  });
+}
+
 export async function createDefenseSession(data: {
   projectOutlineIds: number[];
   title?: string | null;

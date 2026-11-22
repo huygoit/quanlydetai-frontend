@@ -1,8 +1,26 @@
 .rich-text-html-field {
   border: 1px solid #d9d9d9;
   border-radius: 6px;
-  overflow: hidden;
+  /* Không overflow:hidden — sẽ cắt marker list (::before / gạch ngang) */
+  overflow: visible;
   background: #fff;
+}
+
+.rich-text-html-field--readonly {
+  background: #fafafa;
+}
+
+/* Form Pro/antd disabled hay làm mờ chữ — giữ màu đầy đủ khi chỉ xem */
+.rich-text-html-field--readonly .rich-text-html-field__body,
+.rich-text-html-field--readonly .rich-text-html-field__body * {
+  color: rgba(0, 0, 0, 0.88);
+  -webkit-text-fill-color: rgba(0, 0, 0, 0.88);
+  opacity: 1 !important;
+}
+
+.rich-text-html-field--readonly .rich-text-html-field__body a {
+  color: #1677ff !important;
+  -webkit-text-fill-color: #1677ff !important;
 }
 
 .rich-text-html-field__toolbar {
@@ -16,6 +34,27 @@
   outline: none;
   line-height: 1.6;
   word-break: break-word;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+/* Ép hiện định dạng — tránh CSS reset / form disabled làm mất đậm, nghiêng, list */
+.rich-text-html-field__body strong,
+.rich-text-html-field__body b {
+  font-weight: 700 !important;
+}
+
+.rich-text-html-field__body em,
+.rich-text-html-field__body i {
+  font-style: italic !important;
+}
+
+.rich-text-html-field__body u {
+  text-decoration: underline !important;
+}
+
+.rich-text-html-field__body a {
+  color: #1677ff;
+  text-decoration: underline;
 }
 
 /* Chặn khối “hình chữ nhật” thừa từ paste / thẻ div-p của trình duyệt */
@@ -47,4 +86,67 @@
   content: attr(data-placeholder);
   color: #bfbfbf;
   pointer-events: none;
+}
+
+/* Danh sách số / chấm tròn — khôi phục marker (antd/reset hay làm mất) */
+.rich-text-html-field__body ul:not(.rt-list-dash):not(.rt-list-plus) {
+  list-style: disc !important;
+  padding-left: 1.5em;
+  margin: 0 0 0.4em;
+}
+
+.rich-text-html-field__body ol {
+  list-style: decimal !important;
+  padding-left: 1.5em;
+  margin: 0 0 0.4em;
+}
+
+.rich-text-html-field__body li {
+  display: list-item !important;
+}
+
+/* Danh sách tùy chỉnh — marker gạch / cộng */
+.rich-text-html-field__body ul.rt-list-dash,
+.rich-text-html-field__body ul.rt-list-plus {
+  list-style: none !important;
+  padding-left: 1.35em;
+  margin: 0 0 0.4em;
+}
+
+.rich-text-html-field__body ul.rt-list-dash > li,
+.rich-text-html-field__body ul.rt-list-plus > li {
+  position: relative;
+  display: list-item !important;
+  list-style: none !important;
+}
+
+.rich-text-html-field__body ul.rt-list-dash > li::before {
+  content: '-';
+  position: absolute;
+  left: -1.15em;
+  width: 1em;
+  text-align: center;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.rich-text-html-field__body ul.rt-list-plus > li::before {
+  content: '+';
+  position: absolute;
+  left: -1.15em;
+  width: 1em;
+  text-align: center;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+/* Chế độ xem đã gắn marker chữ thật — tắt ::before tránh nhân đôi */
+.rich-text-html-field--readonly ul.rt-list-dash > li::before,
+.rich-text-html-field--readonly ul.rt-list-plus > li::before {
+  content: none;
+}
+
+.rich-text-html-field__body .rt-li-marker {
+  font-weight: 700;
+  margin-right: 0.15em;
 }

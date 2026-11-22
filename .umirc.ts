@@ -259,6 +259,18 @@ export default defineConfig({
           component: '@/pages/projects/defenses/my-tasks',
         },
         {
+          path: '/projects/final-eval/my',
+          name: 'Phiếu đánh giá KQCK của tôi',
+          icon: 'AuditOutlined',
+          component: '@/pages/projects/final-eval/my',
+        },
+        {
+          path: '/projects/final-eval/:outlineId',
+          name: 'Nhập phiếu đánh giá KQCK',
+          component: '@/pages/projects/final-eval/form',
+          hideInMenu: true,
+        },
+        {
           path: '/projects/defenses/bm05a/:sheetId',
           name: 'Nhập BM.05a',
           component: '@/pages/projects/defenses/bm05a',

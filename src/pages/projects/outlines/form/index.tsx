@@ -5,6 +5,7 @@ import AuthorsEditor from '@/components/AuthorsEditor';
 import ProposalAttachmentUpload from '@/components/ProposalAttachmentUpload';
 import RichTextHtmlField, {
   cleanRichHtml,
+  RichTextFormItem,
 } from '@/components/RichTextHtmlField';
 import {
   getAuthorPrincipalInfo,
@@ -22,6 +23,7 @@ import {
   getOutline,
   getOutlineRevisionDiff,
   listEligibleProposalsForOutline,
+  reopenOutlineDraft,
   saveOutlineDraft,
   submitOutline,
   submitOutlineRevision,
@@ -49,6 +51,7 @@ import {
   getProjectProcessTypeOptions,
   type ProjectProcessTypeOption,
 } from '@/services/api/projectProcessTypes';
+import { hienThiLoi } from '@/utils/apiErrorMessage';
 import { formatDate } from '@/utils/datetime';
 import { formatVnd, vndInputNumberProps } from '@/utils/format';
 import {
@@ -356,7 +359,7 @@ const OutlineFormPage: React.FC = () => {
         return next.map((m, i) => ({ ...m, authorOrder: i + 1 }));
       });
     } catch (e: any) {
-      message.error(e?.message || 'Không tải được thông tin chủ nhiệm');
+      hienThiLoi(e, 'Không tải được thông tin chủ nhiệm', message.error);
     } finally {
       setPrincipalLoading(false);
     }
@@ -541,7 +544,7 @@ const OutlineFormPage: React.FC = () => {
       });
       setFormReadyKey((k) => k + 1);
     } catch (e: any) {
-      message.error(e?.data?.message || e?.message || 'Tải thất bại');
+      hienThiLoi(e, 'Tải thất bại', message.error);
     } finally {
       setLoading(false);
     }
@@ -665,7 +668,7 @@ const OutlineFormPage: React.FC = () => {
       }
       return true;
     } catch (e: any) {
-      message.error(e?.data?.message || e?.message || 'Lưu thất bại');
+      hienThiLoi(e, 'Lưu thất bại', message.error);
       return false;
     } finally {
       setSaving(false);
@@ -687,7 +690,7 @@ const OutlineFormPage: React.FC = () => {
       );
       message.success('Đã xuất file thuyết minh');
     } catch (e: any) {
-      message.error(e?.message || 'Xuất thuyết minh thất bại');
+      hienThiLoi(e, 'Xuất thuyết minh thất bại', message.error);
     } finally {
       setExporting(false);
     }
@@ -710,10 +713,7 @@ const OutlineFormPage: React.FC = () => {
           setOutline(res.data || outline);
           await load();
         } catch (e: any) {
-          const errs = e?.data?.errors as string[] | undefined;
-          message.error(
-            errs?.[0] || e?.data?.message || e?.message || 'Nộp thất bại',
-          );
+          hienThiLoi(e, 'Nộp thất bại', message.error);
           throw e;
         } finally {
           setSaving(false);
@@ -746,7 +746,7 @@ const OutlineFormPage: React.FC = () => {
           message.success(res.message || 'Đã nộp bản hoàn thiện cho PKH');
           await load();
         } catch (e: any) {
-          message.error(e?.data?.message || e?.message || 'Nộp thất bại');
+          hienThiLoi(e, 'Nộp thất bại', message.error);
           throw e;
         } finally {
           setSaving(false);
@@ -764,7 +764,7 @@ const OutlineFormPage: React.FC = () => {
       setDiffNote(res.data?.diffLimitNote || '');
       setDiffOpen(true);
     } catch (e: any) {
-      message.error(e?.data?.message || e?.message || 'Không so sánh được');
+      hienThiLoi(e, 'Không so sánh được', message.error);
     }
   };
 
@@ -805,7 +805,7 @@ const OutlineFormPage: React.FC = () => {
           message.success('Đã gia hạn');
           await load();
         } catch (e: any) {
-          message.error(e?.data?.message || e?.message || 'Gia hạn thất bại');
+          hienThiLoi(e, 'Gia hạn thất bại', message.error);
           return Promise.reject();
         }
       },
@@ -871,14 +871,41 @@ const OutlineFormPage: React.FC = () => {
           message.success(res.message || 'Đã rút lại');
           await load();
         } catch (e: any) {
-          message.error(e?.data?.message || e?.message || 'Rút lại thất bại');
+          hienThiLoi(e, 'Rút lại thất bại', message.error);
           throw e;
         }
       },
     });
   };
 
-  const budgetDiff = Math.abs(totalDetail - tongTheoChuThe);
+  /** Admin mở lại về nháp từ mọi trạng thái (kể cả đã duyệt). */
+  const moLaiNhapAdmin = () => {
+    if (!outline || outline.status === 'THUYETMINH_DRAFT') return;
+    const coHd = !!outline.activeContractId;
+    Modal.confirm({
+      title: 'Admin — mở lại về nháp?',
+      content: coHd
+        ? `Thuyết minh đang ${outline.status} và đã gắn hợp đồng (#${outline.activeContractId}). Mở lại nháp chỉ đổi trạng thái TM — không hủy hợp đồng/Module 5.`
+        : `Thuyết minh đang ${outline.status}. Sau khi mở lại nháp, chủ nhiệm có thể sửa và nộp lại.`,
+      okText: 'Mở lại nháp',
+      okButtonProps: { danger: true },
+      cancelText: 'Hủy',
+      onOk: async () => {
+        try {
+          const res = await reopenOutlineDraft(outline.id);
+          message.success(res.message || 'Đã mở lại về nháp');
+          await load();
+        } catch (e: any) {
+          hienThiLoi(e, 'Mở lại nháp thất bại', message.error);
+          throw e;
+        }
+      },
+    });
+  };
+
+  /** Ma trận vượt đề xuất → lỗi; nhỏ hơn thì OK */
+  const budgetVuotDeXuat = totalDetail > tongTheoChuThe;
+  const budgetDiff = totalDetail - tongTheoChuThe;
 
   return (
     <PageContainer
@@ -1816,47 +1843,83 @@ const OutlineFormPage: React.FC = () => {
                                   }}
                                   bodyStyle={{ paddingTop: 16 }}
                                 >
-                                  <Form.Item
-                                    name={[
-                                      'hostOrganization',
-                                      'experienceHtml',
-                                    ]}
-                                    label="Kinh nghiệm, năng lực, cơ sở vật chất, công nghệ"
-                                    extra={
-                                      <Typography.Text type="secondary">
-                                        Nêu tóm tắt các công trình, dự án đã thực
-                                        hiện liên quan đến vấn đề nghiên cứu
-                                        (không quá ½ trang A4).
-                                      </Typography.Text>
-                                    }
-                                    style={{ marginBottom: 20 }}
-                                  >
-                                    <RichTextHtmlField
-                                      disabled={!editable}
-                                      minHeight={160}
-                                      placeholder="Mô tả năng lực, CSVC, công nghệ và các dự án liên quan…"
-                                    />
-                                  </Form.Item>
-                                  <Form.Item
-                                    name={[
-                                      'hostOrganization',
-                                      'teamCapacityHtml',
-                                    ]}
-                                    label="Đội ngũ nhân lực thực hiện nhiệm vụ"
-                                    extra={
-                                      <Typography.Text type="secondary">
-                                        Trình bày năng lực, kinh nghiệm của đội
-                                        ngũ chính (không quá 01 trang A4).
-                                      </Typography.Text>
-                                    }
-                                    style={{ marginBottom: 0 }}
-                                  >
-                                    <RichTextHtmlField
-                                      disabled={!editable}
-                                      minHeight={200}
-                                      placeholder="Mô tả năng lực, kinh nghiệm đội ngũ chính thực hiện nhiệm vụ…"
-                                    />
-                                  </Form.Item>
+                                  {editable ? (
+                                    <Form.Item
+                                      name={[
+                                        'hostOrganization',
+                                        'experienceHtml',
+                                      ]}
+                                      label="Kinh nghiệm, năng lực, cơ sở vật chất, công nghệ"
+                                      extra={
+                                        <Typography.Text type="secondary">
+                                          Nêu tóm tắt các công trình, dự án đã
+                                          thực hiện liên quan đến vấn đề nghiên
+                                          cứu (không quá ½ trang A4).
+                                        </Typography.Text>
+                                      }
+                                      style={{ marginBottom: 20 }}
+                                    >
+                                      <RichTextHtmlField
+                                        minHeight={160}
+                                        placeholder="Mô tả năng lực, CSVC, công nghệ và các dự án liên quan…"
+                                      />
+                                    </Form.Item>
+                                  ) : (
+                                    <Form.Item
+                                      label="Kinh nghiệm, năng lực, cơ sở vật chất, công nghệ"
+                                      style={{ marginBottom: 20 }}
+                                    >
+                                      <RichTextHtmlField
+                                        disabled
+                                        minHeight={160}
+                                        value={
+                                          (
+                                            formInitial?.hostOrganization as {
+                                              experienceHtml?: string;
+                                            }
+                                          )?.experienceHtml || ''
+                                        }
+                                      />
+                                    </Form.Item>
+                                  )}
+                                  {editable ? (
+                                    <Form.Item
+                                      name={[
+                                        'hostOrganization',
+                                        'teamCapacityHtml',
+                                      ]}
+                                      label="Đội ngũ nhân lực thực hiện nhiệm vụ"
+                                      extra={
+                                        <Typography.Text type="secondary">
+                                          Trình bày năng lực, kinh nghiệm của đội
+                                          ngũ chính (không quá 01 trang A4).
+                                        </Typography.Text>
+                                      }
+                                      style={{ marginBottom: 0 }}
+                                    >
+                                      <RichTextHtmlField
+                                        minHeight={200}
+                                        placeholder="Mô tả năng lực, kinh nghiệm đội ngũ chính thực hiện nhiệm vụ…"
+                                      />
+                                    </Form.Item>
+                                  ) : (
+                                    <Form.Item
+                                      label="Đội ngũ nhân lực thực hiện nhiệm vụ"
+                                      style={{ marginBottom: 0 }}
+                                    >
+                                      <RichTextHtmlField
+                                        disabled
+                                        minHeight={200}
+                                        value={
+                                          (
+                                            formInitial?.hostOrganization as {
+                                              teamCapacityHtml?: string;
+                                            }
+                                          )?.teamCapacityHtml || ''
+                                        }
+                                      />
+                                    </Form.Item>
+                                  )}
                                 </Card>
                               </Space>
                             ),
@@ -2055,27 +2118,30 @@ const OutlineFormPage: React.FC = () => {
                   forceRender: true,
                   children: (
                     <div style={{ paddingTop: 8 }}>
-              <Form.Item
+              <RichTextFormItem
                 name="urgency"
                 label="Tính cấp thiết"
                 rules={[{ required: true }]}
-              >
-                <RichTextHtmlField disabled={!editable} minHeight={140} />
-              </Form.Item>
-              <Form.Item
+                editable={editable}
+                minHeight={140}
+                viewValue={formInitial?.urgency as string}
+              />
+              <RichTextFormItem
                 name="detailedObjectives"
                 label="Mục tiêu"
                 rules={[{ required: true }]}
-              >
-                <RichTextHtmlField disabled={!editable} minHeight={140} />
-              </Form.Item>
-              <Form.Item
+                editable={editable}
+                minHeight={140}
+                viewValue={formInitial?.detailedObjectives as string}
+              />
+              <RichTextFormItem
                 name="researchContent"
                 label="Nội dung và phương pháp thực hiện"
                 rules={[{ required: true }]}
-              >
-                <RichTextHtmlField disabled={!editable} minHeight={180} />
-              </Form.Item>
+                editable={editable}
+                minHeight={180}
+                viewValue={formInitial?.researchContent as string}
+              />
               {/* Tạm ẩn phương pháp nghiên cứu */}
               {/*
               <Form.Item name="methodology" label="Phương pháp nghiên cứu">
@@ -2240,9 +2306,12 @@ const OutlineFormPage: React.FC = () => {
                           Tổng ma trận: {formatVnd(totalDetail)}
                         </Tag>
                         <Tag>Đề xuất: {formatVnd(tongTheoChuThe)}</Tag>
-                        <Text type={budgetDiff > 1000 ? 'danger' : 'secondary'}>
-                          Chênh lệch: {formatVnd(budgetDiff)} (cho phép ≤{' '}
-                          {formatVnd(1000)})
+                        <Text type={budgetVuotDeXuat ? 'danger' : 'secondary'}>
+                          {budgetVuotDeXuat
+                            ? `Vượt đề xuất ${formatVnd(budgetDiff)} — cần chỉnh cho ≤ đề xuất`
+                            : budgetDiff < 0
+                              ? `Thấp hơn đề xuất ${formatVnd(-budgetDiff)}`
+                              : 'Khớp đề xuất'}
                         </Text>
                       </div>
                       <BudgetMatrixTable
@@ -2535,6 +2604,13 @@ const OutlineFormPage: React.FC = () => {
             Rút lại
           </Button>
         )}
+        {(access.isAdminSystemAccount || access.isSuperAdmin) &&
+          outline &&
+          outline.status !== 'THUYETMINH_DRAFT' && (
+            <Button danger onClick={() => moLaiNhapAdmin()}>
+              Admin: mở lại nháp
+            </Button>
+          )}
       </FooterToolbar>
     </PageContainer>
   );

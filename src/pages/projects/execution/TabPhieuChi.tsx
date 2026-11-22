@@ -499,7 +499,11 @@ export function TabPhieuChi({
             render: (v, r) => (
               <Space>
                 <Tag>{NHAN_YCKT[v] || v}</Tag>
-                {r.overBudget && <Tag color="red">Vượt dư</Tag>}
+                {r.overBudget && (
+                  <Tag color="red" title="Số tiền vượt dư toán còn lại của khoản chi này">
+                    Vượt dư toán
+                  </Tag>
+                )}
               </Space>
             ),
           },

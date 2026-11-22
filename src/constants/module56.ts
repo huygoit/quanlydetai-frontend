@@ -6,7 +6,7 @@ import {
   nhanKhoanChi,
 } from '@/constants/khoanChi';
 
-/** Alias 14 khoản chi — dùng chung tạm ứng / sổ / mua sắm. */
+/** Alias khoản chi (chuẩn TM) — dùng chung tạm ứng / sổ / mua sắm. */
 export const MUC_CHI = KHOAN_CHI.map((k) => ({
   code: k.code,
   label: k.label,

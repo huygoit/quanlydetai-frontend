@@ -542,6 +542,13 @@ export async function withdrawOutline(
   return post(`/api/project-outlines/${id}/withdraw`);
 }
 
+/** Admin mở lại thuyết minh về trạng thái nháp */
+export async function reopenOutlineDraft(
+  id: number,
+): Promise<ApiResponse<ProjectOutline>> {
+  return post(`/api/project-outlines/${id}/reopen-draft`);
+}
+
 export async function getOutlineRevisionContext(
   id: number,
 ): Promise<ApiResponse<OutlineRevisionContext>> {

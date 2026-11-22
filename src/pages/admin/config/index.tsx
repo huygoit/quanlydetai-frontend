@@ -469,7 +469,11 @@ const AdminContractTemplatesPage: React.FC = () => {
                       ? 'TB'
                       : activeType === 'QUYET_DINH'
                         ? 'QD'
-                        : '',
+                        : activeType === 'DON_DE_NGHI'
+                          ? 'BM0501'
+                          : activeType === 'BAO_CAO_TONG_KET'
+                            ? 'BM0502'
+                            : '',
                 code:
                   activeType === 'HOP_DONG'
                     ? 'BM06_'
@@ -477,7 +481,11 @@ const AdminContractTemplatesPage: React.FC = () => {
                       ? 'TB_'
                       : activeType === 'QUYET_DINH'
                         ? 'QD_'
-                        : 'BBTL_',
+                        : activeType === 'DON_DE_NGHI'
+                          ? 'BM0501_'
+                          : activeType === 'BAO_CAO_TONG_KET'
+                            ? 'BM0502_'
+                            : 'BBTL_',
                 chuc_danh_nguoi_de_nghi: 'Trưởng phòng Khoa học và Hợp tác quốc tế',
                 don_vi_dau_moi: 'Phòng Khoa học và Hợp tác quốc tế',
                 don_vi_luu_ho_so: 'PKH&HTQT',

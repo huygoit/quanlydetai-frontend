@@ -1,7 +1,7 @@
 /**
  * API Module 5–6: sổ mục chi, tạm ứng, mua sắm, tiến độ, điều chỉnh, đánh giá cuối kỳ.
  */
-import { ApiResponse, del, get, post, put } from '../request';
+import { API_BASE_URL, ApiResponse, del, get, getToken, post, put } from '../request';
 
 export type TepModule56 = {
   fileName: string;
@@ -226,6 +226,8 @@ export type HoSoCuoiKy = {
   code: string;
   title: string;
   executionStatus: string | null;
+  /** Kết quả dự kiến từ TM — phục vụ phiếu đánh giá KQCK */
+  expectedResults?: import('./projectOutlines').ProjectOutline['expectedResults'];
   overdueExplanation: boolean;
   dossier: {
     notifiedAt: string | null;
@@ -551,6 +553,29 @@ export function moLaiBienBanCuoiKy(outlineId: number, reason: string) {
   return post(`/api/module56/final/${outlineId}/minutes-reopen`, { reason });
 }
 
+/** Phiếu đánh giá KQCK của tôi (thành viên HĐ) */
+export type PhieuDgckCuaToi = {
+  outlineId: number;
+  code: string;
+  title: string;
+  ownerName?: string | null;
+  executionStatus: string | null;
+  meetingAt: string | null;
+  location: string | null;
+  role: string | null;
+  roleLabel: string | null;
+  sheetSubmittedAt: string | null;
+  minutesLocked: boolean;
+  contractId: number | null;
+  formPath: string;
+};
+
+export function danhSachPhieuDgckCuaToi() {
+  return get<ApiResponse<PhieuDgckCuaToi[]>>(
+    '/api/module56/final/my-eval-sheets',
+  );
+}
+
 export function hoSoCuoiKy(outlineId: number) {
   return get<ApiResponse<HoSoCuoiKy>>(`/api/module56/final/${outlineId}`);
 }
@@ -565,6 +590,65 @@ export function luuHoSoCuoiKy(
 ) {
   return put<ApiResponse<HoSoCuoiKy>>(
     `/api/module56/final/${outlineId}/dossier`,
+    body,
+  );
+}
+
+async function taiFileModule56(
+  path: string,
+  fileName: string,
+  loiMacDinh: string,
+): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) {
+    const json = await res.json().catch(() => null);
+    throw new Error(json?.message || loiMacDinh);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Tải đơn đề nghị đánh giá KQNV (BM-05.01) đã đổ biến */
+export async function taiDonDeNghiDanhGia(
+  outlineId: number,
+  fileName?: string,
+): Promise<void> {
+  return taiFileModule56(
+    `/api/module56/final/${outlineId}/evaluation-request-docx`,
+    fileName || `BM-05.01_Don_de_nghi_${outlineId}.docx`,
+    'Tải đơn đề nghị thất bại',
+  );
+}
+
+/** Tải báo cáo tổng kết (BM-05.02) đã đổ biến */
+export async function taiBaoCaoTongKet(
+  outlineId: number,
+  fileName?: string,
+): Promise<void> {
+  return taiFileModule56(
+    `/api/module56/final/${outlineId}/bao-cao-tong-ket-docx`,
+    fileName || `BM-05.02_Bao_cao_tong_ket_${outlineId}.docx`,
+    'Tải báo cáo tổng kết thất bại',
+  );
+}
+
+/** Lưu / nộp hồ sơ đề nghị đánh giá KQNV */
+export function luuHoSoDeNghiDanhGia(
+  outlineId: number,
+  body: Record<string, unknown>,
+) {
+  return put<ApiResponse<HoSoCuoiKy>>(
+    `/api/module56/final/${outlineId}/evaluation-request`,
     body,
   );
 }

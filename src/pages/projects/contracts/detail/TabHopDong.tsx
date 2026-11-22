@@ -136,9 +136,14 @@ function formatThoiGianRange(range?: [Dayjs, Dayjs] | null): string {
 export function TabHopDong({
   contractId,
   onChanged,
+  hienThanhLapHoiDong,
+  onThanhLapHoiDong,
 }: {
   contractId: number;
   onChanged?: (data: ProjectContractFlow) => void;
+  /** Hiện nút thành lập HĐ đánh giá cuối kỳ (sau khi HĐ đã mở triển khai) */
+  hienThanhLapHoiDong?: boolean;
+  onThanhLapHoiDong?: () => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -322,11 +327,15 @@ export function TabHopDong({
       )}
       <Button
         icon={<FileWordOutlined style={{ color: '#2b579a' }} />}
-        onClick={() =>
-          downloadProjectContract(data.id, data.file_name).catch((e) =>
+        onClick={() => {
+          const ten =
+            data.file_name?.replace(/\.docx$/i, '') || 'hop-dong'
+          // Thêm version vào tên file để tránh mở nhầm bản cũ trong thư mục Tải về
+          const tenTai = `${ten}_v${data.version || 1}.docx`
+          downloadProjectContract(data.id, tenTai).catch((e) =>
             thongBaoLoi(e, 'Tải thất bại'),
           )
-        }
+        }}
       >
         Tải hợp đồng
       </Button>
@@ -335,6 +344,16 @@ export function TabHopDong({
 
   const footerPhai = (
     <Space wrap size={[8, 8]}>
+      {hienThanhLapHoiDong && (
+        <Button
+          type="primary"
+          ghost
+          icon={<TeamOutlined />}
+          onClick={() => onThanhLapHoiDong?.()}
+        >
+          Thành lập hội đồng đánh giá cuối kỳ
+        </Button>
+      )}
       {canEdit && (
         <Button
           type="primary"

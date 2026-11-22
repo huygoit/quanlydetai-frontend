@@ -28,6 +28,7 @@ import {
   listEligibleForDefense,
   listDefenseSessions,
   createDefenseSession,
+  searchDefenseCouncilCandidates,
   DEFENSE_STATUS_MAP,
   DEFENSE_ROLE_OPTIONS,
   type DefenseSession,
@@ -35,7 +36,6 @@ import {
   type DefenseMeetingMode,
   type DefenseCouncilRole,
 } from '@/services/api/projectOutlineDefenses';
-import { getAvailableOutlineReviewers } from '@/services/api/projectOutlineReviews';
 
 type TabKey = 'eligible' | 'sessions';
 
@@ -50,7 +50,6 @@ const DefensesPage: React.FC = () => {
   const [members, setMembers] = useState<DefenseMember[]>([]);
   const [searchOpts, setSearchOpts] = useState<{ value: string; label: string; raw: any }[]>([]);
   const [form] = Form.useForm();
-  const [extForm] = Form.useForm();
 
   if (!access.canManageOutlineDefense) {
     return (
@@ -76,17 +75,21 @@ const DefensesPage: React.FC = () => {
   };
 
   const searchMembers = async (keyword: string) => {
-    const firstId = selectedIds[0];
-    if (!firstId || !keyword.trim()) {
+    if (!keyword.trim() || keyword.trim().length < 2) {
       setSearchOpts([]);
       return;
     }
     try {
-      const res = await getAvailableOutlineReviewers(firstId, keyword.trim());
+      const res = await searchDefenseCouncilCandidates(
+        keyword.trim(),
+        selectedIds,
+      );
       setSearchOpts(
         (res.data || []).map((r) => ({
           value: String(r.scientificProfileId),
-          label: `${r.reviewerName}${r.unit ? ` — ${r.unit}` : ''}`,
+          label: `${r.memberName}${r.memberEmail ? ` <${r.memberEmail}>` : ''}${
+            r.unit ? ` — ${r.unit}` : ''
+          }${r.conflict ? ' — ⚠ xung đột lợi ích' : ''}`,
           raw: r,
         })),
       );
@@ -96,6 +99,13 @@ const DefensesPage: React.FC = () => {
   };
 
   const addMember = (raw: any, role: DefenseCouncilRole = 'UY_VIEN') => {
+    if (raw?.conflict) {
+      message.error(
+        raw.conflictReason ||
+          'Người này xung đột lợi ích với thuyết minh đã chọn — không thêm vào HĐ.',
+      );
+      return;
+    }
     if (members.some((m) => m.scientificProfileId === raw.scientificProfileId)) {
       message.warning('Đã thêm người này');
       return;
@@ -103,35 +113,15 @@ const DefensesPage: React.FC = () => {
     setMembers((prev) => [
       ...prev,
       {
-        userId: raw.reviewerUserId ?? raw.userId ?? null,
+        userId: raw.userId ?? raw.reviewerUserId ?? null,
         scientificProfileId: raw.scientificProfileId,
-        memberName: raw.reviewerName || raw.memberName,
-        memberEmail: raw.reviewerEmail || raw.memberEmail,
+        memberName: raw.memberName || raw.reviewerName,
+        memberEmail: raw.memberEmail || raw.reviewerEmail,
         roleInCouncil: role,
         isExternal: false,
         unit: raw.unit,
       },
     ]);
-  };
-
-  const addExternal = async () => {
-    try {
-      const v = await extForm.validateFields();
-      setMembers((prev) => [
-        ...prev,
-        {
-          memberName: v.name,
-          memberEmail: v.email,
-          roleInCouncil: 'UY_VIEN',
-          isExternal: true,
-          proposedSourceNote: v.source,
-          unit: v.unit || null,
-        },
-      ]);
-      extForm.resetFields();
-    } catch {
-      /* validate */
-    }
   };
 
   const submitCreate = async () => {
@@ -344,7 +334,7 @@ const DefensesPage: React.FC = () => {
             options={searchOpts}
             onSearch={(v) => void searchMembers(v)}
             onSelect={(_, opt) => addMember((opt as any).raw, 'UY_VIEN')}
-            placeholder="Tìm theo họ tên / email"
+            placeholder="Tìm họ tên hoặc email (vd: mười, pqmuoi@ued.udn.vn)"
           />
         </Space>
         <Table
@@ -385,20 +375,6 @@ const DefensesPage: React.FC = () => {
             },
           ]}
         />
-
-        <div style={{ marginTop: 16, fontWeight: 600 }}>Thành viên ngoài (nếu có)</div>
-        <Form form={extForm} layout="inline" style={{ marginTop: 8 }}>
-          <Form.Item name="name" rules={[{ required: true }]}>
-            <Input placeholder="Họ tên" />
-          </Form.Item>
-          <Form.Item name="email">
-            <Input placeholder="Email" />
-          </Form.Item>
-          <Form.Item name="source" rules={[{ required: true }]}>
-            <Input placeholder="Nguồn đề xuất" />
-          </Form.Item>
-          <Button onClick={() => void addExternal()}>Thêm ngoài</Button>
-        </Form>
       </Drawer>
     </PageContainer>
   );

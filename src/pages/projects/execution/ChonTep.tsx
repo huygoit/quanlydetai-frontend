@@ -13,30 +13,40 @@ export function ChonTep({
   onCo: (tep: TepModule56) => void;
 }) {
   return (
-    <Upload
-      showUploadList={false}
-      maxCount={1}
-      beforeUpload={async (file) => {
-        if (file.size > maxBytes) {
-          message.error(`File vượt ${Math.round(maxBytes / 1024 / 1024)}MB`);
-          return Upload.LIST_IGNORE;
-        }
-        try {
-          const up = await uploadFileDon(file, { folder: 'module56' });
-          onCo({ fileName: file.name, fileUrl: up.url, fileSize: file.size });
-        } catch (e: any) {
-          message.error(e?.message || 'Tải file thất bại');
-        }
-        return Upload.LIST_IGNORE;
-      }}
+    // Chặn nổi bọt ra Collapse/row — không gắn stopPropagation trên Button
+    // (sẽ làm Upload không mở được hộp chọn file).
+    <span
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{ display: 'inline-block' }}
     >
-      {/* htmlType=button: tránh submit Form cha / đóng Drawer khi chọn file */}
-      <Button
-        htmlType="button"
-        onClick={(e) => e.stopPropagation()}
+      <Upload
+        showUploadList={false}
+        maxCount={1}
+        beforeUpload={async (file) => {
+          if (file.size > maxBytes) {
+            message.error(
+              `File vượt ${Math.round(maxBytes / 1024 / 1024)}MB`,
+            );
+            return Upload.LIST_IGNORE;
+          }
+          try {
+            const up = await uploadFileDon(file, { folder: 'module56' });
+            onCo({
+              fileName: file.name,
+              fileUrl: up.url,
+              fileSize: file.size,
+            });
+          } catch (e: any) {
+            message.error(e?.message || 'Tải file thất bại');
+          }
+          return Upload.LIST_IGNORE;
+        }}
       >
-        {nhan || 'Chọn file'}
-      </Button>
-    </Upload>
+        <Button htmlType="button" type="default" size="small">
+          {nhan || 'Chọn file'}
+        </Button>
+      </Upload>
+    </span>
   );
 }

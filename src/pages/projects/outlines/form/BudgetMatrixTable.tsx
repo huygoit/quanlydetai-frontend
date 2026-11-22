@@ -338,10 +338,10 @@ function BudgetMatrixTable({
 
   const stateTong = rows.find((r) => r.key === 'STATE')?.tong || 0;
   const nonStateTong = rows.find((r) => r.key === 'NON_STATE')?.tong || 0;
-  const lechState =
-    stateBudgetHint > 0 && Math.abs(stateTong - stateBudgetHint) > 1000;
+  // Cảnh báo khi dòng ma trận lớn hơn nguồn đề xuất tương ứng
+  const lechState = stateBudgetHint > 0 && stateTong > stateBudgetHint;
   const lechNonState =
-    nonStateBudgetHint > 0 && Math.abs(nonStateTong - nonStateBudgetHint) > 1000;
+    nonStateBudgetHint > 0 && nonStateTong > nonStateBudgetHint;
 
   return (
     <div>
@@ -355,18 +355,18 @@ function BudgetMatrixTable({
           type="warning"
           showIcon
           style={{ marginBottom: 8 }}
-          message="Tổng ma trận lệch nguồn kinh phí đề xuất"
+          message="Tổng ma trận lớn hơn nguồn kinh phí đề xuất"
           description={
             <>
               {lechState && (
                 <div>
-                  NSNN: ma trận {formatVnd(stateTong)} ≠ đề xuất{' '}
+                  NSNN: ma trận {formatVnd(stateTong)} &gt; đề xuất{' '}
                   {formatVnd(stateBudgetHint)}
                 </div>
               )}
               {lechNonState && (
                 <div>
-                  Ngoài NSNN: ma trận {formatVnd(nonStateTong)} ≠ đề xuất{' '}
+                  Ngoài NSNN: ma trận {formatVnd(nonStateTong)} &gt; đề xuất{' '}
                   {formatVnd(nonStateBudgetHint)}
                 </div>
               )}

@@ -37,7 +37,21 @@ const ProjectContractsPage: React.FC = () => {
     {
       title: 'Mã TM',
       width: 130,
-      render: (_, r) => r.outline?.code || r.project_outline_id,
+      render: (_, r) => {
+        const code = r.outline?.code || String(r.project_outline_id);
+        const outlineId = r.project_outline_id;
+        if (!outlineId) return code;
+        return (
+          <a
+            onClick={(e) => {
+              e.stopPropagation();
+              history.push(`/projects/outlines/form/${outlineId}`);
+            }}
+          >
+            {code}
+          </a>
+        );
+      },
     },
     {
       title: 'Tên nhiệm vụ',

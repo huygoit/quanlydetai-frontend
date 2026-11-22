@@ -149,7 +149,7 @@ export function TabMuaSam({
     setTep(row?.attachments || []);
     form.setFieldsValue({
       kind: row?.kind || 'VAT_TU',
-      lineCode: row?.lineCode || 'MUC_03',
+      lineCode: row?.lineCode || 'VAT_LIEU',
       purpose: row?.purpose || '',
       neededBy: row?.neededBy ? dayjs(row.neededBy) : undefined,
     });

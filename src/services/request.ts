@@ -8,6 +8,7 @@
 import { request as umiRequest, history } from '@umijs/max';
 import { message } from 'antd';
 import { chuanHoaLoiTacGia, laLoiThieuNhomChinh } from '@/utils/authorValidationMessages';
+import { layThongBaoLoi } from '@/utils/apiErrorMessage';
 
 const fromEnv = process.env.UMI_APP_API_URL || process.env.API_URL;
 export const API_BASE_URL = fromEnv && String(fromEnv).trim() !== '' ? String(fromEnv).trim() : '';
@@ -65,7 +66,9 @@ export async function request<T = any>(
 
     return response;
   } catch (error: any) {
-    // Handle different error types
+    // Chỉ hiện message nghiệp vụ — không hiện "Request failed with status code …"
+    let toastMsg = '';
+
     if (error.response) {
       const status = error.response.status;
       const data = error.response.data ?? error.data ?? {};
@@ -75,51 +78,55 @@ export async function request<T = any>(
           removeToken();
           // Đang ở trang login: hiển thị message từ backend (sai email/mật khẩu), không redirect
           if (history.location?.pathname === '/login') {
-            message.error(data.message || 'Email hoặc mật khẩu không đúng.');
+            toastMsg = layThongBaoLoi(error, 'Email hoặc mật khẩu không đúng.');
           } else {
-            message.error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+            toastMsg = 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.';
             history.push('/login');
           }
           break;
         case 403:
-          message.error('Bạn không có quyền thực hiện thao tác này.');
+          toastMsg = 'Bạn không có quyền thực hiện thao tác này.';
           break;
         case 400: {
-          const raw400 = data.message as string | undefined;
+          const raw400 = layThongBaoLoi(error, 'Yêu cầu không hợp lệ.');
           if (!laLoiThieuNhomChinh(raw400)) {
-            message.error(chuanHoaLoiTacGia(raw400) || 'Yêu cầu không hợp lệ.');
+            toastMsg = chuanHoaLoiTacGia(raw400) || 'Yêu cầu không hợp lệ.';
           }
           break;
         }
         case 404:
-          message.error(data.message || 'Không tìm thấy tài nguyên.');
+          toastMsg = layThongBaoLoi(error, 'Không tìm thấy tài nguyên.');
           break;
         case 422: {
-          // Validation error (AdonisJS: errors là mảng {field, rule, message})
-          let rawMsg = data.message as string | undefined;
-          if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
-            const first = data.errors[0];
-            rawMsg = (first?.message as string) || String(data.errors[0]);
-          } else if (data.errors && typeof data.errors === 'object') {
-            const firstVal = Object.values(data.errors)[0];
-            rawMsg = Array.isArray(firstVal) ? String(firstVal[0]) : String(firstVal);
-          }
+          const rawMsg = layThongBaoLoi(error, 'Dữ liệu không hợp lệ.');
           if (!laLoiThieuNhomChinh(rawMsg)) {
-            message.error(chuanHoaLoiTacGia(rawMsg) || 'Dữ liệu không hợp lệ.');
+            toastMsg = chuanHoaLoiTacGia(rawMsg) || 'Dữ liệu không hợp lệ.';
           }
           break;
         }
         case 500:
-          message.error('Lỗi máy chủ. Vui lòng thử lại sau.');
+          toastMsg = 'Lỗi máy chủ. Vui lòng thử lại sau.';
           break;
         case 503:
-          message.error(data.message || 'Hệ thống đang bận. Vui lòng thử lại sau.');
+          toastMsg = layThongBaoLoi(error, 'Hệ thống đang bận. Vui lòng thử lại sau.');
           break;
         default:
-          message.error(data.message || 'Đã có lỗi xảy ra.');
+          toastMsg = layThongBaoLoi(error, 'Đã có lỗi xảy ra.');
       }
-    } else if (error.message === 'Failed to fetch') {
-      message.error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+    } else if (
+      error.message === 'Failed to fetch' ||
+      error.message === 'Network Error'
+    ) {
+      toastMsg = 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.';
+    } else {
+      toastMsg = layThongBaoLoi(error, '');
+    }
+
+    if (toastMsg) {
+      message.error(toastMsg);
+      error.displayMessage = toastMsg;
+      error.message = toastMsg;
+      error.__toastShown = true;
     }
 
     throw error;
