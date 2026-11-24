@@ -1,41 +1,29 @@
 import {
   HAN_FILE,
-  MUC_CHI,
-  NHAN_TRIEN_KHAI,
+  ST_CHINH_SUA,
+  ST_CHO_QUYET_TOAN,
+  ST_KHONG_DAT,
   NHAN_VAI_TRO_HD,
   NHAN_XEP_LOAI,
-  nhanMuc,
 } from '@/constants/module56';
 import {
-  bghThanhLy,
-  cnnvThanhLy,
-  duyetHoSoCuoiKy,
   giaHanGiaiTrinh,
   hoSoCuoiKy,
   luuBienBan,
   luuGiaiTrinh,
-  luuHoiDong,
-  luuHoSoCuoiKy,
   luuPhieuCham,
-  luuQuyetToan,
-  luuThanhLy,
   moLaiBienBanCuoiKy,
-  nhacPhanBien,
-  phatHanhThanhLy,
-  pkhQuyetToan,
   quyetDinhKhongDat,
-  tcQuyetToan,
-  thongBaoCuoiKy,
-  trinhThanhLy,
-  xacNhanChenhLech,
+  taiBanGiaiTrinh,
   xacNhanGiaiTrinh,
   type HoSoCuoiKy,
   type TepModule56,
 } from '@/services/api/module56';
-import { getAvailableOutlineReviewers } from '@/services/api/projectOutlineReviews';
 import { isAdminKeKhaiUser } from '@/utils/adminKeKhai';
-import { formatVnd, vndInputNumberProps } from '@/utils/format';
 import { resolvePublicAssetUrl } from '@/utils/publicAssetUrl';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import type { ProColumns } from '@ant-design/pro-components';
+import { EditableProTable } from '@ant-design/pro-components';
 import { useModel } from '@umijs/max';
 import {
   Alert,
@@ -43,19 +31,63 @@ import {
   Card,
   Checkbox,
   DatePicker,
+  Descriptions,
   Input,
-  InputNumber,
   message,
   Modal,
   Select,
   Space,
-  Table,
   Tag,
+  Typography,
 } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChonTep } from './ChonTep';
+import { PanelHoiDongDgck } from './PanelHoiDongDgck';
+import { PanelQuyetToan } from './PanelQuyetToan';
+import { PanelThanhLy } from './PanelThanhLy';
+import { BienBanDgckXem } from '@/pages/projects/nghiem-thu-thanh-ly/BienBanDgckXem';
 import type { VaiTro } from './types';
+
+const { Paragraph } = Typography;
+
+/** Tách từng ý kiến (mỗi dòng xuống hàng = 1 yêu cầu) */
+function tachYKienTuBienBan(raw?: string | null): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(/\r?\n/)
+    .map((s) =>
+      s
+        .replace(/^\s*[-–—•]\s*/, '')
+        .replace(/^\s*\d+[.)]\s*/, '')
+        .trim(),
+    )
+    .filter(Boolean);
+}
+
+/**
+ * Nguồn ý kiến giống màn xem biên bản mục 2.2:
+ * clarifyContent || quality || recommendationLines || recommendation
+ */
+function layNoiDungYKienTuBienBan(m: HoSoCuoiKy['minutes']): string {
+  if (!m) return '';
+  const tuClarify = (m.clarifyContent || '').trim();
+  if (tuClarify) return tuClarify;
+  const tuQuality = (m.quality || '').trim();
+  // quality đôi khi = discussion khi 2.2 trống — vẫn dùng nếu có nhiều dòng
+  if (tuQuality) return tuQuality;
+  const lines = (m as { recommendationLines?: string[] }).recommendationLines;
+  if (Array.isArray(lines) && lines.length) return lines.join('\n');
+  return (m.recommendation || '').trim();
+}
+
+type DongGiaiTrinh = {
+  id: string;
+  yKien: string;
+  tiepThu: string;
+  minhChung: string;
+  minhChungFile: TepModule56 | null;
+};
 
 function bao(e: any) {
   return e?.data?.message || e?.message || 'Thất bại';
@@ -251,7 +283,8 @@ function BienBan({
   );
 }
 
-function GiaiTrinh({
+/** Form BM-05.07 — dùng ở tab nghiệm thu và «Hội đồng của tôi». */
+export function GiaiTrinh({
   hs,
   vaiTro,
   toiRole,
@@ -264,84 +297,590 @@ function GiaiTrinh({
   outlineId: number;
   onXong: () => void;
 }) {
-  const dong = hs.minutes?.recommendation
-    ? hs.minutes.recommendation
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : (hs.explanation.items || []).map((it) => it.text || '');
-  const [items, setItems] = useState(
-    dong.map((text, i) => hs.explanation.items?.[i]?.response || ''),
-  );
-  const [reportFile, setReportFile] = useState<TepModule56 | null>(
+  const coTheSua =
+    vaiTro.canCnnv &&
+    (!hs.explanation.status || hs.explanation.status === 'TRA_LAI');
+
+  const khoiTaoDong = (): DongGiaiTrinh[] => {
+    const daLuu = hs.explanation.items || [];
+    const daLuuCoNoiDung = daLuu.some(
+      (it) =>
+        (it.recommendation || it.text || '').trim() ||
+        (it.response || '').trim() ||
+        (it.evidence || '').trim() ||
+        it.evidenceFile,
+    );
+    if (daLuuCoNoiDung) {
+      return daLuu.map((it, i) => ({
+        id: `gt-${i}-${Date.now()}`,
+        yKien: it.recommendation || it.text || '',
+        tiepThu: it.response || '',
+        minhChung: it.evidence || '',
+        minhChungFile: it.evidenceFile || null,
+      }));
+    }
+    // Fill sẵn từ biên bản mục 2.2 (mỗi dòng xuống hàng = 1 ý kiến)
+    const tuBb = tachYKienTuBienBan(layNoiDungYKienTuBienBan(hs.minutes));
+    if (tuBb.length) {
+      return tuBb.map((yKien, i) => ({
+        id: `yk-${i}-${Date.now()}`,
+        yKien,
+        tiepThu: '',
+        minhChung: '',
+        minhChungFile: null,
+      }));
+    }
+    return [
+      {
+        id: `trong-${Date.now()}`,
+        yKien: '',
+        tiepThu: '',
+        minhChung: '',
+        minhChungFile: null,
+      },
+    ];
+  };
+
+  const [rows, setRows] = useState<DongGiaiTrinh[]>([]);
+  const [editableKeys, setEditableKeys] = useState<React.Key[]>([]);
+  const [baoCaoTongKet, setBaoCaoTongKet] = useState<TepModule56 | null>(
     hs.explanation.reportFile,
   );
-  return (
-    <Space direction="vertical" style={{ width: '100%' }}>
-      {hs.explanation.deadline && (
-        <div>Hạn: {dayjs(hs.explanation.deadline).format('DD/MM/YYYY')}</div>
-      )}
-      {hs.explanation.returnReason && (
-        <Alert type="warning" message={hs.explanation.returnReason} />
-      )}
-      {dong.map((text, i) => (
-        <div key={i}>
-          <div>{text || `Kiến nghị ${i + 1}`}</div>
-          <Input.TextArea
-            rows={2}
-            value={items[i]}
-            onChange={(e) =>
-              setItems((s) => s.map((x, j) => (j === i ? e.target.value : x)))
-            }
-          />
-        </div>
-      ))}
-      {vaiTro.canCnnv &&
-        (!hs.explanation.status || hs.explanation.status === 'TRA_LAI') && (
-          <>
-            <ChonTep
-              maxBytes={HAN_FILE.tomTat}
-              nhan="File báo cáo giải trình"
-              onCo={setReportFile}
+  const [dangNop, setDangNop] = useState(false);
+  const [dangXacNhan, setDangXacNhan] = useState(false);
+
+  const stGt = hs.explanation.status;
+  const nhanStGt =
+    stGt === 'CHO_THU_KY'
+      ? 'Chờ Thư ký HĐ xác nhận'
+      : stGt === 'CHO_CHU_TICH'
+        ? 'Chờ Chủ tịch HĐ xác nhận'
+        : stGt === 'TRA_LAI'
+          ? 'Trả lại — CNNV chỉnh sửa'
+          : stGt === 'XONG'
+            ? 'Đã xác nhận — chờ quyết toán'
+            : 'Đang soạn / chưa nộp';
+
+  const xacNhan = async (accept: boolean) => {
+    let reason = '';
+    if (!accept) {
+      reason =
+        window.prompt(
+          'Nhập lý do trả lại để CNNV chỉnh sửa thêm (bắt buộc):',
+        ) || '';
+      if (!reason.trim()) {
+        message.warning('Cần nhập lý do trả lại');
+        return;
+      }
+    } else {
+      const ok = window.confirm(
+        toiRole === 'CHU_TICH'
+          ? 'Xác nhận đồng ý bản giải trình và báo cáo tổng kết? Hệ thống chuyển sang chờ quyết toán và thông báo Phòng KH&HTQT.'
+          : 'Xác nhận bản giải trình đạt yêu cầu? Chuyển sang Chủ tịch HĐ.',
+      );
+      if (!ok) return;
+    }
+    setDangXacNhan(true);
+    try {
+      await xacNhanGiaiTrinh(outlineId, {
+        accept,
+        reason: reason.trim() || undefined,
+      });
+      message.success(
+        accept
+          ? toiRole === 'CHU_TICH'
+            ? 'Đã xác nhận — chuyển chờ quyết toán'
+            : 'Thư ký đã xác nhận — chờ Chủ tịch'
+          : 'Đã trả lại CNNV chỉnh sửa',
+      );
+      onXong();
+    } catch (e) {
+      message.error(bao(e));
+    } finally {
+      setDangXacNhan(false);
+    }
+  };
+
+  useEffect(() => {
+    const next = khoiTaoDong();
+    setRows(next);
+    setEditableKeys(coTheSua ? next.map((r) => r.id) : []);
+    setBaoCaoTongKet(hs.explanation.reportFile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    hs.explanation.status,
+    hs.explanation.items,
+    hs.explanation.reportFile,
+    hs.minutes?.clarifyContent,
+    hs.minutes?.quality,
+    hs.minutes?.recommendation,
+    coTheSua,
+  ]);
+
+  const capNhatDong = (id: string, patch: Partial<DongGiaiTrinh>) => {
+    setRows((s) => s.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  };
+
+  const cot: ProColumns<DongGiaiTrinh>[] = useMemo(
+    () => [
+      {
+        title: 'STT',
+        dataIndex: 'stt',
+        width: 56,
+        editable: false,
+        align: 'center',
+        render: (_, __, i) => i + 1,
+      },
+      {
+        title: 'Ý kiến/yêu cầu đánh giá',
+        dataIndex: 'yKien',
+        editable: false,
+        render: (_, r) =>
+          coTheSua ? (
+            <Input.TextArea
+              rows={3}
+              placeholder="Từ mục 2.2 biên bản — có thể chỉnh"
+              value={r.yKien}
+              onChange={(e) => capNhatDong(r.id, { yKien: e.target.value })}
             />
+          ) : (
+            <div style={{ whiteSpace: 'pre-wrap' }}>{r.yKien || '—'}</div>
+          ),
+      },
+      {
+        title: 'Nội dung tiếp thu, giải trình hoặc hoàn thiện',
+        dataIndex: 'tiepThu',
+        editable: false,
+        render: (_, r) =>
+          coTheSua ? (
+            <Input.TextArea
+              rows={3}
+              placeholder="CNNV nêu nội dung đã tiếp thu / hoàn thiện…"
+              value={r.tiepThu}
+              onChange={(e) => capNhatDong(r.id, { tiepThu: e.target.value })}
+            />
+          ) : (
+            <div style={{ whiteSpace: 'pre-wrap' }}>{r.tiepThu || '—'}</div>
+          ),
+      },
+      {
+        title: 'Vị trí/tài liệu minh chứng',
+        dataIndex: 'minhChung',
+        width: 280,
+        editable: false,
+        render: (_, r) => (
+          <Space direction="vertical" size={6} style={{ width: '100%' }}>
+            {coTheSua ? (
+              <Input.TextArea
+                rows={2}
+                placeholder="Mô tả vị trí / tên tài liệu…"
+                value={r.minhChung}
+                onChange={(e) =>
+                  capNhatDong(r.id, { minhChung: e.target.value })
+                }
+              />
+            ) : (
+              <div style={{ whiteSpace: 'pre-wrap' }}>
+                {r.minhChung || '—'}
+              </div>
+            )}
+            {coTheSua ? (
+              <Space wrap size={6}>
+                <ChonTep
+                  maxBytes={HAN_FILE.tomTat}
+                  nhan={r.minhChungFile ? 'Đổi file' : 'Upload minh chứng'}
+                  onCo={(tep) => capNhatDong(r.id, { minhChungFile: tep })}
+                />
+                {r.minhChungFile?.fileName ? (
+                  <a
+                    href={resolvePublicAssetUrl(r.minhChungFile.fileUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {r.minhChungFile.fileName}
+                  </a>
+                ) : (
+                  <Tag>Chưa có file</Tag>
+                )}
+                {r.minhChungFile ? (
+                  <Button
+                    type="link"
+                    danger
+                    size="small"
+                    onClick={() =>
+                      capNhatDong(r.id, { minhChungFile: null })
+                    }
+                  >
+                    Xóa file
+                  </Button>
+                ) : null}
+              </Space>
+            ) : r.minhChungFile?.fileName ? (
+              <a
+                href={resolvePublicAssetUrl(r.minhChungFile.fileUrl)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {r.minhChungFile.fileName}
+              </a>
+            ) : (
+              <Tag>Chưa có file</Tag>
+            )}
+          </Space>
+        ),
+      },
+      {
+        title: '',
+        valueType: 'option',
+        width: 56,
+        hideInTable: !coTheSua,
+      },
+    ],
+    [coTheSua],
+  );
+
+  const nop = async (submit: boolean) => {
+    if (!rows.length) {
+      message.warning('Cần ít nhất một dòng giải trình');
+      return;
+    }
+    if (submit) {
+      if (rows.some((r) => !r.yKien.trim() || !r.tiepThu.trim())) {
+        message.warning('Mỗi dòng cần đủ Ý kiến và Nội dung tiếp thu');
+        return;
+      }
+      if (rows.some((r) => !r.minhChung.trim() && !r.minhChungFile)) {
+        message.warning(
+          'Mỗi dòng cần mô tả minh chứng hoặc upload tài liệu minh chứng',
+        );
+        return;
+      }
+      if (!baoCaoTongKet) {
+        message.warning('Cần upload báo cáo tổng kết');
+        return;
+      }
+    }
+    setDangNop(true);
+    try {
+      await luuGiaiTrinh(outlineId, {
+        submit,
+        reportFile: baoCaoTongKet,
+        items: rows.map((r) => ({
+          recommendation: r.yKien.trim(),
+          response: r.tiepThu.trim(),
+          evidence: r.minhChung.trim() || undefined,
+          evidenceFile: r.minhChungFile || null,
+        })),
+      });
+      onXong();
+    } catch (e) {
+      message.error(bao(e));
+    } finally {
+      setDangNop(false);
+    }
+  };
+
+  const ngayDanhGia = hs.council?.meetingAt
+    ? dayjs(hs.council.meetingAt).format('DD/MM/YYYY')
+    : '—';
+  const tenHoiDong =
+    (hs.council?.members || [])
+      .map((m) => m.fullName)
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ') || 'Hội đồng đánh giá kết quả';
+
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={12}>
+      <Space wrap>
+        <Tag
+          color={
+            stGt === 'XONG'
+              ? 'success'
+              : stGt === 'TRA_LAI'
+                ? 'error'
+                : stGt === 'CHO_THU_KY' || stGt === 'CHO_CHU_TICH'
+                  ? 'processing'
+                  : 'default'
+          }
+        >
+          {nhanStGt}
+        </Tag>
+        {hs.explanation.deadline ? (
+          <Tag color="orange">
+            Hạn nộp: {dayjs(hs.explanation.deadline).format('DD/MM/YYYY')}
+          </Tag>
+        ) : null}
+      </Space>
+      {hs.explanation.returnReason && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Lý do trả lại"
+          description={hs.explanation.returnReason}
+        />
+      )}
+
+      <Card
+        size="small"
+        title="1. Thông tin nhiệm vụ"
+        style={{ borderRadius: 12 }}
+      >
+        <Descriptions column={{ xs: 1, sm: 2 }} size="small">
+          <Descriptions.Item label="Tên nhiệm vụ" span={2}>
+            {hs.title || '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Mã số">{hs.code || '—'}</Descriptions.Item>
+          <Descriptions.Item label="Chủ nhiệm">
+            {hs.ownerName || '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Ngày đánh giá">
+            {ngayDanhGia}
+          </Descriptions.Item>
+          <Descriptions.Item label="Hội đồng / chuyên gia">
+            {tenHoiDong}
+            {(hs.council?.members || []).length > 3
+              ? ` (+${(hs.council?.members || []).length - 3})`
+              : ''}
+          </Descriptions.Item>
+        </Descriptions>
+      </Card>
+
+      <Card
+        size="small"
+        title="2. Nội dung tiếp thu, hoàn thiện"
+        extra={
+          rows.length > 0 ? (
+            <Tag color="blue">{rows.length} ý kiến</Tag>
+          ) : null
+        }
+        style={{ borderRadius: 12 }}
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        <EditableProTable<DongGiaiTrinh>
+          rowKey="id"
+          size="middle"
+          value={rows}
+          onChange={(list) => {
+            const next = [...(list || [])].map((r) => ({
+              minhChungFile: null as TepModule56 | null,
+              ...r,
+              minhChung: r.minhChung || '',
+              minhChungFile:
+                r.minhChungFile === undefined ? null : r.minhChungFile,
+            }));
+            setRows(next);
+            if (coTheSua) setEditableKeys(next.map((r) => r.id));
+          }}
+          recordCreatorProps={
+            coTheSua
+              ? {
+                  newRecordType: 'dataSource',
+                  record: () => ({
+                    id: `moi-${Date.now()}`,
+                    yKien: '',
+                    tiepThu: '',
+                    minhChung: '',
+                    minhChungFile: null,
+                  }),
+                  creatorButtonText: 'Thêm dòng',
+                  icon: <PlusOutlined />,
+                }
+              : false
+          }
+          columns={cot}
+          editable={{
+            type: 'multiple',
+            editableKeys: coTheSua ? editableKeys : [],
+            onChange: setEditableKeys,
+            onValuesChange: (_r, list) => {
+              setRows((cu) => {
+                const byId = new Map(cu.map((x) => [x.id, x]));
+                return [...(list || [])].map((r) => {
+                  const cuDong = byId.get(r.id);
+                  return {
+                    ...r,
+                    minhChung: r.minhChung ?? cuDong?.minhChung ?? '',
+                    minhChungFile:
+                      r.minhChungFile !== undefined
+                        ? r.minhChungFile
+                        : cuDong?.minhChungFile || null,
+                  };
+                });
+              });
+              if (coTheSua) {
+                setEditableKeys((list || []).map((r) => r.id));
+              }
+            },
+            actionRender: (row) =>
+              coTheSua
+                ? [
+                    <Button
+                      key="xoa"
+                      type="link"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={() => {
+                        setRows((s) => s.filter((x) => x.id !== row.id));
+                        setEditableKeys((ks) =>
+                          ks.filter((k) => k !== row.id),
+                        );
+                      }}
+                    />,
+                  ]
+                : [],
+          }}
+          pagination={false}
+          scroll={{ x: 1100 }}
+        />
+      </Card>
+
+      <Card
+        size="small"
+        title="3. Báo cáo tổng kết"
+        style={{ borderRadius: 12 }}
+      >
+        <Space wrap align="start">
+          {coTheSua ? (
+            <>
+              <ChonTep
+                maxBytes={HAN_FILE.tomTat}
+                nhan={
+                  baoCaoTongKet ? 'Đổi báo cáo tổng kết' : 'Upload báo cáo tổng kết'
+                }
+                onCo={setBaoCaoTongKet}
+              />
+              {baoCaoTongKet?.fileName ? (
+                <>
+                  <a
+                    href={resolvePublicAssetUrl(baoCaoTongKet.fileUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {baoCaoTongKet.fileName}
+                  </a>
+                  <Button
+                    type="link"
+                    danger
+                    size="small"
+                    onClick={() => setBaoCaoTongKet(null)}
+                  >
+                    Xóa file
+                  </Button>
+                </>
+              ) : (
+                <Tag>Chưa upload</Tag>
+              )}
+            </>
+          ) : baoCaoTongKet?.fileName ? (
+            <a
+              href={resolvePublicAssetUrl(baoCaoTongKet.fileUrl)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {baoCaoTongKet.fileName}
+            </a>
+          ) : (
+            <Tag>Chưa có báo cáo tổng kết</Tag>
+          )}
+        </Space>
+      </Card>
+
+      {coTheSua && (
+        <Space wrap>
+          <Button loading={dangNop} onClick={() => void nop(false)}>
+            Lưu nháp
+          </Button>
+          <Button type="primary" loading={dangNop} onClick={() => void nop(true)}>
+            Nộp bản giải trình
+          </Button>
+        </Space>
+      )}
+
+      {/* Thư ký HĐ — xác nhận / trả lại */}
+      {toiRole === 'THU_KY' && stGt === 'CHO_THU_KY' && (
+        <Card
+          size="small"
+          title="Thư ký HĐ — xác nhận bản giải trình"
+          style={{ borderRadius: 12, borderColor: '#91caff' }}
+        >
+          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            Xem bảng giải trình và báo cáo tổng kết phía trên. Đồng ý → chuyển
+            Chủ tịch HĐ; Chưa đạt → trả CNNV chỉnh sửa.
+          </Paragraph>
+          <Space wrap>
             <Button
               type="primary"
-              onClick={() =>
-                luuGiaiTrinh(outlineId, {
-                  submit: true,
-                  items: items.map((response) => ({ response })),
-                  reportFile,
-                })
-                  .then(onXong)
-                  .catch((e) => message.error(bao(e)))
-              }
+              loading={dangXacNhan}
+              onClick={() => void xacNhan(true)}
             >
-              Nộp giải trình
+              Đồng ý — chuyển Chủ tịch
             </Button>
-          </>
-        )}
-      {toiRole === 'THU_KY' && hs.explanation.status === 'CHO_THU_KY' && (
-        <Button
-          onClick={() =>
-            xacNhanGiaiTrinh(outlineId, { accept: true })
-              .then(onXong)
-              .catch((e) => message.error(bao(e)))
-          }
-        >
-          Thư ký xác nhận
-        </Button>
+            <Button
+              danger
+              loading={dangXacNhan}
+              onClick={() => void xacNhan(false)}
+            >
+              Chưa đạt — trả CNNV
+            </Button>
+          </Space>
+        </Card>
       )}
-      {toiRole === 'CHU_TICH' && hs.explanation.status === 'CHO_CHU_TICH' && (
-        <Button
-          onClick={() =>
-            xacNhanGiaiTrinh(outlineId, { accept: true })
-              .then(onXong)
-              .catch((e) => message.error(bao(e)))
-          }
+
+      {/* Chủ tịch HĐ ĐGCK — review + ký xác nhận */}
+      {toiRole === 'CHU_TICH' && stGt === 'CHO_CHU_TICH' && (
+        <Card
+          size="small"
+          title="Chủ tịch HĐ ĐGCK — review & ký xác nhận"
+          style={{ borderRadius: 12, borderColor: '#b7eb8f' }}
         >
-          Chủ tịch xác nhận
-        </Button>
+          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            Xem lại bảng giải trình và báo cáo tổng kết (+ file minh chứng).
+            Đồng ý → Phòng KH&amp;HTQT nhận thông báo, chuyển chờ quyết toán.
+            Chưa đạt → nhập lý do, trả CNNV chỉnh sửa thêm.
+          </Paragraph>
+          <Space wrap>
+            <Button
+              type="primary"
+              loading={dangXacNhan}
+              onClick={() => void xacNhan(true)}
+            >
+              Đồng ý — ký xác nhận
+            </Button>
+            <Button
+              danger
+              loading={dangXacNhan}
+              onClick={() => void xacNhan(false)}
+            >
+              Chưa đạt — trả CNNV
+            </Button>
+          </Space>
+        </Card>
       )}
+
+      {stGt === 'CHO_THU_KY' && toiRole !== 'THU_KY' && (
+        <Alert
+          type="info"
+          showIcon
+          message="Đã nộp — chờ Thư ký HĐ xác nhận"
+        />
+      )}
+      {stGt === 'CHO_CHU_TICH' && toiRole !== 'CHU_TICH' && (
+        <Alert
+          type="info"
+          showIcon
+          message="Thư ký đã xác nhận — chờ Chủ tịch HĐ ĐGCK review"
+        />
+      )}
+      {stGt === 'XONG' && (
+        <Alert
+          type="success"
+          showIcon
+          message="Chủ tịch đã xác nhận — hồ sơ chuyển chờ quyết toán (Phòng KH&HTQT)"
+        />
+      )}
+
       {vaiTro.canManage && (
         <Button
           onClick={() => {
@@ -362,7 +901,6 @@ function GiaiTrinh({
 /** Phân tab trên chi tiết hợp đồng — `all` giữ màn triển khai gộp. */
 export type PhanCuoiKy =
   | 'all'
-  | 'hoso'
   | 'hoidong'
   | 'giaitrinh'
   | 'danhgia'
@@ -393,27 +931,23 @@ export function TabCuoiKy({
   const laAdmin = isAdminKeKhaiUser(initialState?.currentUser);
   const [hs, setHs] = useState<HoSoCuoiKy | null>(null);
   const [loi, setLoi] = useState('');
-  const [resultVi, setResultVi] = useState('');
-  const [resultEn, setResultEn] = useState('');
-  const [products, setProducts] = useState<
-    { name: string; fileUrl?: string; link?: string }[]
-  >([]);
-  const [summaryFile, setSummaryFile] = useState<TepModule56 | null>(null);
-  const [briefFile, setBriefFile] = useState<TepModule56 | null>(null);
-  const [councilFile, setCouncilFile] = useState<TepModule56 | null>(null);
-  const [publicationsNote, setPublicationsNote] = useState('');
-  const [soTrangOk, setSoTrangOk] = useState(false);
-  const [fileCongNhan, setFileCongNhan] = useState('');
-  const [thanhVien, setThanhVien] = useState<
-    { userId: number; role: string; name?: string }[]
-  >([]);
-  const [nguoi, setNguoi] = useState<{ value: number; label: string }[]>([]);
-  const [khai, setKhai] = useState<Record<string, number>>({});
-  const [taiSan, setTaiSan] = useState<
-    { name: string; quantity: string; amount: number; note: string }[]
-  >([]);
-  const [surplusHandling, setSurplusHandling] = useState('KHONG_PHAT_SINH');
-  const [tepQt, setTepQt] = useState<TepModule56[]>([]);
+  const [products, setProducts] = useState<{ name: string }[]>([]);
+  const [dangTaiBm0507, setDangTaiBm0507] = useState(false);
+
+  const taiBm0507Panel = async () => {
+    setDangTaiBm0507(true);
+    try {
+      await taiBanGiaiTrinh(
+        outlineId,
+        `BM-05.07_Ban_giai_trinh_${hs?.code || outlineId}.docx`,
+      );
+      message.success('Đã tải bản giải trình BM-05.07');
+    } catch (e) {
+      message.error(bao(e));
+    } finally {
+      setDangTaiBm0507(false);
+    }
+  };
 
   const tai = () =>
     hoSoCuoiKy(outlineId)
@@ -421,46 +955,10 @@ export function TabCuoiKy({
         const d = res.data;
         setHs(d);
         setLoi('');
-        setResultVi(d.dossier.resultVi || '');
-        setResultEn(d.dossier.resultEn || '');
         const ten = sanPham.length
           ? sanPham
           : (d.dossier.products || []).map((p) => p.name);
-        setProducts(
-          ten.map((name) => {
-            const cu = (d.dossier.products || []).find((p) => p.name === name);
-            return { name, fileUrl: cu?.fileUrl || '', link: cu?.link || '' };
-          }),
-        );
-        setSummaryFile(d.dossier.summaryFile);
-        setBriefFile(d.dossier.briefFile);
-        setCouncilFile(d.dossier.councilFile);
-        setPublicationsNote(d.dossier.publicationsNote || '');
-        setSoTrangOk(!!d.dossier.briefPagesOk);
-        setFileCongNhan(d.liquidation.recognitionFileUrl || '');
-        setThanhVien(
-          (d.council.members || []).map((m) => ({
-            userId: m.userId,
-            role: m.role,
-            name: m.fullName || m.name,
-          })),
-        );
-        const map: Record<string, number> = {};
-        MUC_CHI.forEach((m) => {
-          map[m.code] =
-            d.settlement.lines.find((l) => l.code === m.code)?.declaredAmount ||
-            0;
-        });
-        setKhai(map);
-        setTaiSan(
-          (d.assets || []).map((a) => ({
-            name: a.name,
-            quantity: a.quantity || '1',
-            amount: a.amount || 0,
-            note: a.note || '',
-          })),
-        );
-        setSurplusHandling(d.liquidation.surplusHandling || 'KHONG_PHAT_SINH');
+        setProducts(ten.map((name) => ({ name })));
       })
       .catch((e) => setLoi(bao(e)));
 
@@ -474,41 +972,21 @@ export function TabCuoiKy({
 
   const st = hs.executionStatus;
   const toi = hs.council.members.find((m) => m.userId === vaiTro.userId);
-  const chenh = MUC_CHI.some((m) => {
-    const spent = hs.finance.lines.find((l) => l.code === m.code)?.spent || 0;
-    return Number(khai[m.code] || 0) !== spent;
-  });
-
-  const nopHoSo = async (submit: boolean) => {
-    try {
-      await luuHoSoCuoiKy(outlineId, {
-        submit,
-        summaryFile,
-        briefFile,
-        resultVi,
-        resultEn,
-        products,
-        publicationsNote,
-        councilFile,
-      });
-      onXong(submit ? 'Đã nộp hồ sơ' : 'Đã lưu hồ sơ');
-      await tai();
-    } catch (e: any) {
-      message.error(bao(e));
-    }
-  };
 
   const stHoiDong = [
     'DGCK_HOP_HD',
     'DGCK_CHINH_SUA',
+    'NT_CHINH_SUA',
     'DGCK_CHO_QUYET_TOAN',
+    'NT_CHO_QUYETTOAN',
     'DGCK_CHO_THANH_LY',
     'HOAN_THANH',
     'DGCK_KHONG_DAT',
+    'NT_KHONG_DAT',
     'DGCK_DINH_CHI',
   ].includes(String(st));
   const stGiaiTrinh =
-    st === 'DGCK_CHINH_SUA' ||
+    ST_CHINH_SUA.includes(String(st)) ||
     !!hs.explanation.status ||
     hs.classification === 'CAN_BO_SUNG';
   const stDanhGia =
@@ -516,28 +994,24 @@ export function TabCuoiKy({
     hs.minutesLocked ||
     [
       'DGCK_CHO_QUYET_TOAN',
+      'NT_CHO_QUYETTOAN',
       'DGCK_CHO_THANH_LY',
       'HOAN_THANH',
       'DGCK_CHINH_SUA',
+      'NT_CHINH_SUA',
       'DGCK_KHONG_DAT',
+      'NT_KHONG_DAT',
     ].includes(String(st));
-  const stQuyetToan = [
-    'DGCK_CHO_QUYET_TOAN',
-    'DGCK_CHO_THANH_LY',
-    'HOAN_THANH',
-  ].includes(String(st));
+  const stQuyetToan =
+    ST_CHO_QUYET_TOAN.includes(String(st)) ||
+    ['DGCK_CHO_THANH_LY', 'HOAN_THANH'].includes(String(st));
   const stThanhLy = ['DGCK_CHO_THANH_LY', 'HOAN_THANH'].includes(String(st));
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Alert
-        type={hs.overdueExplanation ? 'warning' : 'info'}
-        showIcon
-        message={`Trạng thái: ${NHAN_TRIEN_KHAI[st || ''] || st || 'Đang thực hiện'}`}
-        description={
-          hs.overdueExplanation ? 'Đã quá hạn giải trình.' : undefined
-        }
-      />
+      {hs.overdueExplanation && (
+        <Alert type="warning" showIcon message="Đã quá hạn giải trình." />
+      )}
       {hs.reviewDeadlineTight && chi('hoidong') && (
         <Alert type="warning" showIcon message="Hạn phản biện đang sát." />
       )}
@@ -575,466 +1049,78 @@ export function TabCuoiKy({
         </Button>
       )}
 
-      {chi('hoso') &&
-        vaiTro.canManage &&
-        !hs.dossier.notifiedAt &&
-        ['DANG_THUC_HIEN', 'DGCK_DRAFT', 'DGCK_BS', null].includes(st) && (
-          <Button
-            type="primary"
-            ghost
-            onClick={() =>
-              thongBaoCuoiKy(outlineId)
-                .then(() => {
-                  onXong('Đã gửi thông báo');
-                  tai();
-                })
-                .catch((e) => message.error(bao(e)))
-            }
-          >
-            PKH gửi thông báo nộp hồ sơ nghiệm thu
-          </Button>
-        )}
-
-      {chi('hoso') && (
-      <Card
-        size="small"
-        title="Hồ sơ nghiệm thu (US-06-01 · BM.10 / BM.11)"
-        extra={
-          st ? (
-            <Tag color="processing">{NHAN_TRIEN_KHAI[st] || st}</Tag>
-          ) : null
-        }
-      >
-        <Alert
-          style={{ marginBottom: 8 }}
-          type="info"
-          showIcon
-          message="Có thể nộp hồ sơ bất cứ lúc nào"
-          description="Chủ nhiệm được chuẩn bị và nộp hồ sơ nghiệm thu trước hạn kết thúc nhiệm vụ."
-        />
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              Báo cáo tổng hợp (BM.10) ≤ 30MB *
-            </div>
-            {summaryFile?.fileName || <span style={{ color: '#999' }}>chưa có</span>}{' '}
-            {vaiTro.canCnnv && (
-              <ChonTep
-                maxBytes={HAN_FILE.tomTat}
-                nhan="Tải lên"
-                onCo={setSummaryFile}
-              />
-            )}
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              Báo cáo tóm tắt ≤ 10MB (≤ 15 trang) *
-            </div>
-            {briefFile?.fileName || <span style={{ color: '#999' }}>chưa có</span>}{' '}
-            {vaiTro.canCnnv && (
-              <ChonTep
-                maxBytes={HAN_FILE.tomTatNgan}
-                nhan="Tải lên"
-                onCo={setBriefFile}
-              />
-            )}
-          </div>
-          <Input.TextArea
-            rows={3}
-            value={resultVi}
-            placeholder="Kết quả nghiên cứu (tiếng Việt) *"
-            onChange={(e) => setResultVi(e.target.value)}
-          />
-          <Input.TextArea
-            rows={3}
-            value={resultEn}
-            placeholder="Research results (English) *"
-            onChange={(e) => setResultEn(e.target.value)}
-          />
-          <Input.TextArea
-            rows={2}
-            value={publicationsNote}
-            placeholder="Danh sách ấn phẩm / ghi chú công bố (tuỳ chọn)"
-            onChange={(e) => setPublicationsNote(e.target.value)}
-          />
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>
-              File hội đồng BM.11 (tuỳ chọn)
-            </div>
-            {councilFile?.fileName || <span style={{ color: '#999' }}>chưa có</span>}{' '}
-            {vaiTro.canCnnv && (
-              <ChonTep
-                maxBytes={HAN_FILE.tomTat}
-                nhan="Tải lên"
-                onCo={setCouncilFile}
-              />
-            )}
-          </div>
-          <div style={{ fontWeight: 600 }}>Sản phẩm theo thuyết minh *</div>
-          {products.length === 0 ? (
-            <Alert type="info" showIcon message="Thuyết minh chưa khai báo sản phẩm." />
-          ) : (
-            products.map((p, i) => (
-              <Space key={p.name} style={{ display: 'flex' }} wrap>
-                <span style={{ minWidth: 160, fontWeight: 500 }}>{p.name}</span>
-                <Input
-                  placeholder="Link minh chứng"
-                  value={p.link}
-                  style={{ minWidth: 220 }}
-                  onChange={(e) =>
-                    setProducts((s) =>
-                      s.map((x, j) =>
-                        j === i ? { ...x, link: e.target.value } : x,
-                      ),
-                    )
-                  }
-                />
-                <ChonTep
-                  maxBytes={HAN_FILE.tomTat}
-                  nhan={p.fileUrl ? 'Đổi file' : 'File'}
-                  onCo={(t) =>
-                    setProducts((s) =>
-                      s.map((x, j) =>
-                        j === i ? { ...x, fileUrl: t.fileUrl } : x,
-                      ),
-                    )
-                  }
-                />
-              </Space>
-            ))
-          )}
-          {vaiTro.canCnnv &&
-            ['DANG_THUC_HIEN', 'DGCK_DRAFT', 'DGCK_BS', null].includes(st) && (
-              <Space>
-                <Button onClick={() => nopHoSo(false)}>Lưu nháp</Button>
-                <Button type="primary" onClick={() => nopHoSo(true)}>
-                  Nộp hồ sơ nghiệm thu
-                </Button>
-              </Space>
-            )}
-          {vaiTro.canManage && st === 'DGCK_CHO_PKH' && (
-            <Space direction="vertical">
-              <Checkbox
-                checked={soTrangOk}
-                onChange={(e) => setSoTrangOk(e.target.checked)}
-              >
-                Xác nhận báo cáo tóm tắt không quá 15 trang
-              </Checkbox>
-              <Space>
-                <Button
-                  type="primary"
-                  disabled={!soTrangOk}
-                  onClick={() =>
-                    duyetHoSoCuoiKy(outlineId, {
-                      accept: true,
-                      briefPagesOk: true,
-                    })
-                      .then(() => {
-                        onXong('Đã chuyển họp hội đồng');
-                        return tai();
-                      })
-                      .catch((e) => message.error(bao(e)))
-                  }
-                >
-                  Duyệt → họp hội đồng
-                </Button>
-                <Button
-                  danger
-                  onClick={() => {
-                    const note = window.prompt('Lý do trả bổ sung') || '';
-                    if (!note.trim()) return;
-                    duyetHoSoCuoiKy(outlineId, {
-                      accept: false,
-                      briefPagesOk: false,
-                      note: note.trim(),
-                    })
-                      .then(tai)
-                      .catch((e) => message.error(bao(e)));
-                  }}
-                >
-                  Trả bổ sung
-                </Button>
-              </Space>
-            </Space>
-          )}
-        </Space>
-      </Card>
-      )}
-
       {chi('hoidong') && stHoiDong && (
-        <Card size="small" title="Hội đồng đánh giá kết quả">
-          {vaiTro.canManage && !hs.minutesLocked && (
-            <Space
-              direction="vertical"
-              style={{ width: '100%', marginBottom: 12 }}
-            >
-              <DatePicker
-                showTime
-                placeholder="Thời gian họp"
-                defaultValue={
-                  hs.council.meetingAt ? dayjs(hs.council.meetingAt) : undefined
-                }
-                onChange={(v) =>
-                  setHs({
-                    ...hs,
-                    council: {
-                      ...hs.council,
-                      meetingAt: v ? v.toISOString() : null,
-                    },
-                  })
-                }
-              />
-              <Input
-                placeholder="Địa điểm"
-                value={hs.council.location || ''}
-                onChange={(e) =>
-                  setHs({
-                    ...hs,
-                    council: { ...hs.council, location: e.target.value },
-                  })
-                }
-              />
-              <Select
-                showSearch
-                filterOption={false}
-                placeholder="Thêm thành viên"
-                options={nguoi}
-                onSearch={async (kw) => {
-                  const res = await getAvailableOutlineReviewers(
-                    outlineId,
-                    kw,
-                  ).catch(() => null);
-                  setNguoi(
-                    (res?.data || [])
-                      .filter((r) => r.reviewerUserId)
-                      .map((r) => ({
-                        value: r.reviewerUserId as number,
-                        label: r.reviewerName,
-                      })),
-                  );
-                }}
-                onChange={(userId, opt) => {
-                  const label = (opt as { label?: string }).label;
-                  setThanhVien((s) =>
-                    s.some((m) => m.userId === userId)
-                      ? s
-                      : [...s, { userId, role: 'UY_VIEN', name: label }],
-                  );
-                }}
-              />
-              {thanhVien.map((m) => (
-                <Space key={m.userId}>
-                  <span>{m.name || m.userId}</span>
-                  <Select
-                    style={{ width: 140 }}
-                    value={m.role}
-                    options={Object.entries(NHAN_VAI_TRO_HD).map(
-                      ([value, label]) => ({ value, label }),
-                    )}
-                    onChange={(role) =>
-                      setThanhVien((s) =>
-                        s.map((x) =>
-                          x.userId === m.userId ? { ...x, role } : x,
-                        ),
-                      )
-                    }
-                  />
-                  <a
-                    onClick={() =>
-                      setThanhVien((s) =>
-                        s.filter((x) => x.userId !== m.userId),
-                      )
-                    }
-                  >
-                    Xóa
-                  </a>
-                  {m.role === 'PHAN_BIEN' && (
-                    <a
-                      onClick={() =>
-                        nhacPhanBien(outlineId, m.userId)
-                          .then(() => onXong('Đã nhắc'))
-                          .catch((e) => message.error(bao(e)))
-                      }
-                    >
-                      Nhắc
-                    </a>
-                  )}
-                </Space>
-              ))}
-              <Button
-                type="primary"
-                onClick={() =>
-                  luuHoiDong(outlineId, {
-                    meetingAt: hs.council.meetingAt,
-                    location: hs.council.location,
-                    members: thanhVien.map((m) => ({
-                      userId: m.userId,
-                      role: m.role,
-                    })),
-                  })
-                    .then(tai)
-                    .catch((e) => message.error(bao(e)))
-                }
-              >
-                Lưu hội đồng
-              </Button>
-            </Space>
-          )}
-          {toi && !hs.minutesLocked && (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 12 }}
-              message="Phiếu đánh giá KQCK"
-              description="Vào menu «Phiếu đánh giá KQCK của tôi» → Nhập phiếu đánh giá để mở form độc lập."
-            />
-          )}
-          {/* Nhận xét đã nộp của thành viên */}
-          {(hs.sheets || []).length > 0 && (
-            <Table
-              size="small"
-              style={{ marginTop: 12 }}
-              pagination={false}
-              rowKey="userId"
-              dataSource={hs.sheets}
-              columns={[
-                {
-                  title: 'Thành viên',
-                  render: (_, r) => {
-                    const m = hs.council.members.find(
-                      (x) => x.userId === r.userId,
-                    );
-                    return (
-                      m?.fullName ||
-                      m?.name ||
-                      `#${r.userId}`
-                    );
-                  },
-                },
-                {
-                  title: 'Vai trò',
-                  render: (_, r) => {
-                    const m = hs.council.members.find(
-                      (x) => x.userId === r.userId,
-                    );
-                    return (
-                      NHAN_VAI_TRO_HD[(m?.role || '') as 'CHU_TICH'] ||
-                      m?.role ||
-                      '—'
-                    );
-                  },
-                },
-                {
-                  title: 'Nhận xét chung',
-                  dataIndex: 'generalComment',
-                  ellipsis: true,
-                },
-                {
-                  title: 'Nộp lúc',
-                  width: 160,
-                  render: (_, r) =>
-                    r.submittedAt
-                      ? dayjs(r.submittedAt).format('DD/MM/YYYY HH:mm')
-                      : '—',
-                },
-              ]}
-            />
-          )}
-          {hs.minutesFileUrl && (
-            <div style={{ marginTop: 8 }}>
-              <a
-                href={resolvePublicAssetUrl(hs.minutesFileUrl)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Tải biên bản đã lưu
-              </a>
-            </div>
-          )}
-        </Card>
+        <PanelHoiDongDgck
+          outlineId={outlineId}
+          hs={hs}
+          vaiTro={vaiTro}
+          onTai={tai}
+          onXong={onXong}
+        />
       )}
 
       {phan === 'hoidong' && !stHoiDong && (
         <Alert
           type="info"
           showIcon
-          message="Hội đồng mở sau khi PKH duyệt hồ sơ nghiệm thu"
-          description="CNNV nộp hồ sơ → PKH chuyển họp hội đồng."
+          message="Hội đồng mở sau khi PKH duyệt hồ sơ đề nghị đánh giá KQNV"
+          description="CNNV nộp hồ sơ đề nghị → PKH duyệt và chuyển họp hội đồng."
         />
       )}
 
       {chi('danhgia') && stDanhGia && (
-        <Card size="small" title="Đánh giá kết quả (biên bản hội đồng)">
-          {hs.classification && (
-            <Tag color="blue" style={{ marginBottom: 8 }}>
-              Xếp loại:{' '}
-              {NHAN_XEP_LOAI[hs.classification as 'DAT_YEU_CAU'] ||
-                hs.classification}
-            </Tag>
-          )}
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
           {vaiTro.canManage &&
             !hs.minutesLocked &&
             st === 'DGCK_HOP_HD' &&
             hs.council.members.length > 0 && (
-              <BienBan
-                outlineId={outlineId}
-                members={hs.council.members}
-                ten={products.map((p) => p.name)}
-                onXong={tai}
-              />
+              <Card size="small" title="Lập biên bản hội đồng">
+                <BienBan
+                  outlineId={outlineId}
+                  members={hs.council.members}
+                  ten={products.map((p) => p.name)}
+                  onXong={tai}
+                />
+              </Card>
             )}
-          {hs.minutesLocked && hs.minutes && (
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <div>
-                <TextStrong>Thảo luận:</TextStrong> {hs.minutes.discussion || '—'}
-              </div>
-              <div>
-                <TextStrong>Khối lượng:</TextStrong> {hs.minutes.volume || '—'}
-              </div>
-              <div>
-                <TextStrong>Chất lượng:</TextStrong> {hs.minutes.quality || '—'}
-              </div>
-              <div>
-                <TextStrong>Kiến nghị:</TextStrong>
-                <pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
-                  {hs.minutes.recommendation || '—'}
-                </pre>
-              </div>
-              {hs.minutesFileUrl && (
-                <a
-                  href={resolvePublicAssetUrl(hs.minutesFileUrl)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Tải biên bản
-                </a>
-              )}
-            </Space>
+          {hs.minutesLocked && hs.minutes ? (
+            <BienBanDgckXem hs={hs} />
+          ) : null}
+          {ST_KHONG_DAT.includes(String(st)) && vaiTro.canManage && (
+            <Card size="small">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Xếp loại Không đạt — PKH&HTQT quyết định hướng xử lý"
+                  description="Cho làm lại (chuyển chỉnh sửa / hoàn thiện) hoặc đình chỉ nhiệm vụ."
+                />
+                <Space>
+                  <Button
+                    type="primary"
+                    onClick={() =>
+                      quyetDinhKhongDat(outlineId, true)
+                        .then(tai)
+                        .catch((e) => message.error(bao(e)))
+                    }
+                  >
+                    Cho làm lại / hoàn thiện
+                  </Button>
+                  <Button
+                    danger
+                    onClick={() =>
+                      quyetDinhKhongDat(outlineId, false)
+                        .then(tai)
+                        .catch((e) => message.error(bao(e)))
+                    }
+                  >
+                    Đình chỉ
+                  </Button>
+                </Space>
+              </Space>
+            </Card>
           )}
-          {st === 'DGCK_KHONG_DAT' && vaiTro.canManage && (
-            <Space style={{ marginTop: 12 }}>
-              <Button
-                onClick={() =>
-                  quyetDinhKhongDat(outlineId, true)
-                    .then(tai)
-                    .catch((e) => message.error(bao(e)))
-                }
-              >
-                Cho làm lại
-              </Button>
-              <Button
-                danger
-                onClick={() =>
-                  quyetDinhKhongDat(outlineId, false)
-                    .then(tai)
-                    .catch((e) => message.error(bao(e)))
-                }
-              >
-                Đình chỉ
-              </Button>
-            </Space>
-          )}
-        </Card>
+        </Space>
       )}
 
       {phan === 'danhgia' && !stDanhGia && (
@@ -1047,13 +1133,21 @@ export function TabCuoiKy({
       )}
 
       {chi('giaitrinh') && stGiaiTrinh && (
-        <Card size="small" title="Nộp hồ sơ giải trình">
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 12 }}
-            message="CNNV nộp giải trình → Thư ký xác nhận → Chủ tịch xác nhận → mở Quyết toán / Thanh lý"
-          />
+        <Card
+          size="small"
+          title="Nộp hồ sơ giải trình (BM-05.07)"
+          extra={
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              loading={dangTaiBm0507}
+              onClick={() => void taiBm0507Panel()}
+            >
+              Tải BM-05.07
+            </Button>
+          }
+        >
           <GiaiTrinh
             hs={hs}
             vaiTro={vaiTro}
@@ -1074,298 +1168,29 @@ export function TabCuoiKy({
       )}
 
       {chi('quyettoan') && stQuyetToan && (
-        <Card size="small" title="Quyết toán">
-          {MUC_CHI.map((m) => (
-            <div key={m.code} style={{ marginBottom: 6 }}>
-              {nhanMuc(m.code)} (đã chi{' '}
-              {formatVnd(
-                hs.finance.lines.find((l) => l.code === m.code)?.spent,
-              )}
-              ){' '}
-              <InputNumber
-                {...vndInputNumberProps}
-                min={0}
-                value={khai[m.code] || 0}
-                disabled={!vaiTro.canCnnv}
-                onChange={(v) =>
-                  setKhai((s) => ({ ...s, [m.code]: Number(v || 0) }))
-                }
-              />
-            </div>
-          ))}
-          {vaiTro.canCnnv &&
-            (!hs.settlement.status ||
-              ['QT_DRAFT', 'QT_BS'].includes(hs.settlement.status)) && (
-              <>
-                <ChonTep
-                  maxBytes={HAN_FILE.phieu}
-                  nhan="File quyết toán"
-                  onCo={(t) => setTepQt((s) => [...s, t])}
-                />
-                {tepQt.map((t) => (
-                  <div key={t.fileUrl}>{t.fileName}</div>
-                ))}
-                <Button
-                  type="primary"
-                  onClick={() =>
-                    luuQuyetToan(outlineId, {
-                      submit: true,
-                      lines: MUC_CHI.map((m) => ({
-                        code: m.code,
-                        declaredAmount: Number(khai[m.code] || 0),
-                      })),
-                      files: tepQt,
-                    })
-                      .then(tai)
-                      .catch((e) => message.error(bao(e)))
-                  }
-                >
-                  Nộp quyết toán
-                </Button>
-              </>
-            )}
-          {vaiTro.canManage && hs.settlement.status === 'QT_CHO_PKH' && (
-            <Space>
-              <Button
-                onClick={() =>
-                  pkhQuyetToan(outlineId, { accept: true })
-                    .then(tai)
-                    .catch((e) => message.error(bao(e)))
-                }
-              >
-                Chuyển KH-TC
-              </Button>
-              {chenh && !hs.settlement.varianceAck && (
-                <Button
-                  onClick={() => {
-                    const reason =
-                      window.prompt('Lý do chênh với sổ chi') || '';
-                    if (!reason.trim()) return;
-                    xacNhanChenhLech(outlineId, reason.trim())
-                      .then(tai)
-                      .catch((e) => message.error(bao(e)));
-                  }}
-                >
-                  Xác nhận chênh lệch
-                </Button>
-              )}
-            </Space>
-          )}
-          {vaiTro.canTc && hs.settlement.status === 'QT_CHO_TC' && (
-            <Button
-              type="primary"
-              onClick={() => {
-                const date =
-                  window.prompt(
-                    'Ngày quyết toán YYYY-MM-DD',
-                    dayjs().format('YYYY-MM-DD'),
-                  ) || '';
-                if (!date.trim()) return;
-                tcQuyetToan(outlineId, { accept: true, date: date.trim() })
-                  .then(tai)
-                  .catch((e) => message.error(bao(e)));
-              }}
-            >
-              KH-TC xác nhận
-            </Button>
-          )}
-          {hs.settlement.status && <Tag>{hs.settlement.status}</Tag>}
-        </Card>
+        <PanelQuyetToan
+          outlineId={outlineId}
+          hs={hs}
+          vaiTro={vaiTro}
+          onTai={tai}
+        />
       )}
 
       {phan === 'quyettoan' && !stQuyetToan && (
-        <Alert
-          type="info"
-          showIcon
-          message="Quyết toán mở sau khi đánh giá đạt hoặc giải trình được Chủ tịch & Thư ký xác nhận"
-        />
+        <Alert type="info" showIcon message="Chưa đến bước quyết toán" />
       )}
 
       {chi('thanhly') && stThanhLy && (
-        <Card
-          size="small"
-          title={`Thanh lý hợp đồng · số dư ${formatVnd(hs.liquidation.surplus)}`}
-          extra={
-            hs.liquidation.fileUrl ? (
-              <a href={resolvePublicAssetUrl(hs.liquidation.fileUrl)}>BM.14</a>
-            ) : null
-          }
-        >
-          <Select
-            style={{ width: 220, marginBottom: 8 }}
-            value={surplusHandling}
-            disabled={!vaiTro.canManage}
-            options={[
-              { value: 'HOAN_TRA', label: 'Hoàn trả' },
-              { value: 'KHONG_PHAT_SINH', label: 'Không phát sinh' },
-            ]}
-            onChange={setSurplusHandling}
-          />
-          <div style={{ marginBottom: 8 }}>
-            File công nhận (tuỳ chọn):{' '}
-            {fileCongNhan ? (
-              <a
-                href={resolvePublicAssetUrl(fileCongNhan)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Xem file
-              </a>
-            ) : (
-              'chưa có'
-            )}{' '}
-            {vaiTro.canManage && (
-              <ChonTep
-                maxBytes={HAN_FILE.phieu}
-                nhan="Tải"
-                onCo={(t) => setFileCongNhan(t.fileUrl)}
-              />
-            )}
-          </div>
-          <Table
-            size="small"
-            pagination={false}
-            rowKey={(_, i) => String(i)}
-            dataSource={taiSan}
-            columns={[
-              {
-                title: 'Tên',
-                render: (_, r, i) => (
-                  <Input
-                    value={r.name}
-                    onChange={(e) =>
-                      setTaiSan((s) =>
-                        s.map((x, j) =>
-                          j === i ? { ...x, name: e.target.value } : x,
-                        ),
-                      )
-                    }
-                  />
-                ),
-              },
-              {
-                title: 'SL',
-                width: 80,
-                render: (_, r, i) => (
-                  <Input
-                    value={r.quantity}
-                    onChange={(e) =>
-                      setTaiSan((s) =>
-                        s.map((x, j) =>
-                          j === i ? { ...x, quantity: e.target.value } : x,
-                        ),
-                      )
-                    }
-                  />
-                ),
-              },
-              {
-                title: 'Số tiền',
-                width: 140,
-                render: (_, r, i) => (
-                  <InputNumber
-                    {...vndInputNumberProps}
-                    value={r.amount}
-                    onChange={(v) =>
-                      setTaiSan((s) =>
-                        s.map((x, j) =>
-                          j === i ? { ...x, amount: Number(v || 0) } : x,
-                        ),
-                      )
-                    }
-                  />
-                ),
-              },
-            ]}
-          />
-          <Button
-            style={{ margin: '8px 0' }}
-            onClick={() =>
-              setTaiSan((s) => [
-                ...s,
-                { name: '', quantity: '1', amount: 0, note: '' },
-              ])
-            }
-          >
-            Thêm tài sản
-          </Button>
-          <Space wrap>
-            {vaiTro.canManage &&
-              (!hs.liquidation.status ||
-                ['TL_DRAFT', 'TL_TRA_LAI'].includes(hs.liquidation.status)) && (
-                <>
-                  <Button
-                    onClick={() =>
-                      luuThanhLy(outlineId, {
-                        surplusHandling,
-                        assets: taiSan,
-                        recognitionFileUrl: fileCongNhan,
-                      })
-                        .then(tai)
-                        .catch((e) => message.error(bao(e)))
-                    }
-                  >
-                    Lưu thanh lý
-                  </Button>
-                  <Button
-                    type="primary"
-                    onClick={() =>
-                      trinhThanhLy(outlineId)
-                        .then(tai)
-                        .catch((e) => message.error(bao(e)))
-                    }
-                  >
-                    Trình BGH
-                  </Button>
-                </>
-              )}
-            {vaiTro.canBgh && hs.liquidation.status === 'TL_CHO_BGH' && (
-              <Button
-                onClick={() =>
-                  bghThanhLy(outlineId, { accept: true })
-                    .then(tai)
-                    .catch((e) => message.error(bao(e)))
-                }
-              >
-                BGH ký
-              </Button>
-            )}
-            {vaiTro.canPublish &&
-              hs.liquidation.status === 'TL_CHO_PHAT_HANH' && (
-                <Button
-                  onClick={() => {
-                    const issueNo = window.prompt('Số phát hành') || '';
-                    if (!issueNo.trim()) return;
-                    phatHanhThanhLy(outlineId, issueNo.trim())
-                      .then(tai)
-                      .catch((e) => message.error(bao(e)));
-                  }}
-                >
-                  Phát hành
-                </Button>
-              )}
-            {vaiTro.canCnnv && hs.liquidation.status === 'TL_CHO_CNNV' && (
-              <Button
-                type="primary"
-                onClick={() =>
-                  cnnvThanhLy(outlineId)
-                    .then(tai)
-                    .catch((e) => message.error(bao(e)))
-                }
-              >
-                CNNV xác nhận hoàn thành
-              </Button>
-            )}
-          </Space>
-        </Card>
+        <PanelThanhLy
+          outlineId={outlineId}
+          hs={hs}
+          vaiTro={vaiTro}
+          onTai={tai}
+        />
       )}
 
       {phan === 'thanhly' && !stThanhLy && (
-        <Alert
-          type="info"
-          showIcon
-          message="Thanh lý hợp đồng mở sau khi quyết toán hoàn tất"
-        />
+        <Alert type="info" showIcon message="Chưa đến bước thanh lý" />
       )}
     </Space>
   );

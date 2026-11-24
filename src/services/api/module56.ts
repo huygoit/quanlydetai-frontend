@@ -225,6 +225,7 @@ export type HoSoCuoiKy = {
   projectOutlineId: number;
   code: string;
   title: string;
+  ownerName?: string | null;
   executionStatus: string | null;
   /** Kết quả dự kiến từ TM — phục vụ phiếu đánh giá KQCK */
   expectedResults?: import('./projectOutlines').ProjectOutline['expectedResults'];
@@ -262,22 +263,46 @@ export type HoSoCuoiKy = {
     volume?: string;
     quality?: string;
     recommendation?: string;
+    recommendationLines?: string[];
     presentUserIds?: number[];
     productMarks?: { name: string; met: boolean }[];
+    qdCouncilNo?: string;
+    clarifyContent?: string;
+    ownerExplanation?: string;
+    voteDat?: number;
+    voteBoSung?: number;
+    voteKhongDat?: number;
+    voteEligible?: number;
+    completeDeadline?: string;
+    completeChecker?: string;
+    nextAction?: string;
+    otherRecommendation?: string;
   } | null;
   minutesLocked: boolean;
   minutesFileUrl: string | null;
   classification: string | null;
   explanation: {
     status: string | null;
-    items: { response?: string; text?: string }[];
+    items: {
+      recommendation?: string;
+      response?: string;
+      evidence?: string;
+      evidenceFile?: TepModule56 | null;
+      text?: string;
+    }[];
     deadline: string | null;
     reportFile: TepModule56 | null;
     returnReason: string | null;
   };
   settlement: {
     status: string | null;
-    lines: { code: string; declaredAmount: number }[];
+    lines: {
+      code: string;
+      declaredAmount: number;
+      /** Chứng từ scan theo từng khoản chi */
+      evidenceFiles?: TepModule56[];
+    }[];
+    /** Bảng quyết toán tổng hợp (Excel/PDF) */
     files: TepModule56[];
     varianceAck: boolean;
     varianceReason: string | null;
@@ -294,6 +319,7 @@ export type HoSoCuoiKy = {
     bghSignedAt: string | null;
     publishedAt: string | null;
     cnnvSignedAt: string | null;
+    returnReason?: string | null;
   };
   finance: {
     advanced: number;
@@ -553,12 +579,13 @@ export function moLaiBienBanCuoiKy(outlineId: number, reason: string) {
   return post(`/api/module56/final/${outlineId}/minutes-reopen`, { reason });
 }
 
-/** Phiếu đánh giá KQCK của tôi (thành viên HĐ) */
+/** Hội đồng đánh giá của tôi (thành viên HĐ) */
 export type PhieuDgckCuaToi = {
   outlineId: number;
   code: string;
   title: string;
   ownerName?: string | null;
+  ownerUnit?: string | null;
   executionStatus: string | null;
   meetingAt: string | null;
   location: string | null;
@@ -567,12 +594,69 @@ export type PhieuDgckCuaToi = {
   sheetSubmittedAt: string | null;
   minutesLocked: boolean;
   contractId: number | null;
+  memberCount: number;
+  submittedCount: number;
+  pendingCount: number;
+  progressPercent: number;
+  duPhieu: boolean;
+  members: {
+    userId: number;
+    fullName: string;
+    role: string | null;
+    roleLabel: string | null;
+    sheetStatus: 'DA_NOP' | 'CHUA_NOP';
+    submittedAt: string | null;
+    ketLuan: string | null;
+  }[];
   formPath: string;
+  detailPath: string;
 };
 
 export function danhSachPhieuDgckCuaToi() {
   return get<ApiResponse<PhieuDgckCuaToi[]>>(
     '/api/module56/final/my-eval-sheets',
+  );
+}
+
+/** Thành viên trong tổng hợp phiếu ĐGCK */
+export type ThanhVienTheoDoiPhieuDgck = {
+  userId: number;
+  fullName: string;
+  email?: string | null;
+  role: string | null;
+  roleLabel: string | null;
+  sheetStatus: 'DA_NOP' | 'CHUA_NOP';
+  submittedAt: string | null;
+  ketLuan: string | null;
+  ketLuanCode: string | null;
+  bcKetQua: string | null;
+};
+
+/** Nhiệm vụ trong menu Theo dõi phiếu ĐGCK (PKH / Thư ký) */
+export type TheoDoiPhieuDgck = {
+  outlineId: number;
+  code: string;
+  title: string;
+  ownerName?: string | null;
+  executionStatus: string | null;
+  meetingAt: string | null;
+  location: string | null;
+  minutesLocked: boolean;
+  contractId: number | null;
+  memberCount: number;
+  submittedCount: number;
+  pendingCount: number;
+  progressPercent: number;
+  duPhieu: boolean;
+  myRole: string | null;
+  isPkhViewer: boolean;
+  members: ThanhVienTheoDoiPhieuDgck[];
+  detailPath: string;
+};
+
+export function danhSachTheoDoiPhieuDgck() {
+  return get<ApiResponse<TheoDoiPhieuDgck[]>>(
+    '/api/module56/final/eval-sheet-tracking',
   );
 }
 
@@ -639,6 +723,18 @@ export async function taiBaoCaoTongKet(
     `/api/module56/final/${outlineId}/bao-cao-tong-ket-docx`,
     fileName || `BM-05.02_Bao_cao_tong_ket_${outlineId}.docx`,
     'Tải báo cáo tổng kết thất bại',
+  );
+}
+
+/** Tải bản giải trình tiếp thu (BM-05.07) đã đổ biến */
+export async function taiBanGiaiTrinh(
+  outlineId: number,
+  fileName?: string,
+): Promise<void> {
+  return taiFileModule56(
+    `/api/module56/final/${outlineId}/ban-giai-trinh-docx`,
+    fileName || `BM-05.07_Ban_giai_trinh_${outlineId}.docx`,
+    'Tải bản giải trình thất bại',
   );
 }
 

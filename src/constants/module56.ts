@@ -32,8 +32,18 @@ export const NHAN_TRIEN_KHAI: Record<string, string> = {
   DGCK_DINH_CHI: 'Đình chỉ',
   DGCK_CHO_QUYET_TOAN: 'Chờ quyết toán',
   DGCK_CHO_THANH_LY: 'Chờ thanh lý',
+  NT_CHO_QUYETTOAN: 'Chờ quyết toán',
+  NT_CHINH_SUA: 'Chỉnh sửa / hoàn thiện BC',
+  NT_KHONG_DAT: 'Không đạt — chờ PKH xử lý',
   HOAN_THANH: 'Hoàn thành',
 };
+
+/** Sau biên bản: đạt → quyết toán */
+export const ST_CHO_QUYET_TOAN = ['NT_CHO_QUYETTOAN', 'DGCK_CHO_QUYET_TOAN'];
+/** Sau biên bản: cần bổ sung / hoàn thiện */
+export const ST_CHINH_SUA = ['NT_CHINH_SUA', 'DGCK_CHINH_SUA'];
+/** Sau biên bản: không đạt — chờ PKH */
+export const ST_KHONG_DAT = ['NT_KHONG_DAT', 'DGCK_KHONG_DAT'];
 
 export const NHAN_YCKT: Record<string, string> = {
   YCKT_DRAFT: 'Nháp',

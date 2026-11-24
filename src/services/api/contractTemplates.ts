@@ -20,7 +20,9 @@ export type ContractTemplateType =
   | 'QUYET_DINH'
   | 'THUYET_MINH'
   | 'DON_DE_NGHI'
-  | 'BAO_CAO_TONG_KET';
+  | 'BAO_CAO_TONG_KET'
+  | 'BIEN_BAN_DGCK'
+  | 'BAN_GIAI_TRINH';
 
 export interface DocTemplateTypeDef {
   code: ContractTemplateType;
@@ -92,11 +94,16 @@ export const CONTRACT_TEMPLATE_TYPE_OPTIONS: Array<{
 }> = [
   { value: 'THUYET_MINH', label: 'Thuyết minh nhiệm vụ' },
   { value: 'HOP_DONG', label: 'Hợp đồng' },
-  { value: 'THANH_LY', label: 'Biên bản thanh lý hợp đồng' },
+  { value: 'THANH_LY', label: 'Biên bản nghiệm thu và thanh lý hợp đồng' },
   { value: 'THONG_BAO', label: 'Thông báo' },
   { value: 'QUYET_DINH', label: 'Quyết định' },
   { value: 'DON_DE_NGHI', label: 'Đơn đề nghị đánh giá kết quả nhiệm vụ' },
   { value: 'BAO_CAO_TONG_KET', label: 'Báo cáo tổng kết kết quả nhiệm vụ' },
+  { value: 'BIEN_BAN_DGCK', label: 'Biên bản đánh giá kết quả nhiệm vụ' },
+  {
+    value: 'BAN_GIAI_TRINH',
+    label: 'Bản giải trình tiếp thu, hoàn thiện hồ sơ sau đánh giá',
+  },
 ];
 
 export async function getContractTemplateTypes(): Promise<ApiResponse<DocTemplateTypeDef[]>> {

@@ -68,9 +68,11 @@ const FinalEvalFormPage: React.FC = () => {
       extra={
         <Button
           icon={<ArrowLeftOutlined />}
-          onClick={() => history.push('/projects/final-eval/my')}
+          onClick={() =>
+            history.push(`/projects/final-eval/my/${outlineId}`)
+          }
         >
-          Danh sách phiếu của tôi
+          Về hội đồng của tôi
         </Button>
       }
     >

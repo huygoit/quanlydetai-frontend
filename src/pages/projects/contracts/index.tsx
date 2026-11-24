@@ -146,7 +146,7 @@ const ProjectContractsPage: React.FC = () => {
         showIcon
         style={{ marginBottom: 16 }}
         message="Hệ thống tự sinh dự thảo khi lãnh đạo phê duyệt thuyết minh."
-        description="Mở chi tiết để phân bổ mục chi, trình CNNV, BGH ký và TC-HC phát hành. Sau khi đã ký, vào Triển khai để theo dõi chi và đánh giá."
+        description="Mở chi tiết để phân bổ mục chi, trình CNNV, BGH ký và phát hành. Sau khi đã ký: tạm ứng / tiến độ / điều chỉnh / mua sắm / hồ sơ đề nghị ĐGKQNV. Nghiệm thu → thanh lý nằm ở menu «Nghiệm thu, thanh lý nhiệm vụ»."
       />
       <ProTable<ProjectContract>
         rowKey="id"

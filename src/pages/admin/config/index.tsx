@@ -346,7 +346,7 @@ const AdminContractTemplatesPage: React.FC = () => {
         showIcon
         style={{ marginBottom: 16 }}
         message="Mỗi loại có một mẫu mặc định riêng. File DOCX dùng biến {{ten_bien}}."
-        description="«Hợp đồng» dùng cho BM.06. «Biên bản thanh lý» dùng sau nghiệm thu. «Thông báo» dùng cho thông báo tuyển chọn đề tài."
+        description="«Hợp đồng» dùng cho BM.06. «Thanh lý» dùng BM-05.10 sau nghiệm thu. «Thông báo» dùng cho thông báo tuyển chọn đề tài."
       />
 
       <Tabs
@@ -387,15 +387,6 @@ const AdminContractTemplatesPage: React.FC = () => {
           ]}
         />
       )}
-      {vars.length === 0 && activeType === 'THANH_LY' && (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="Loại thanh lý chưa có danh mục biến chuẩn — upload DOCX trước, hệ thống sẽ quét {{biến}} trong file."
-        />
-      )}
-
       <ProTable<ContractTemplate>
         rowKey="id"
         actionRef={actionRef}
@@ -473,7 +464,11 @@ const AdminContractTemplatesPage: React.FC = () => {
                           ? 'BM0501'
                           : activeType === 'BAO_CAO_TONG_KET'
                             ? 'BM0502'
-                            : '',
+                            : activeType === 'BIEN_BAN_DGCK'
+                              ? 'BM0506'
+                              : activeType === 'BAN_GIAI_TRINH'
+                                ? 'BM0507'
+                                : '',
                 code:
                   activeType === 'HOP_DONG'
                     ? 'BM06_'
@@ -485,7 +480,11 @@ const AdminContractTemplatesPage: React.FC = () => {
                           ? 'BM0501_'
                           : activeType === 'BAO_CAO_TONG_KET'
                             ? 'BM0502_'
-                            : 'BBTL_',
+                            : activeType === 'BIEN_BAN_DGCK'
+                              ? 'BM0506_'
+                              : activeType === 'BAN_GIAI_TRINH'
+                                ? 'BM0507_'
+                                : 'BBTL_',
                 chuc_danh_nguoi_de_nghi: 'Trưởng phòng Khoa học và Hợp tác quốc tế',
                 don_vi_dau_moi: 'Phòng Khoa học và Hợp tác quốc tế',
                 don_vi_luu_ho_so: 'PKH&HTQT',

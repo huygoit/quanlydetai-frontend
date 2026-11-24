@@ -42,7 +42,13 @@ import {
   Typography,
   message,
 } from 'antd';
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 
 const { Text, Title, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -120,7 +126,7 @@ function demDong(n: number) {
   return n > 0 ? <Tag>{n}</Tag> : null;
 }
 
-/** Radio Đạt/Không đạt — nếu Không đạt hiện textarea ngay dưới */
+/** Radio Đạt/Không đạt — nếu Không đạt hiện textarea ngay dưới (ổn định, không tắt đột ngột) */
 function RadioDatKd({
   value,
   onChange,
@@ -135,33 +141,37 @@ function RadioDatKd({
   onLyDoChange?: (v: string) => void;
 }) {
   return (
-    <Space direction="vertical" size={6} style={{ width: '100%' }}>
+    <div style={{ width: '100%' }}>
       <Radio.Group
         value={value}
         disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value as DatKd;
+          if (v === 'DAT' || v === 'KHONG_DAT') onChange(v);
+        }}
         style={{
           display: 'flex',
           flexDirection: 'column',
           gap: 4,
           whiteSpace: 'normal',
         }}
-        options={[
-          { value: 'DAT', label: 'Đạt' },
-          { value: 'KHONG_DAT', label: 'Không đạt' },
-        ]}
-      />
-      {value === 'KHONG_DAT' && (
+      >
+        <Radio value="DAT">Đạt</Radio>
+        <Radio value="KHONG_DAT">Không đạt</Radio>
+      </Radio.Group>
+      {value === 'KHONG_DAT' ? (
         <TextArea
           rows={2}
           disabled={disabled}
           value={lyDo || ''}
           placeholder="Lý do / cần chỉnh sửa"
-          style={{ width: '100%', fontSize: 12 }}
+          style={{ width: '100%', fontSize: 12, marginTop: 6 }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           onChange={(e) => onLyDoChange?.(e.target.value)}
         />
-      )}
-    </Space>
+      ) : null}
+    </div>
   );
 }
 
@@ -178,6 +188,9 @@ export function FormDanhGiaThanhVienHd({
     EMPTY_EXPECTED_RESULTS;
   const [mcMap, setMcMap] = useState<Record<string, MinhChung>>({});
   const [dongMap, setDongMap] = useState<Record<string, DongDg>>({});
+  /** Ref luôn mới — cột bảng đọc từ đây, tránh stale closure khi useMemo cột */
+  const dongMapRef = useRef(dongMap);
+  dongMapRef.current = dongMap;
   const [bcKetQua, setBcKetQua] = useState<DatKd | undefined>();
   const [bcGhiChu, setBcGhiChu] = useState('');
   const [ketLuan, setKetLuan] = useState<KetLuan | undefined>();
@@ -233,17 +246,53 @@ export function FormDanhGiaThanhVienHd({
 
   useEffect(() => {
     if (!outlineId) return;
+    let huy = false;
     hoSoCuoiKy(outlineId)
       .then((res) => {
+        if (huy) return;
         const data = res.data;
         setHs(data);
-        const sheet = (data.sheets || []).find((s) => s.userId === userId);
+        const sheet = (data.sheets || []).find(
+          (s) => Number(s.userId) === Number(userId),
+        );
         if (sheet?.submittedAt) setDaNopPhieu(true);
 
         const products = data.dossier?.products || [];
+        // Dựng key từ expectedResults trên hồ sơ (không phụ thuộc tatCaKeys lúc fetch)
+        const erHs = data.expectedResults || EMPTY_EXPECTED_RESULTS;
+        const rows: { key: string; title: string }[] = [];
+        (erHs.publications || [])
+          .filter((r) => r.content?.trim())
+          .forEach((r) =>
+            rows.push({ key: `pub:${r.id}`, title: r.content.trim() }),
+          );
+        (erHs.appliedProducts || [])
+          .filter((r) => r.name?.trim())
+          .forEach((r) =>
+            rows.push({ key: `app:${r.id}`, title: r.name.trim() }),
+          );
+        (erHs.tangibleProducts || [])
+          .filter((r) => r.name?.trim())
+          .forEach((r) =>
+            rows.push({ key: `tan:${r.id}`, title: r.name.trim() }),
+          );
+        (erHs.ipProducts || [])
+          .filter((r) => r.name?.trim())
+          .forEach((r) =>
+            rows.push({ key: `ip:${r.id}`, title: r.name.trim() }),
+          );
+        (erHs.postgraduateTraining || [])
+          .filter((r) => r.level?.trim() || r.major?.trim())
+          .forEach((r) => {
+            const title = [r.level?.trim(), r.major?.trim(), r.quantity?.trim()]
+              .filter(Boolean)
+              .join(' — ');
+            rows.push({ key: `trn:${r.id}`, title });
+          });
+
         const mc: Record<string, MinhChung> = {};
-        const dg: Record<string, DongDg> = {};
-        for (const row of tatCaKeys) {
+        const dgFromApi: Record<string, DongDg> = {};
+        for (const row of rows) {
           const hit = products.find((p) => p.name === row.title);
           mc[row.key] = {
             key: row.key,
@@ -258,7 +307,7 @@ export function FormDanhGiaThanhVienHd({
           const oldNote = String(old?.note || old?.comment || '');
           const sl = old?.soLuong || old?.quantityOk;
           const cl = old?.chatLuong || old?.qualityOk;
-          dg[row.key] = {
+          dgFromApi[row.key] = {
             key: row.key,
             title: row.title,
             soLuong: sl,
@@ -272,7 +321,23 @@ export function FormDanhGiaThanhVienHd({
           };
         }
         setMcMap(mc);
-        setDongMap(dg);
+        // Giữ lựa chọn user đang nhập — không ghi đè khi effect chạy lại
+        setDongMap((prev) => {
+          const next: Record<string, DongDg> = {};
+          for (const row of rows) {
+            const cu = prev[row.key];
+            const tuApi = dgFromApi[row.key];
+            if (
+              cu &&
+              (cu.soLuong || cu.chatLuong || cu.soLuongNote || cu.chatLuongNote)
+            ) {
+              next[row.key] = { ...tuApi, ...cu };
+            } else {
+              next[row.key] = tuApi;
+            }
+          }
+          return next;
+        });
 
         if (sheet) {
           const rq = (sheet.volumeComment || '') as DatKd;
@@ -298,7 +363,11 @@ export function FormDanhGiaThanhVienHd({
         }
       })
       .catch(() => undefined);
-  }, [outlineId, userId, tatCaKeys]);
+    return () => {
+      huy = true;
+    };
+    // Chỉ tải 1 lần theo đề tài / user — không phụ thuộc danh sách dòng
+  }, [outlineId, userId]);
 
   const khoa = daNopPhieu || !!hs?.minutesLocked;
 
@@ -371,7 +440,10 @@ export function FormDanhGiaThanhVienHd({
     },
   });
 
-  /** Chỉ 2 cột đánh giá — lý do Không đạt hiện ngay dưới radio */
+  /**
+   * 2 cột đánh giá — dùng % width + cố định phải
+   * để mọi bảng (công bố / SP / ĐT…) thẳng hàng nhau.
+   */
   const cotDgThem = <T extends { id: string }>(opts: {
     keyOf: (row: T) => string;
     titleOf: (row: T) => string;
@@ -379,22 +451,25 @@ export function FormDanhGiaThanhVienHd({
     {
       title: tieuDeWrap('Số lượng'),
       key: 'dg_so_luong',
-      width: 130,
+      width: '22%',
+      fixed: 'right',
       ...cotDgStyle,
       render: (_, row) => {
         const k = opts.keyOf(row);
-        const d = dongMap[k];
+        // Đọc ref — luôn đúng giá trị mới sau khi chọn Không đạt
+        const d = dongMapRef.current[k];
         return (
           <RadioDatKd
             value={d?.soLuong}
             disabled={khoa}
             lyDo={d?.soLuongNote}
-            onChange={(v) =>
+            onChange={(v) => {
+              const cur = dongMapRef.current[k];
               capNhatDong(k, opts.titleOf(row), {
                 soLuong: v,
-                soLuongNote: v === 'DAT' ? '' : d?.soLuongNote || '',
-              })
-            }
+                soLuongNote: v === 'DAT' ? '' : cur?.soLuongNote || '',
+              });
+            }}
             onLyDoChange={(text) =>
               capNhatDong(k, opts.titleOf(row), { soLuongNote: text })
             }
@@ -405,22 +480,24 @@ export function FormDanhGiaThanhVienHd({
     {
       title: tieuDeWrap('Chất lượng'),
       key: 'dg_chat_luong',
-      width: 130,
+      width: '22%',
+      fixed: 'right',
       ...cotDgStyle,
       render: (_, row) => {
         const k = opts.keyOf(row);
-        const d = dongMap[k];
+        const d = dongMapRef.current[k];
         return (
           <RadioDatKd
             value={d?.chatLuong}
             disabled={khoa}
             lyDo={d?.chatLuongNote}
-            onChange={(v) =>
+            onChange={(v) => {
+              const cur = dongMapRef.current[k];
               capNhatDong(k, opts.titleOf(row), {
                 chatLuong: v,
-                chatLuongNote: v === 'DAT' ? '' : d?.chatLuongNote || '',
-              })
-            }
+                chatLuongNote: v === 'DAT' ? '' : cur?.chatLuongNote || '',
+              });
+            }}
             onLyDoChange={(text) =>
               capNhatDong(k, opts.titleOf(row), { chatLuongNote: text })
             }
@@ -430,112 +507,98 @@ export function FormDanhGiaThanhVienHd({
     },
   ];
 
-  const cotPub: ProColumns<OutlineExpectedPublication>[] = useMemo(
-    () => [
-      {
-        title: tieuDeWrap('STT'),
-        width: 48,
-        render: (_, __, i) => i + 1,
-      },
-      {
-        title: tieuDeWrap('Phạm vi'),
-        dataIndex: 'category',
-        width: 88,
-        onHeaderCell: () => ({ style: STYLE_WRAP }),
-        onCell: () => ({ style: { ...STYLE_WRAP, verticalAlign: 'top' } }),
-        render: (v) => oWrap(PHAM_VI[String(v)] || v),
-      },
-      cotVanBan('Bài báo; sách chuyên khảo và sản phẩm khác', 'content'),
-      cotVanBan('SL', 'quantity', 56),
-      cotVanBan('Yêu cầu KH', 'scienceRequirement'),
-      cotMinhChungXem({ keyOf: (r) => `pub:${r.id}` }),
-      ...cotDgThem({
-        keyOf: (r) => `pub:${r.id}`,
-        titleOf: (r) => r.content.trim(),
-      }),
-    ],
-    [mcMap, dongMap, khoa],
-  );
+  // Không memo cột — mỗi lần chọn radio cần render lại textarea
+  const cotPub: ProColumns<OutlineExpectedPublication>[] = [
+    {
+      title: tieuDeWrap('STT'),
+      width: 40,
+      render: (_, __, i) => i + 1,
+    },
+    {
+      title: tieuDeWrap('Phạm vi'),
+      dataIndex: 'category',
+      width: 64,
+      onHeaderCell: () => ({ style: STYLE_WRAP }),
+      onCell: () => ({ style: { ...STYLE_WRAP, verticalAlign: 'top' } }),
+      render: (v) => oWrap(PHAM_VI[String(v)] || v),
+    },
+    cotVanBan('Nội dung', 'content', 100),
+    cotVanBan('SL', 'quantity', 44),
+    cotVanBan('Yêu cầu KH', 'scienceRequirement', 90),
+    { ...cotMinhChungXem({ keyOf: (r) => `pub:${r.id}` }), width: 88 },
+    ...cotDgThem({
+      keyOf: (r) => `pub:${r.id}`,
+      titleOf: (r) => r.content.trim(),
+    }),
+  ];
 
-  const cotApp: ProColumns<OutlineExpectedAppliedProduct>[] = useMemo(
-    () => [
-      {
-        title: tieuDeWrap('STT'),
-        width: 48,
-        render: (_, __, i) => i + 1,
-      },
-      cotVanBan('Tên sản phẩm', 'name'),
-      cotVanBan('Yêu cầu KH', 'scienceRequirement'),
-      cotMinhChungXem({ keyOf: (r) => `app:${r.id}` }),
-      ...cotDgThem({
-        keyOf: (r) => `app:${r.id}`,
-        titleOf: (r) => r.name.trim(),
-      }),
-    ],
-    [mcMap, dongMap, khoa],
-  );
+  const cotApp: ProColumns<OutlineExpectedAppliedProduct>[] = [
+    {
+      title: tieuDeWrap('STT'),
+      width: 40,
+      render: (_, __, i) => i + 1,
+    },
+    cotVanBan('Tên SP', 'name', 100),
+    cotVanBan('Yêu cầu KH', 'scienceRequirement', 90),
+    { ...cotMinhChungXem({ keyOf: (r) => `app:${r.id}` }), width: 88 },
+    ...cotDgThem({
+      keyOf: (r) => `app:${r.id}`,
+      titleOf: (r) => r.name.trim(),
+    }),
+  ];
 
-  const cotTan: ProColumns<OutlineExpectedTangibleProduct>[] = useMemo(
-    () => [
-      {
-        title: tieuDeWrap('STT'),
-        width: 48,
-        render: (_, __, i) => i + 1,
-      },
-      cotVanBan('Tên SP & chỉ tiêu CL', 'name'),
-      cotVanBan('ĐVT', 'unit', 56),
-      cotVanBan('Mức CL', 'qualityRequired'),
-      cotVanBan('Mẫu TN', 'qualitySampleDomestic'),
-      cotVanBan('Mẫu TG', 'qualitySampleWorld'),
-      cotVanBan('SL/quy mô', 'quantityScale', 72),
-      cotMinhChungXem({ keyOf: (r) => `tan:${r.id}` }),
-      ...cotDgThem({
-        keyOf: (r) => `tan:${r.id}`,
-        titleOf: (r) => r.name.trim(),
-      }),
-    ],
-    [mcMap, dongMap, khoa],
-  );
+  const cotTan: ProColumns<OutlineExpectedTangibleProduct>[] = [
+    {
+      title: tieuDeWrap('STT'),
+      width: 40,
+      render: (_, __, i) => i + 1,
+    },
+    cotVanBan('Tên SP', 'name', 100),
+    cotVanBan('ĐVT', 'unit', 44),
+    cotVanBan('Mức CL', 'qualityRequired', 72),
+    cotVanBan('Mẫu TN', 'qualitySampleDomestic', 72),
+    cotVanBan('Mẫu TG', 'qualitySampleWorld', 72),
+    cotVanBan('SL', 'quantityScale', 52),
+    { ...cotMinhChungXem({ keyOf: (r) => `tan:${r.id}` }), width: 88 },
+    ...cotDgThem({
+      keyOf: (r) => `tan:${r.id}`,
+      titleOf: (r) => r.name.trim(),
+    }),
+  ];
 
-  const cotIp: ProColumns<OutlineExpectedIpProduct>[] = useMemo(
-    () => [
-      {
-        title: tieuDeWrap('STT'),
-        width: 48,
-        render: (_, __, i) => i + 1,
-      },
-      cotVanBan('Tên sản phẩm', 'name'),
-      cotVanBan('Yêu cầu KH', 'scienceRequirement'),
-      cotMinhChungXem({ keyOf: (r) => `ip:${r.id}` }),
-      ...cotDgThem({
-        keyOf: (r) => `ip:${r.id}`,
-        titleOf: (r) => r.name.trim(),
-      }),
-    ],
-    [mcMap, dongMap, khoa],
-  );
+  const cotIp: ProColumns<OutlineExpectedIpProduct>[] = [
+    {
+      title: tieuDeWrap('STT'),
+      width: 40,
+      render: (_, __, i) => i + 1,
+    },
+    cotVanBan('Tên SP', 'name', 100),
+    cotVanBan('Yêu cầu KH', 'scienceRequirement', 90),
+    { ...cotMinhChungXem({ keyOf: (r) => `ip:${r.id}` }), width: 88 },
+    ...cotDgThem({
+      keyOf: (r) => `ip:${r.id}`,
+      titleOf: (r) => r.name.trim(),
+    }),
+  ];
 
-  const cotTrn: ProColumns<OutlineExpectedTraining>[] = useMemo(
-    () => [
-      {
-        title: tieuDeWrap('STT'),
-        width: 48,
-        render: (_, __, i) => i + 1,
-      },
-      cotVanBan('Cấp ĐT', 'level'),
-      cotVanBan('SL', 'quantity', 56),
-      cotVanBan('Chuyên ngành', 'major'),
-      cotMinhChungXem({ keyOf: (r) => `trn:${r.id}` }),
-      ...cotDgThem({
-        keyOf: (r) => `trn:${r.id}`,
-        titleOf: (r) =>
-          [r.level?.trim(), r.major?.trim(), r.quantity?.trim()]
-            .filter(Boolean)
-            .join(' — '),
-      }),
-    ],
-    [mcMap, dongMap, khoa],
-  );
+  const cotTrn: ProColumns<OutlineExpectedTraining>[] = [
+    {
+      title: tieuDeWrap('STT'),
+      width: 40,
+      render: (_, __, i) => i + 1,
+    },
+    cotVanBan('Cấp ĐT', 'level', 72),
+    cotVanBan('SL', 'quantity', 44),
+    cotVanBan('Chuyên ngành', 'major', 100),
+    { ...cotMinhChungXem({ keyOf: (r) => `trn:${r.id}` }), width: 88 },
+    ...cotDgThem({
+      keyOf: (r) => `trn:${r.id}`,
+      titleOf: (r) =>
+        [r.level?.trim(), r.major?.trim(), r.quantity?.trim()]
+          .filter(Boolean)
+          .join(' — '),
+    }),
+  ];
 
   const panelStyle = (border: string, bg: string) => ({
     marginBottom: 12,
@@ -701,18 +764,14 @@ export function FormDanhGiaThanhVienHd({
               <RadioDatKd
                 value={bcKetQua}
                 disabled={khoa}
-                onChange={setBcKetQua}
+                lyDo={bcGhiChu}
+                onChange={(v) => {
+                  setBcKetQua(v);
+                  if (v === 'DAT') setBcGhiChu('');
+                }}
+                onLyDoChange={setBcGhiChu}
               />
             </div>
-            {(bcKetQua === 'KHONG_DAT' || bcGhiChu) && (
-              <TextArea
-                rows={3}
-                disabled={khoa || bcKetQua !== 'KHONG_DAT'}
-                placeholder="Không đạt — ghi chú cần chỉnh sửa gì"
-                value={bcGhiChu}
-                onChange={(e) => setBcGhiChu(e.target.value)}
-              />
-            )}
           </Space>
         </Card>
 

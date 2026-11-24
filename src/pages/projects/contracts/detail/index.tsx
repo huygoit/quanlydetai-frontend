@@ -1,6 +1,7 @@
 /**
- * Chi tiết hợp đồng — hub Module 5–6:
- * Triển khai (tạm ứng / tiến độ / ĐC / mua sắm) + Nghiệm thu US-06-01…06.
+ * Chi tiết hợp đồng — Module 5:
+ * Hợp đồng → tạm ứng / tiến độ / ĐC / mua sắm → Hồ sơ đề nghị ĐGKQNV (tab cuối).
+ * Nghiệm thu / thanh lý chuyển sang menu «Nghiệm thu, thanh lý nhiệm vụ».
  */
 import { NHAN_TRIEN_KHAI } from '@/constants/module56';
 import {
@@ -10,7 +11,6 @@ import {
   type ProjectContractStatus,
 } from '@/services/api/projectContracts';
 import { getOutline, type ProjectOutline } from '@/services/api/projectOutlines';
-import { TabCuoiKy, type PhanCuoiKy } from '@/pages/projects/execution/TabCuoiKy';
 import { TabDieuChinh } from '@/pages/projects/execution/TabDieuChinh';
 import { TabMuaSam } from '@/pages/projects/execution/TabMuaSam';
 import { TabPhieuChi } from '@/pages/projects/execution/TabPhieuChi';
@@ -25,17 +25,11 @@ import {
   useParams,
 } from '@umijs/max';
 import {
-  AuditOutlined,
-  BankOutlined,
-  FileDoneOutlined,
   FileProtectOutlined,
   FileSearchOutlined,
   FileTextOutlined,
-  FormOutlined,
   ScheduleOutlined,
   ShoppingCartOutlined,
-  SolutionOutlined,
-  TeamOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
 import { Alert, Space, Spin, Tabs, Tag, Tooltip, message } from 'antd';
@@ -62,22 +56,25 @@ function nhanTab(icon: React.ReactNode, text: string, khoa?: string) {
   return noi;
 }
 
-/** Tab URL — Module 5 + US-06-01…06 */
+/** Tab URL — chỉ đến Hồ sơ đề nghị ĐGKQNV */
 const TAB_KEYS = [
   'hopdong',
   'tamung',
   'tiendo',
   'dieuchinh',
   'muasam',
-  'denghi', // Hồ sơ đề nghị đánh giá KQNV (BM-05.01)
-  'nghiemthu', // US-06-01
-  'hoidong', // US-06-02
-  'danhgia', // US-06-03 biên bản
-  'giaitrinh', // US-06-04
-  'quyettoan', // US-06-05
-  'thanhly', // US-06-06
+  'denghi',
 ] as const;
 type TabKey = (typeof TAB_KEYS)[number];
+
+/** Tab cũ thuộc nghiệm thu → chuyển sang menu mới */
+const TAB_NT_CU = [
+  'hoidong',
+  'danhgia',
+  'giaitrinh',
+  'quyettoan',
+  'thanhly',
+] as const;
 
 function tabTuUrl(search: string): TabKey {
   const tab = new URLSearchParams(search).get('tab') || '';
@@ -109,36 +106,6 @@ function TabKhoa({
   );
 }
 
-function moHoiDong(st?: string | null) {
-  return [
-    'DGCK_HOP_HD',
-    'DGCK_CHINH_SUA',
-    'DGCK_CHO_QUYET_TOAN',
-    'DGCK_CHO_THANH_LY',
-    'HOAN_THANH',
-    'DGCK_KHONG_DAT',
-    'DGCK_DINH_CHI',
-  ].includes(String(st || ''));
-}
-
-function moDanhGia(st?: string | null) {
-  return moHoiDong(st);
-}
-
-function moGiaiTrinh(st?: string | null) {
-  return ['DGCK_CHINH_SUA', 'DGCK_KHONG_DAT'].includes(String(st || ''));
-}
-
-function moQuyetToan(st?: string | null) {
-  return ['DGCK_CHO_QUYET_TOAN', 'DGCK_CHO_THANH_LY', 'HOAN_THANH'].includes(
-    String(st || ''),
-  );
-}
-
-function moThanhLy(st?: string | null) {
-  return ['DGCK_CHO_THANH_LY', 'HOAN_THANH'].includes(String(st || ''));
-}
-
 const ProjectContractDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const contractId = Number(id);
@@ -159,8 +126,22 @@ const ProjectContractDetailPage: React.FC = () => {
   const [epTrangThaiHd, setEpTrangThaiHd] = useState(false);
 
   useEffect(() => {
+    const raw = new URLSearchParams(search).get('tab') || '';
+    // Link cũ tab nghiệm thu / HĐ… → menu Nghiệm thu, thanh lý
+    if (raw === 'nghiemthu' && idHopLe) {
+      history.replace(
+        `/projects/nghiem-thu-thanh-ly/${contractId}?tab=denghi`,
+      );
+      return;
+    }
+    if ((TAB_NT_CU as readonly string[]).includes(raw) && idHopLe) {
+      history.replace(
+        `/projects/nghiem-thu-thanh-ly/${contractId}?tab=${raw}`,
+      );
+      return;
+    }
     setTab(tabTuUrl(search));
-  }, [search]);
+  }, [search, contractId, idHopLe]);
 
   const doiTab = (key: string) => {
     const k = (TAB_KEYS as readonly string[]).includes(key)
@@ -250,26 +231,6 @@ const ProjectContractDetailPage: React.FC = () => {
       : undefined;
   // URL/tab đang trỏ tiến độ nhưng bị khóa → hiện tab hợp đồng
   const tabHien: TabKey = tab === 'tiendo' && khoaTienDo ? 'hopdong' : tab;
-  const sanPham = (outline?.expectedProducts || []).map((p) => p.name);
-  const ketThuc = outline?.endDate;
-
-  const refreshCuoiKy = (t: string) => {
-    if (t) message.success(t);
-    if (outlineId) void taiOutline(outlineId);
-  };
-
-  const panelCuoi = (phan: PhanCuoiKy) =>
-    outlineId > 0 ? (
-      <TabCuoiKy
-        outlineId={outlineId}
-        vaiTro={vaiTro}
-        sanPham={sanPham}
-        ketThuc={ketThuc}
-        phan={phan}
-        onXong={refreshCuoiKy}
-        onDaMoLai={() => void taiOutline(outlineId)}
-      />
-    ) : null;
 
   return (
     <PageContainer
@@ -416,7 +377,7 @@ const ProjectContractDetailPage: React.FC = () => {
                   <TabKhoa
                     mo={daMoTrienKhai}
                     tieuDe="Mở sau khi hợp đồng đã ký"
-                    moTa="CNNV chuẩn bị đơn BM-05.01, báo cáo BM-05.02 và minh chứng kết quả dự kiến bất cứ lúc nào."
+                    moTa="CNNV chuẩn bị đơn BM-05.01, báo cáo BM-05.02 và minh chứng. Sau khi nộp, tiếp tục tại menu «Nghiệm thu, thanh lý nhiệm vụ»."
                   >
                     {outlineId > 0 ? (
                       <TabHoSoDeNghiKQNV
@@ -433,84 +394,6 @@ const ProjectContractDetailPage: React.FC = () => {
                         }}
                       />
                     ) : null}
-                  </TabKhoa>
-                ),
-              },
-              {
-                key: 'nghiemthu',
-                label: nhanTab(<SolutionOutlined />, 'Hồ sơ nghiệm thu'),
-                children: (
-                  <TabKhoa
-                    mo={daMoTrienKhai}
-                    tieuDe="Mở sau khi hợp đồng đã ký"
-                    moTa="US-06-01: CNNV chuẩn bị / nộp BM.10/BM.11 bất cứ lúc nào (có thể trước hạn kết thúc)."
-                  >
-                    {panelCuoi('hoso')}
-                  </TabKhoa>
-                ),
-              },
-              {
-                key: 'hoidong',
-                label: nhanTab(<TeamOutlined />, 'Hội đồng đánh giá'),
-                children: (
-                  <TabKhoa
-                    mo={daMoTrienKhai && moHoiDong(stTrienKhai)}
-                    tieuDe="Chưa tới bước hội đồng"
-                    moTa="US-06-02: mở sau khi PKH duyệt hồ sơ nghiệm thu và chuyển họp hội đồng."
-                  >
-                    {panelCuoi('hoidong')}
-                  </TabKhoa>
-                ),
-              },
-              {
-                key: 'danhgia',
-                label: nhanTab(<AuditOutlined />, 'Biên bản đánh giá'),
-                children: (
-                  <TabKhoa
-                    mo={daMoTrienKhai && moDanhGia(stTrienKhai)}
-                    tieuDe="Chưa tới bước đánh giá kết quả"
-                    moTa="US-06-03: lập / xem biên bản BM.12b và xếp loại sau khi có hội đồng."
-                  >
-                    {panelCuoi('danhgia')}
-                  </TabKhoa>
-                ),
-              },
-              {
-                key: 'giaitrinh',
-                label: nhanTab(<FormOutlined />, 'Hồ sơ giải trình'),
-                children: (
-                  <TabKhoa
-                    mo={daMoTrienKhai && moGiaiTrinh(stTrienKhai)}
-                    tieuDe="Chưa cần giải trình"
-                    moTa="US-06-04: chỉ mở khi xếp loại cần bổ sung / chỉnh sửa. CNNV nộp → Thư ký → Chủ tịch xác nhận."
-                  >
-                    {panelCuoi('giaitrinh')}
-                  </TabKhoa>
-                ),
-              },
-              {
-                key: 'quyettoan',
-                label: nhanTab(<BankOutlined />, 'Quyết toán'),
-                children: (
-                  <TabKhoa
-                    mo={daMoTrienKhai && moQuyetToan(stTrienKhai)}
-                    tieuDe="Chưa mở quyết toán"
-                    moTa="US-06-05: mở khi đánh giá đạt, hoặc sau khi Chủ tịch & Thư ký xác nhận giải trình."
-                  >
-                    {panelCuoi('quyettoan')}
-                  </TabKhoa>
-                ),
-              },
-              {
-                key: 'thanhly',
-                label: nhanTab(<FileDoneOutlined />, 'Thanh lý hợp đồng'),
-                children: (
-                  <TabKhoa
-                    mo={daMoTrienKhai && moThanhLy(stTrienKhai)}
-                    tieuDe="Chưa mở thanh lý"
-                    moTa="US-06-06 (BM.14): mở sau khi quyết toán hoàn tất."
-                  >
-                    {panelCuoi('thanhly')}
                   </TabKhoa>
                 ),
               },
@@ -531,7 +414,9 @@ const ProjectContractDetailPage: React.FC = () => {
               onDone={() => {
                 setEpTrangThaiHd(false);
                 void taiOutline(outlineId);
-                doiTab('hoidong');
+                history.push(
+                  `/projects/nghiem-thu-thanh-ly/${contractId}?tab=hoidong`,
+                );
               }}
             />
           )}

@@ -66,7 +66,9 @@ export function ModalThanhLapHoiDongDgck({
   const sanSang =
     executionStatus === 'DGCK_HOP_HD' ||
     executionStatus === 'DGCK_CHINH_SUA' ||
-    executionStatus === 'DGCK_CHO_QUYET_TOAN';
+    executionStatus === 'NT_CHINH_SUA' ||
+    executionStatus === 'DGCK_CHO_QUYET_TOAN' ||
+    executionStatus === 'NT_CHO_QUYETTOAN';
 
   useEffect(() => {
     if (!open) return;
