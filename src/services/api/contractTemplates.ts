@@ -189,9 +189,22 @@ export async function downloadContractTemplate(id: number, fileName: string): Pr
   });
   if (!res.ok) {
     const json = await res.json().catch(() => null);
-    throw new Error(json?.message || 'Tải file thất bại');
+    throw new Error(
+      json?.message || `Tải file thất bại (${res.status})`,
+    );
   }
   const blob = await res.blob();
+  // Tránh lưu nhầm JSON lỗi thành .docx
+  if (blob.type && blob.type.includes('application/json')) {
+    const text = await blob.text();
+    let msg = 'Tải file thất bại';
+    try {
+      msg = JSON.parse(text)?.message || msg;
+    } catch {
+      /* bỏ qua */
+    }
+    throw new Error(msg);
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
